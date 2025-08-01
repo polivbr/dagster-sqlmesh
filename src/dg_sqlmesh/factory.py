@@ -118,6 +118,7 @@ def sqlmesh_definitions_factory(
     *,
     project_dir: str = "sqlmesh_project",
     gateway: str = "postgres",
+    environment: str = "prod",
     concurrency_limit: int = 1,
     ignore_cron: bool = False,
     translator: Optional[SQLMeshTranslator] = None,
@@ -157,6 +158,7 @@ def sqlmesh_definitions_factory(
     sqlmesh_resource = SQLMeshResource(
         project_dir=project_dir,
         gateway=gateway,
+        environment=environment,
         translator=translator,
         concurrency_limit=concurrency_limit,
         ignore_cron=ignore_cron

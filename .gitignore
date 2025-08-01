@@ -176,3 +176,4 @@ htmlcov/
 *.db
 *.duckdb
 tests/sqlmesh_project/*.db
+jaffle_test.db.wal

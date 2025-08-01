@@ -70,6 +70,7 @@ class SQLMeshResource(ConfigurableResource):
     
     project_dir: str
     gateway: str = "postgres"
+    environment: str = "prod"
     concurrency_limit: int = 1
     ignore_cron: bool = False
     
@@ -212,6 +213,7 @@ class SQLMeshResource(ConfigurableResource):
                 no_prompts=True
             )
             self.context.run(
+                environment=self.environment,
                 ignore_cron=self.ignore_cron,
                 select_models=model_names,
                 execution_time=datetime.datetime.now(),

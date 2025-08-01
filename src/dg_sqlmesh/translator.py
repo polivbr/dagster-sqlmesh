@@ -87,6 +87,10 @@ class SQLMeshTranslator:
         """Generates table metadata for a model."""
         columns_to_types = getattr(model, "columns_to_types", {})
         
+        # Handle case where columns_to_types is None
+        if columns_to_types is None:
+            columns_to_types = {}
+        
         # Get column descriptions
         column_descriptions = getattr(model, "column_descriptions", {})
         

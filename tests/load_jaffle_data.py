@@ -26,13 +26,18 @@ def load_csv_to_duckdb(csv_path: str, table_name: str, db_path: str = "tests/sql
     # Connect to DuckDB
     con = duckdb.connect(db_path)
     
-    # Create table from DataFrame
-    con.execute(f"DROP TABLE IF EXISTS {table_name}")
-    con.execute(f"CREATE TABLE {table_name} AS SELECT * FROM df")
+    # Create schema if it doesn't exist
+    con.execute("CREATE SCHEMA IF NOT EXISTS main")
+    
+    # Create table from DataFrame in the main schema
+    # SQLMesh expects tables in the main schema within the jaffle_test catalog
+    full_table_name = f"main.{table_name}"
+    con.execute(f"DROP TABLE IF EXISTS {full_table_name}")
+    con.execute(f"CREATE TABLE {full_table_name} AS SELECT * FROM df")
     
     # Get row count
-    count = con.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
-    print(f"✅ Loaded {count} rows into {table_name}")
+    count = con.execute(f"SELECT COUNT(*) FROM {full_table_name}").fetchone()[0]
+    print(f"✅ Loaded {count} rows into {full_table_name}")
     
     con.close()
 
@@ -50,7 +55,7 @@ def main():
         "tests/jaffle-data/raw_source_tweets.csv": "raw_source_tweets",
     }
     
-    # Database path
+    # Database path - use the same name as in SQLMesh config
     db_path = "tests/sqlmesh_project/jaffle_test.db"
     
     # Remove existing database file if it exists
@@ -75,12 +80,13 @@ def main():
     # Show sample data from each table
     for table_name in csv_to_table_mapping.values():
         try:
-            sample = con.execute(f"SELECT * FROM {table_name} LIMIT 3").fetchall()
-            print(f"\n📋 Sample from {table_name}:")
+            full_table_name = f"main.{table_name}"
+            sample = con.execute(f"SELECT * FROM {full_table_name} LIMIT 3").fetchall()
+            print(f"\n📋 Sample from {full_table_name}:")
             for row in sample:
                 print(f"  {row}")
         except Exception as e:
-            print(f"⚠️ Could not read from {table_name}: {e}")
+            print(f"⚠️ Could not read from {full_table_name}: {e}")
     
     con.close()
     print(f"\n✅ Data loading complete! Database: {db_path}")
