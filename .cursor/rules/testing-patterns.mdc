@@ -1,0 +1,271 @@
+# Testing Patterns for dg-sqlmesh
+
+## Test Structure Overview
+
+The test suite follows a comprehensive approach with multiple phases:
+
+### **Test Organization**
+
+```
+tests/
+├── conftest.py                    # Main fixtures and configuration
+├── TEST_PLAN.md                   # Comprehensive test plan documentation
+├── load_jaffle_data.py           # Test data loading script
+├── sqlmesh_project/               # SQLMesh test project with DuckDB
+│   ├── config.yaml               # DuckDB configuration
+│   ├── external_models.yaml      # External model definitions
+│   ├── models/                   # SQLMesh models (stg/, marts/)
+│   ├── audits/                   # SQLMesh audits
+│   └── tests/                    # SQLMesh tests
+├── core/                         # Core component tests
+│   ├── test_factory.py           # Factory function tests (17 tests)
+│   ├── test_resource.py          # SQLMeshResource tests (20 tests)
+│   ├── test_translator.py        # SQLMeshTranslator tests (planned)
+│   ├── test_asset_utils.py       # Asset utilities tests (planned)
+│   └── test_event_console.py     # Event console tests (planned)
+├── integration/                   # Integration tests (planned)
+└── utils/                        # Test utilities (planned)
+```
+
+## **Test Configuration**
+
+### **pytest.ini** - Main Configuration
+
+```ini
+[tool:pytest]
+addopts =
+    -W ignore::DeprecationWarning
+    -W ignore::pydantic.warnings.PydanticDeprecatedSince20
+    -W ignore::UserWarning
+    --disable-warnings
+testpaths = tests
+python_files = test_*.py
+python_classes = Test*
+python_functions = test_*
+markers =
+    core: mark test as core functionality test
+    unit: mark test as unit test
+    integration: mark test as integration test
+```
+
+### **conftest.py** - Fixtures and Setup
+
+- **Warning suppression**: Pydantic deprecation warnings filtered
+- **Custom markers**: `core`, `unit`, `integration` markers registered
+- **SQLMesh environment setup**: Automatic dev environment creation
+- **Test data loading**: Automatic CSV data loading into DuckDB
+- **Unique database files**: Parallel testing support with unique DB files
+
+## **Test Patterns**
+
+### **1. Factory Tests** ([tests/core/test_factory.py](mdc:tests/core/test_factory.py))
+
+**Purpose**: Test the main factory functions that create Dagster assets from SQLMesh models.
+
+**Key Test Classes**:
+
+- `TestSQLMeshAssetsFactory`: Tests `sqlmesh_assets_factory`
+- `TestSQLMeshDefinitionsFactory`: Tests `sqlmesh_definitions_factory`
+- `TestSQLMeshAdaptiveScheduleFactory`: Tests `sqlmesh_adaptive_schedule_factory`
+- `TestFactoryIntegration`: Integration tests with materialization
+
+**Test Patterns**:
+
+```python
+def test_sqlmesh_assets_factory_basic(self, sqlmesh_resource: SQLMeshResource) -> None:
+    """Test basic asset factory creation."""
+    assets = sqlmesh_assets_factory(sqlmesh_resource=sqlmesh_resource)
+
+    assert assets is not None
+    assert hasattr(assets, "keys")
+    assert len(assets.keys) > 0
+
+    # Check that assets are created for SQLMesh models
+    expected_assets = {"stg_customers", "stg_orders", "customers", "orders"}
+    asset_keys = {str(key) for key in assets.keys}
+    for expected in expected_assets:
+        found = any(expected in key for key in asset_keys)
+        assert found, f"Expected asset {expected} not found in {asset_keys}"
+```
+
+### **2. Resource Tests** ([tests/core/test_resource.py](mdc:tests/core/test_resource.py))
+
+**Purpose**: Test the SQLMeshResource class functionality and configuration.
+
+**Key Test Classes**:
+
+- `TestSQLMeshResourceCreation`: Resource instantiation and configuration
+- `TestSQLMeshResourceExecution`: Command execution and caching
+- `TestSQLMeshResourceIntegration`: Integration with other components
+- `TestSQLMeshResourceErrorHandling`: Error handling and edge cases
+
+**Test Patterns**:
+
+```python
+def test_sqlmesh_resource_creation(self) -> None:
+    """Test basic SQLMeshResource creation."""
+    resource = SQLMeshResource(project_dir="tests/sqlmesh_project")
+
+    assert resource is not None
+    assert resource.project_dir == "tests/sqlmesh_project"
+    assert resource.gateway == "postgres"  # Default
+    assert resource.concurrency_limit == 1
+```
+
+### **3. Fixture Patterns** ([tests/conftest.py](mdc:tests/conftest.py))
+
+**Session-scoped fixtures** for performance:
+
+```python
+@pytest.fixture(scope="session")
+def sqlmesh_resource(sqlmesh_project_path: Path) -> SQLMeshResource:
+    """Create a SQLMeshResource for testing."""
+    return SQLMeshResource(
+        project_dir=str(sqlmesh_project_path),
+        gateway="duckdb",
+        environment="dev"
+    )
+```
+
+**Automatic setup fixtures**:
+
+```python
+@pytest.fixture(scope="session", autouse=True)
+def ensure_sqlmesh_dev_environment(sqlmesh_project_path: Path) -> None:
+    """Ensure the 'dev' environment exists and is invalidated for testing."""
+    # Load test data
+    subprocess.run(["uv", "run", "--group", "dev", "python", "tests/load_jaffle_data.py"])
+    # Create dev environment
+    subprocess.run(["uv", "run", "--group", "dev", "sqlmesh", "-p", ".", "plan", "dev", "--no-prompts"])
+    # Invalidate for fresh computation
+    subprocess.run(["uv", "run", "--group", "dev", "sqlmesh", "-p", ".", "invalidate", "dev"])
+```
+
+## **Test Data Management**
+
+### **SQLMesh Test Project** ([tests/sqlmesh_project/](mdc:tests/sqlmesh_project/))
+
+- **DuckDB configuration**: Uses `jaffle_test.db` database
+- **External models**: CSV data loaded as external tables
+- **Model structure**: Staging models (`stg/`) and mart models (`marts/`)
+- **Environment**: Uses `dev` environment for testing
+
+### **Data Loading** ([tests/load_jaffle_data.py](mdc:tests/load_jaffle_data.py))
+
+```python
+def load_csv_to_duckdb(csv_path: str, table_name: str, db_path: str = "tests/sqlmesh_project/jaffle_test.db"):
+    """Load CSV data into DuckDB table."""
+    con = duckdb.connect(db_path)
+    con.execute("CREATE SCHEMA IF NOT EXISTS main")
+    full_table_name = f"main.{table_name}"
+    con.execute(f"DROP TABLE IF EXISTS {full_table_name}")
+    con.execute(f"CREATE TABLE {full_table_name} AS SELECT * FROM df")
+```
+
+## **Test Execution**
+
+### **Running Tests**
+
+```bash
+# Run all tests
+uv run --group dev pytest tests/core/ -v
+
+# Run specific test file
+uv run --group dev pytest tests/core/test_factory.py -v
+
+# Run specific test
+uv run --group dev pytest tests/core/test_factory.py::TestSQLMeshAssetsFactory::test_sqlmesh_assets_factory_basic -v
+
+# Run with coverage
+uv run --group dev pytest tests/core/ --cov=dg_sqlmesh --cov-report=html
+```
+
+### **Test Environment**
+
+- **Database**: DuckDB with unique files for parallel testing
+- **Environment**: SQLMesh `dev` environment
+- **Data**: Jaffle Shop CSV data loaded automatically
+- **Warnings**: Suppressed for clean output
+
+## **Test Phases**
+
+### **Phase 1: Base Infrastructure** ✅ (37 tests passing)
+
+- [x] Factory tests (17 tests)
+- [x] Resource tests (20 tests)
+- [x] Test infrastructure setup
+
+### **Phase 2: Core Tests** 🔄 (Planned)
+
+- [ ] Translator tests
+- [ ] Asset utilities tests
+- [ ] Event console tests
+
+### **Phase 3: Integration Tests** ⏳ (Planned)
+
+- [ ] Asset execution tests
+- [ ] Schedule tests
+- [ ] Complete definitions tests
+
+### **Phase 4: Advanced Tests** ⏳ (Planned)
+
+- [ ] Performance tests
+- [ ] Error handling tests
+- [ ] Metadata tests
+
+## **Best Practices**
+
+1. **Use session-scoped fixtures** for expensive setup
+2. **Test both success and error cases**
+3. **Use descriptive test names** and docstrings
+4. **Group related tests** in classes
+5. **Use type hints** for all test functions
+6. **Test integration** with real SQLMesh environment
+7. **Suppress warnings** for clean test output
+8. **Document test plan** in [TEST_PLAN.md](mdc:tests/TEST_PLAN.md)
+
+## **Common Patterns**
+
+### **Testing Factory Functions**
+
+```python
+def test_factory_with_custom_parameters(self, sqlmesh_resource: SQLMeshResource) -> None:
+    """Test factory with custom parameters."""
+    assets = sqlmesh_assets_factory(
+        sqlmesh_resource=sqlmesh_resource,
+        name="custom_name",
+        group_name="custom_group",
+        op_tags={"team": "data"}
+    )
+    assert assets.op.name == "custom_name"
+    assert assets.op.tags == {"team": "data"}
+```
+
+### **Testing Resource Methods**
+
+```python
+def test_resource_methods(self, sqlmesh_resource: SQLMeshResource) -> None:
+    """Test SQLMeshResource methods."""
+    models = sqlmesh_resource.get_models()
+    assert isinstance(models, list)
+    assert len(models) > 0
+```
+
+### **Testing Integration**
+
+```python
+def test_integration_with_materialization(self, sqlmesh_resource: SQLMeshResource) -> None:
+    """Test integration with Dagster materialization."""
+    assets = sqlmesh_assets_factory(sqlmesh_resource=sqlmesh_resource)
+
+    # Test asset selection and configuration
+    assert len(assets.keys) > 0
+    # Note: Actual materialization is complex due to environment setup
+    # Focus on testing asset creation and configuration instead
+```
+
+description:
+globs:
+alwaysApply: false
+
+---

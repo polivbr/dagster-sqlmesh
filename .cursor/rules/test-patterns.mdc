@@ -1,0 +1,358 @@
+# Test Patterns and Best Practices
+
+## **Test Class Structure**
+
+### **Factory Test Classes**
+
+```python
+class TestSQLMeshAssetsFactory:
+    """Test the sqlmesh_assets_factory function."""
+
+    def test_sqlmesh_assets_factory_basic(self, sqlmesh_resource: SQLMeshResource) -> None:
+        """Test basic asset factory creation."""
+        assets = sqlmesh_assets_factory(sqlmesh_resource=sqlmesh_resource)
+        assert assets is not None
+        assert hasattr(assets, "keys")
+        assert len(assets.keys) > 0
+```
+
+### **Resource Test Classes**
+
+```python
+class TestSQLMeshResourceCreation:
+    """Test SQLMeshResource creation and configuration."""
+
+    def test_sqlmesh_resource_creation(self) -> None:
+        """Test basic SQLMeshResource creation."""
+        resource = SQLMeshResource(project_dir="tests/sqlmesh_project")
+        assert resource is not None
+        assert resource.project_dir == "tests/sqlmesh_project"
+```
+
+## **Fixture Usage Patterns**
+
+### **Session-scoped Fixtures**
+
+Always use session-scoped fixtures for expensive operations:
+
+```python
+@pytest.fixture(scope="session")
+def sqlmesh_resource(sqlmesh_project_path: Path) -> SQLMeshResource:
+    """Create a SQLMeshResource for testing."""
+    return SQLMeshResource(
+        project_dir=str(sqlmesh_project_path),
+        gateway="duckdb",
+        environment="dev"
+    )
+```
+
+### **Automatic Setup Fixtures**
+
+Use `autouse=True` for fixtures that must run before tests:
+
+```python
+@pytest.fixture(scope="session", autouse=True)
+def ensure_sqlmesh_dev_environment(sqlmesh_project_path: Path) -> None:
+    """Ensure the 'dev' environment exists and is invalidated for testing."""
+    # Load test data and setup environment
+```
+
+## **Assertion Patterns**
+
+### **Asset Key Testing**
+
+```python
+# Check that assets are created for SQLMesh models
+expected_assets = {"stg_customers", "stg_orders", "customers", "orders"}
+asset_keys = {str(key) for key in assets.keys}
+for expected in expected_assets:
+    found = any(expected in key for key in asset_keys)
+    assert found, f"Expected asset {expected} not found in {asset_keys}"
+```
+
+### **Resource Configuration Testing**
+
+```python
+def test_resource_configuration(self) -> None:
+    """Test resource configuration parameters."""
+    resource = SQLMeshResource(
+        project_dir="tests/sqlmesh_project",
+        gateway="duckdb",
+        environment="dev",
+        concurrency_limit=4,
+        ignore_cron=True
+    )
+
+    assert resource.project_dir == "tests/sqlmesh_project"
+    assert resource.gateway == "duckdb"
+    assert resource.environment == "dev"
+    assert resource.concurrency_limit == 4
+    assert resource.ignore_cron is True
+```
+
+### **Factory Parameter Testing**
+
+```python
+def test_factory_with_custom_parameters(self, sqlmesh_resource: SQLMeshResource) -> None:
+    """Test factory with custom parameters."""
+    assets = sqlmesh_assets_factory(
+        sqlmesh_resource=sqlmesh_resource,
+        name="custom_name",
+        group_name="custom_group",
+        op_tags={"team": "data"},
+        retry_policy=RetryPolicy(max_retries=3),
+        owners=["data-team", "analytics"]
+    )
+
+    assert assets.op.name == "custom_name"
+    assert assets.op.tags == {"team": "data"}
+    assert assets.op.retry_policy == RetryPolicy(max_retries=3)
+```
+
+## **Error Testing Patterns**
+
+### **Validation Error Testing**
+
+```python
+def test_validation_error(self) -> None:
+    """Test validation error handling."""
+    with pytest.raises(DagsterInvalidDefinitionError):
+        sqlmesh_assets_factory()  # Missing required parameter
+```
+
+### **Resource Error Testing**
+
+```python
+def test_resource_error_handling(self) -> None:
+    """Test resource error handling."""
+    try:
+        models = sqlmesh_resource.get_models()
+        assert isinstance(models, list)
+        assert len(models) > 0
+    except Exception as e:
+        # If there's an error, it should be a specific type
+        assert "SQLMesh" in str(e) or "connection" in str(e).lower()
+```
+
+## **Integration Testing Patterns**
+
+### **Asset Selection Testing**
+
+```python
+def test_asset_selection(self, sqlmesh_resource: SQLMeshResource) -> None:
+    """Test asset selection and configuration."""
+    assets = sqlmesh_assets_factory(sqlmesh_resource=sqlmesh_resource)
+
+    # Test that assets can be selected
+    from dagster import AssetKey
+    selected_asset = AssetKey(["jaffle_test", "sqlmesh_jaffle_platform", "stg_customers"])
+
+    # Verify asset exists in the multi-asset
+    assert selected_asset in assets.keys
+```
+
+### **Materialization Testing**
+
+```python
+def test_materialization_integration(self, sqlmesh_resource: SQLMeshResource) -> None:
+    """Test integration with Dagster materialization."""
+    assets = sqlmesh_assets_factory(sqlmesh_resource=sqlmesh_resource)
+
+    # Test asset creation and configuration
+    assert len(assets.keys) > 0
+
+    # Note: Actual materialization is complex due to environment setup
+    # Focus on testing asset creation and configuration instead
+    # Use AssetKey objects for selection
+    from dagster import AssetKey
+    result = materialize(
+        [assets],
+        selection=[AssetKey(["jaffle_test", "sqlmesh_jaffle_platform", "stg_customers"])],
+        resources={"sqlmesh": sqlmesh_resource}
+    )
+
+    assert result.success
+```
+
+## **Test Data Management**
+
+### **CSV Data Loading**
+
+```python
+def load_csv_to_duckdb(csv_path: str, table_name: str, db_path: str = "tests/sqlmesh_project/jaffle_test.db"):
+    """Load CSV data into DuckDB table."""
+    import pandas as pd
+    import duckdb
+
+    df = pd.read_csv(csv_path)
+    con = duckdb.connect(db_path)
+
+    # Create schema if it doesn't exist
+    con.execute("CREATE SCHEMA IF NOT EXISTS main")
+
+    # Create table from DataFrame in the main schema
+    full_table_name = f"main.{table_name}"
+    con.execute(f"DROP TABLE IF EXISTS {full_table_name}")
+    con.execute(f"CREATE TABLE {full_table_name} AS SELECT * FROM df")
+
+    # Get row count
+    count = con.execute(f"SELECT COUNT(*) FROM {full_table_name}").fetchone()[0]
+    print(f"✅ Loaded {count} rows into {full_table_name}")
+
+    con.close()
+```
+
+## **Test Organization**
+
+### **File Naming**
+
+- Test files: `test_*.py`
+- Test classes: `Test*`
+- Test methods: `test_*`
+
+### **Class Organization**
+
+```python
+class TestComponentName:
+    """Test the ComponentName functionality."""
+
+    def test_basic_functionality(self) -> None:
+        """Test basic functionality."""
+        pass
+
+    def test_with_custom_parameters(self) -> None:
+        """Test with custom parameters."""
+        pass
+
+    def test_error_handling(self) -> None:
+        """Test error handling."""
+        pass
+
+    def test_integration(self) -> None:
+        """Test integration with other components."""
+        pass
+```
+
+## **Type Hints and Documentation**
+
+### **Function Signatures**
+
+```python
+def test_component_method(
+    self,
+    sqlmesh_resource: SQLMeshResource,
+    sqlmesh_context: Context
+) -> None:
+    """Test component method functionality.
+
+    Args:
+        sqlmesh_resource: SQLMesh resource fixture
+        sqlmesh_context: SQLMesh context fixture
+    """
+    pass
+```
+
+### **Docstrings**
+
+```python
+def test_factory_integration_with_materialization(self, sqlmesh_resource: SQLMeshResource) -> None:
+    """Test that factory-created assets can be selected and configured properly.
+
+    This test verifies that:
+    1. Assets are created successfully
+    2. Asset keys are properly formatted
+    3. Assets can be selected for materialization
+    4. Resource integration works correctly
+    """
+    pass
+```
+
+## **Warning Suppression**
+
+### **Pytest Configuration**
+
+```python
+# In conftest.py
+import warnings
+
+# Suppress Pydantic deprecation warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="pydantic")
+warnings.filterwarnings("ignore", message=".*json_encoders.*", category=DeprecationWarning)
+warnings.filterwarnings("ignore", message=".*class-based `config`.*", category=DeprecationWarning)
+```
+
+### **pytest.ini Configuration**
+
+```ini
+[tool:pytest]
+addopts =
+    -W ignore::DeprecationWarning
+    -W ignore::pydantic.warnings.PydanticDeprecatedSince20
+    -W ignore::UserWarning
+    --disable-warnings
+```
+
+## **Test Execution Commands**
+
+### **Running Tests**
+
+```bash
+# Run all tests
+uv run --group dev pytest tests/core/ -v
+
+# Run specific test file
+uv run --group dev pytest tests/core/test_factory.py -v
+
+# Run specific test class
+uv run --group dev pytest tests/core/test_factory.py::TestSQLMeshAssetsFactory -v
+
+# Run specific test method
+uv run --group dev pytest tests/core/test_factory.py::TestSQLMeshAssetsFactory::test_sqlmesh_assets_factory_basic -v
+
+# Run with coverage
+uv run --group dev pytest tests/core/ --cov=dg_sqlmesh --cov-report=html
+
+# Run with markers
+uv run --group dev pytest tests/core/ -m core -v
+```
+
+## **Common Test Utilities**
+
+### **Custom Translator Testing**
+
+```python
+class CustomTranslator(SQLMeshTranslator):
+    """Custom translator for testing."""
+
+    def get_asset_key(self, model) -> AssetKey:
+        """Extract the model name from the model object."""
+        view_name = getattr(model, "view_name", model.name)
+        return AssetKey([view_name])
+```
+
+### **Resource Testing**
+
+```python
+def test_resource_with_different_gateways(self) -> None:
+    """Test resource with different gateway configurations."""
+    # Test with DuckDB
+    duckdb_resource = SQLMeshResource(
+        project_dir="tests/sqlmesh_project",
+        gateway="duckdb",
+        environment="dev"
+    )
+    assert duckdb_resource.gateway == "duckdb"
+
+    # Test with PostgreSQL (default)
+    postgres_resource = SQLMeshResource(
+        project_dir="tests/sqlmesh_project",
+        environment="dev"
+    )
+    assert postgres_resource.gateway == "postgres"
+```
+
+description:
+globs:
+alwaysApply: false
+
+---

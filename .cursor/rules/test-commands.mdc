@@ -1,0 +1,295 @@
+# Test Commands and Environment Setup
+
+## **Test Execution Commands**
+
+### **Basic Test Commands**
+
+```bash
+# Run all tests
+uv run --group dev pytest tests/core/ -v
+
+# Run specific test file
+uv run --group dev pytest tests/core/test_factory.py -v
+
+# Run specific test class
+uv run --group dev pytest tests/core/test_factory.py::TestSQLMeshAssetsFactory -v
+
+# Run specific test method
+uv run --group dev pytest tests/core/test_factory.py::TestSQLMeshAssetsFactory::test_sqlmesh_assets_factory_basic -v
+
+# Run with coverage
+uv run --group dev pytest tests/core/ --cov=dg_sqlmesh --cov-report=html
+
+# Run with markers
+uv run --group dev pytest tests/core/ -m core -v
+```
+
+### **Advanced Test Commands**
+
+```bash
+# Run tests with parallel execution
+uv run --group dev pytest tests/core/ -n auto -v
+
+# Run tests with specific Python version
+uv run --group dev pytest tests/core/ --python-version 3.11 -v
+
+# Run tests with custom database
+SQLMESH_DB_PATH=custom_test.db uv run --group dev pytest tests/core/ -v
+
+# Run tests with debug output
+uv run --group dev pytest tests/core/ -v -s --tb=short
+
+# Run tests and generate coverage report
+uv run --group dev pytest tests/core/ --cov=dg_sqlmesh --cov-report=html --cov-report=term-missing
+```
+
+## **Environment Setup**
+
+### **SQLMesh Environment Setup**
+
+```bash
+# Load test data
+uv run --group dev python tests/load_jaffle_data.py
+
+# Create dev environment
+uv run --group dev sqlmesh -p tests/sqlmesh_project plan dev --no-prompts
+
+# Invalidate dev environment (force recomputation)
+uv run --group dev sqlmesh -p tests/sqlmesh_project invalidate dev
+
+# Check environment status
+uv run --group dev sqlmesh -p tests/sqlmesh_project plan dev
+```
+
+### **Database Setup**
+
+```bash
+# Check DuckDB database
+uv run --group dev python -c "import duckdb; con = duckdb.connect('tests/sqlmesh_project/jaffle_test.db'); print('Tables:'); tables = con.execute('SHOW TABLES').fetchall(); print(tables); con.close()"
+
+# Check specific table
+uv run --group dev python -c "import duckdb; con = duckdb.connect('tests/sqlmesh_project/jaffle_test.db'); print('raw_source_customers columns:'); cols = con.execute('DESCRIBE main.raw_source_customers').fetchall(); print([col[0] for col in cols]); con.close()"
+```
+
+## **Test Configuration**
+
+### **pytest.ini Configuration**
+
+```ini
+[tool:pytest]
+addopts =
+    -W ignore::DeprecationWarning
+    -W ignore::pydantic.warnings.PydanticDeprecatedSince20
+    -W ignore::UserWarning
+    --disable-warnings
+testpaths = tests
+python_files = test_*.py
+python_classes = Test*
+python_functions = test_*
+markers =
+    core: mark test as core functionality test
+    unit: mark test as unit test
+    integration: mark test as integration test
+```
+
+### **Environment Variables**
+
+```bash
+# Set test environment variables
+export SQLMESH_PYTEST_XDIST_DUCKDB_DBFILE_NAME="test_$(uuidgen | cut -c1-8)_jaffle"
+export SQLMESH_PYTEST_XDIST_DUCKDB_DBFILE_PATH="tests/sqlmesh_project/${SQLMESH_PYTEST_XDIST_DUCKDB_DBFILE_NAME}.db"
+export OPENBLAS_MAIN_FREE=1
+export GOTOBLAS_MAIN_FREE=1
+```
+
+## **Test Data Management**
+
+### **Loading Test Data**
+
+```bash
+# Load all test data
+uv run --group dev python tests/load_jaffle_data.py
+
+# Load specific CSV file
+uv run --group dev python -c "
+import pandas as pd
+import duckdb
+con = duckdb.connect('tests/sqlmesh_project/jaffle_test.db')
+con.execute('CREATE SCHEMA IF NOT EXISTS main')
+df = pd.read_csv('tests/jaffle-data/raw_source_customers.csv')
+con.execute('DROP TABLE IF EXISTS main.raw_source_customers')
+con.execute('CREATE TABLE main.raw_source_customers AS SELECT * FROM df')
+print('✅ Loaded customers data')
+con.close()
+"
+```
+
+### **Checking Test Data**
+
+```bash
+# Check data in specific table
+uv run --group dev python -c "
+import duckdb
+con = duckdb.connect('tests/sqlmesh_project/jaffle_test.db')
+count = con.execute('SELECT COUNT(*) FROM main.raw_source_customers').fetchone()[0]
+print(f'Customers table has {count} rows')
+sample = con.execute('SELECT * FROM main.raw_source_customers LIMIT 3').fetchall()
+print('Sample data:', sample)
+con.close()
+"
+```
+
+## **Debugging Tests**
+
+### **Debug Test Failures**
+
+```bash
+# Run with verbose output
+uv run --group dev pytest tests/core/test_factory.py::TestSQLMeshAssetsFactory::test_sqlmesh_assets_factory_basic -v -s
+
+# Run with debugger
+uv run --group dev pytest tests/core/test_factory.py::TestSQLMeshAssetsFactory::test_sqlmesh_assets_factory_basic -s --pdb
+
+# Run with traceback
+uv run --group dev pytest tests/core/test_factory.py::TestSQLMeshAssetsFactory::test_sqlmesh_assets_factory_basic --tb=long
+```
+
+### **Check SQLMesh Environment**
+
+```bash
+# Check SQLMesh project status
+uv run --group dev sqlmesh -p tests/sqlmesh_project plan dev
+
+# Check SQLMesh models
+uv run --group dev sqlmesh -p tests/sqlmesh_project list models
+
+# Check SQLMesh environments
+uv run --group dev sqlmesh -p tests/sqlmesh_project list environments
+```
+
+## **Performance Testing**
+
+### **Test Performance**
+
+```bash
+# Run tests with timing
+uv run --group dev pytest tests/core/ --durations=10
+
+# Run tests with memory profiling
+uv run --group dev pytest tests/core/ --profile
+
+# Run tests with parallel execution
+uv run --group dev pytest tests/core/ -n auto --dist=loadfile
+```
+
+## **Coverage Testing**
+
+### **Generate Coverage Reports**
+
+```bash
+# Generate HTML coverage report
+uv run --group dev pytest tests/core/ --cov=dg_sqlmesh --cov-report=html
+
+# Generate XML coverage report
+uv run --group dev pytest tests/core/ --cov=dg_sqlmesh --cov-report=xml
+
+# Generate term coverage report
+uv run --group dev pytest tests/core/ --cov=dg_sqlmesh --cov-report=term-missing
+```
+
+## **Continuous Integration**
+
+### **CI Test Commands**
+
+```bash
+# Install dependencies
+uv sync --group dev
+
+# Run all tests
+uv run --group dev pytest tests/core/ -v
+
+# Run with coverage
+uv run --group dev pytest tests/core/ --cov=dg_sqlmesh --cov-report=xml --cov-report=term-missing
+
+# Run linting
+uv run --group dev ruff check .
+
+# Run type checking
+uv run --group dev mypy src/
+```
+
+## **Test Utilities**
+
+### **Custom Test Scripts**
+
+```bash
+# Run specific test phase
+uv run --group dev python -c "
+import pytest
+import sys
+sys.path.insert(0, 'tests')
+from conftest import sqlmesh_resource_fixture
+from core.test_factory import TestSQLMeshAssetsFactory
+
+# Run specific test
+test = TestSQLMeshAssetsFactory()
+test.test_sqlmesh_assets_factory_basic(sqlmesh_resource_fixture())
+print('✅ Test passed')
+"
+```
+
+### **Test Data Validation**
+
+```bash
+# Validate test data integrity
+uv run --group dev python -c "
+import duckdb
+con = duckdb.connect('tests/sqlmesh_project/jaffle_test.db')
+
+# Check all tables exist
+tables = con.execute('SHOW TABLES').fetchall()
+expected_tables = ['raw_source_customers', 'raw_source_orders', 'raw_source_products']
+for table in expected_tables:
+    exists = any(table in str(t) for t in tables)
+    print(f'{table}: {"✅" if exists else "❌"}')
+
+con.close()
+"
+```
+
+## **Troubleshooting**
+
+### **Common Issues**
+
+```bash
+# Fix SQLMesh environment issues
+uv run --group dev sqlmesh -p tests/sqlmesh_project invalidate dev
+uv run --group dev sqlmesh -p tests/sqlmesh_project plan dev --no-prompts
+
+# Fix database issues
+rm tests/sqlmesh_project/jaffle_test.db
+uv run --group dev python tests/load_jaffle_data.py
+
+# Fix import issues
+uv pip install -e .
+uv run --group dev python -c "import dg_sqlmesh; print('✅ Import successful')"
+```
+
+### **Debug Environment**
+
+```bash
+# Check Python environment
+uv run --group dev python -c "import sys; print('Python path:', sys.path)"
+
+# Check installed packages
+uv run --group dev pip list
+
+# Check SQLMesh installation
+uv run --group dev python -c "import sqlmesh; print('SQLMesh version:', sqlmesh.__version__)"
+```
+
+description:
+globs:
+alwaysApply: false
+
+---
