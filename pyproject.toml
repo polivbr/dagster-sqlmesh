@@ -1,0 +1,20 @@
+[project]
+name = "dg-sqlmesh"
+requires-python = ">=3.11,<3.13"
+version = "0.1.0"
+dependencies = [
+    "dagster==1.11.4",
+    "pandas>=2.2.1",
+    "sqlmesh[web]>=0.206.1",
+    "anyio>=4.9.0",
+    "vulture>=2.14",
+]
+
+[project.optional-dependencies]
+
+
+[dependency-groups]
+dev = [
+    "dagster-webserver",
+    "dagster-dg-cli[local]",
+]

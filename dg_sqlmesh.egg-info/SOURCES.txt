@@ -1,0 +1,7 @@
+LICENSE
+pyproject.toml
+dg_sqlmesh.egg-info/PKG-INFO
+dg_sqlmesh.egg-info/SOURCES.txt
+dg_sqlmesh.egg-info/dependency_links.txt
+dg_sqlmesh.egg-info/requires.txt
+dg_sqlmesh.egg-info/top_level.txt

@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: dg-sqlmesh
+Version: 0.1.0
+Requires-Python: <3.13,>=3.11
+License-File: LICENSE
+Requires-Dist: dagster==1.11.4
+Requires-Dist: pandas>=2.2.1
+Requires-Dist: sqlmesh[web]>=0.206.1
+Requires-Dist: anyio>=4.9.0
+Requires-Dist: vulture>=2.14
+Dynamic: license-file

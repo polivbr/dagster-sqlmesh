@@ -1,0 +1,5 @@
+dagster==1.11.4
+pandas>=2.2.1
+sqlmesh[web]>=0.206.1
+anyio>=4.9.0
+vulture>=2.14
