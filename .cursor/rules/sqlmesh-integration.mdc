@@ -1,0 +1,114 @@
+# SQLMesh Integration Patterns
+
+## Core Integration Components
+
+### SQLMeshResource
+
+The [src/dg_sqlmesh/resource.py](mdc:src/dg_sqlmesh/resource.py) provides the main integration:
+
+- Manages SQLMesh Context with caching
+- Handles materialization orchestration
+- Captures audit results via custom console
+- Provides thread-safe operations with anyio
+
+### Event Console
+
+The [src/dg_sqlmesh/sqlmesh_event_console.py](mdc:src/dg_sqlmesh/sqlmesh_event_console.py) captures SQLMesh events:
+
+- Extends SQLMesh's Console class
+- Captures plan, evaluation, and audit events
+- Provides audit results for Dagster AssetCheckResult
+- Handles both known and unknown event types
+
+### Translator
+
+The [src/dg_sqlmesh/translator.py](mdc:src/dg_sqlmesh/translator.py) maps SQLMesh concepts:
+
+- Converts SQLMesh models to Dagster AssetKeys
+- Handles external assets (like Sling sources)
+- Provides extensible mapping patterns
+- Normalizes asset key segments
+
+## Test Project Structure
+
+The test project in [tests/sqlmesh_project/](mdc:tests/sqlmesh_project/) demonstrates:
+
+### Configuration
+
+- [tests/sqlmesh_project/config.yaml](mdc:tests/sqlmesh_project/config.yaml) - DuckDB configuration
+- [tests/sqlmesh_project/external_models.yaml](mdc:tests/sqlmesh_project/external_models.yaml) - External model definitions
+
+### Models
+
+- `models/stg/` - Staging models (raw to clean)
+- `models/marts/` - Mart models (business logic)
+- Follows standard SQLMesh patterns with MODEL() declarations
+
+### Data Loading
+
+- [tests/load_jaffle_data.py](mdc:tests/load_jaffle_data.py) - Loads CSV data into DuckDB
+- [tests/jaffle-data/](mdc:tests/jaffle-data/) - Source CSV files
+- Creates tables matching external model definitions
+
+## Integration Patterns
+
+### Factory Usage
+
+```python
+from dg_sqlmesh import sqlmesh_definitions_factory
+
+# Complete integration
+defs = sqlmesh_definitions_factory(
+    project_dir="tests/sqlmesh_project",
+    gateway="duckdb",
+    ignore_cron=True  # For testing
+)
+```
+
+### Resource Configuration
+
+```python
+from dg_sqlmesh import SQLMeshResource
+
+# Custom resource
+resource = SQLMeshResource(
+    project_dir="my_project",
+    gateway="postgres",
+    concurrency_limit=4
+)
+```
+
+### Translator Customization
+
+```python
+from dg_sqlmesh import SQLMeshTranslator
+
+# Custom translator
+translator = SQLMeshTranslator()
+# Override methods for custom mapping
+```
+
+## Common Patterns
+
+### Asset Creation
+
+- Use [src/dg_sqlmesh/sqlmesh_asset_utils.py](mdc:src/dg_sqlmesh/sqlmesh_asset_utils.py) for asset spec creation
+- Handle partitioning metadata
+- Include audit checks via [src/dg_sqlmesh/sqlmesh_asset_check_utils.py](mdc:src/dg_sqlmesh/sqlmesh_asset_check_utils.py)
+
+### Schedule Integration
+
+- Analyze SQLMesh crons for adaptive scheduling
+- Create Dagster schedules based on model intervals
+- Handle different granularities (hourly, daily, etc.)
+
+### Error Handling
+
+- Handle SQLMesh-specific exceptions (CircuitBreakerError, PlanError)
+- Provide meaningful error messages
+- Log context for debugging
+  description:
+  globs:
+  alwaysApply: false
+
+---

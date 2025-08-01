@@ -1,0 +1,55 @@
+# dg-sqlmesh Project Overview
+
+This is a Python package that provides seamless integration between Dagster and SQLMesh for modern data engineering workflows.
+
+## Core Components
+
+The main entry points are in [src/dg_sqlmesh/**init**.py](mdc:src/dg_sqlmesh/__init__.py) which exposes:
+
+- `sqlmesh_definitions_factory` - All-in-one factory for complete SQLMesh integration
+- `sqlmesh_assets_factory` - Factory for creating Dagster assets from SQLMesh models
+- `sqlmesh_adaptive_schedule_factory` - Factory for adaptive schedules based on SQLMesh crons
+- `SQLMeshResource` - Dagster resource for SQLMesh interaction
+- `SQLMeshTranslator` - Translator for mapping SQLMesh concepts to Dagster
+
+## Key Files
+
+- [src/dg_sqlmesh/factory.py](mdc:src/dg_sqlmesh/factory.py) - Main factory functions (renamed from decorators.py)
+- [src/dg_sqlmesh/resource.py](mdc:src/dg_sqlmesh/resource.py) - SQLMeshResource implementation
+- [src/dg_sqlmesh/translator.py](mdc:src/dg_sqlmesh/translator.py) - SQLMeshTranslator for concept mapping
+- [src/dg_sqlmesh/sqlmesh_asset_utils.py](mdc:src/dg_sqlmesh/sqlmesh_asset_utils.py) - Internal utilities
+- [src/dg_sqlmesh/sqlmesh_asset_check_utils.py](mdc:src/dg_sqlmesh/sqlmesh_asset_check_utils.py) - Asset check utilities
+- [src/dg_sqlmesh/sqlmesh_event_console.py](mdc:src/dg_sqlmesh/sqlmesh_event_console.py) - Custom event console
+
+## Development Tools
+
+- [Makefile](mdc:Makefile) - Complete development automation
+- [pyproject.toml](mdc:pyproject.toml) - Package configuration and dependencies
+- [DEVELOPMENT.md](mdc:DEVELOPMENT.md) - Comprehensive development guide
+- [tests/sqlmesh_project/](mdc:tests/sqlmesh_project/) - SQLMesh test project with DuckDB
+- [tests/load_jaffle_data.py](mdc:tests/load_jaffle_data.py) - Data loading script for tests
+
+## Package Structure
+
+```
+dg-sqlmesh/
+├── src/dg_sqlmesh/           # Main package source
+├── tests/                    # Test files and SQLMesh project
+├── examples/                 # Usage examples
+├── docs/                     # Documentation
+├── pyproject.toml           # Package configuration
+├── Makefile                 # Development automation
+└── README.md                # Main documentation
+```
+
+## Development Workflow
+
+1. Use `make` commands for development tasks
+2. Test with the SQLMesh project in `tests/sqlmesh_project/`
+3. Load test data with `uv run --group dev python tests/load_jaffle_data.py`
+4. Test SQLMesh integration with `uv run --group dev sqlmesh -p tests/sqlmesh_project plan`
+   description:
+   globs:
+   alwaysApply: false
+
+---

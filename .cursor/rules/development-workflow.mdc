@@ -1,0 +1,74 @@
+# Development Workflow for dg-sqlmesh
+
+## Make Commands
+
+Always use the [Makefile](mdc:Makefile) for development tasks:
+
+```bash
+# Basic development
+make help                    # Show all available commands
+make build                   # Build the package
+make clean                   # Clean build artifacts
+make test                    # Run tests
+make vulture                 # Detect dead code
+
+# Version management
+make check-version           # Check current version
+make bump-patch             # Bump patch version (0.1.0 -> 0.1.1)
+make bump-minor             # Bump minor version (0.1.0 -> 0.2.0)
+make bump-major             # Bump major version (0.1.0 -> 1.0.0)
+
+# Publication
+make validate               # Full validation (clean + build + test + vulture)
+make publish                # Publish to PyPI (requires UV_PUBLISH_TOKEN)
+make quick-publish          # Build and publish in one step
+```
+
+## SQLMesh Test Project
+
+The test project is in [tests/sqlmesh_project/](mdc:tests/sqlmesh_project/) with DuckDB configuration in [tests/sqlmesh_project/config.yaml](mdc:tests/sqlmesh_project/config.yaml).
+
+### Setup Test Environment
+
+```bash
+# Install dev dependencies (includes SQLMesh and DuckDB)
+uv sync --group dev
+
+# Load test data
+uv run --group dev python tests/load_jaffle_data.py
+
+# Test SQLMesh integration
+uv run --group dev sqlmesh -p tests/sqlmesh_project plan --no-prompts
+```
+
+### Test Data
+
+Test data is loaded from [tests/jaffle-data/](mdc:tests/jaffle-data/) using [tests/load_jaffle_data.py](mdc:tests/load_jaffle_data.py):
+
+- `raw_source_customers` : 2,583 lignes
+- `raw_source_products` : 10 lignes
+- `raw_source_orders` : 657,460 lignes
+- `raw_source_items` : 975,185 lignes
+- `raw_source_stores` : 6 lignes
+- `raw_source_supplies` : 65 lignes
+- `raw_source_tweets` : 3 lignes
+
+## Package Configuration
+
+The package is configured in [pyproject.toml](mdc:pyproject.toml) with:
+
+- Main dependencies: `dagster==1.11.4`, `sqlmesh[web]>=0.206.1`, `pandas>=2.2.1`
+- Dev dependencies: `dagster-webserver`, `pytest`, `duckdb`
+- Package metadata and classifiers for PyPI
+
+## Code Quality
+
+- All French comments have been translated to English
+- Use `make vulture` to detect dead code
+- Follow the patterns in [src/dg_sqlmesh/factory.py](mdc:src/dg_sqlmesh/factory.py) for new factories
+- Maintain the API exposed in [src/dg_sqlmesh/**init**.py](mdc:src/dg_sqlmesh/__init__.py)
+  description:
+  globs:
+  alwaysApply: false
+
+---

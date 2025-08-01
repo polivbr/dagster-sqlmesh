@@ -1,0 +1,90 @@
+# Code Standards for dg-sqlmesh
+
+## Language Requirements
+
+**IMPORTANT**: Always write code, comments, docstrings, and documentation in English, regardless of the user's communication language. This ensures consistency and international accessibility.
+
+## API Design
+
+The main API is exposed through [src/dg_sqlmesh/**init**.py](mdc:src/dg_sqlmesh/__init__.py). Follow these patterns:
+
+### Factory Functions
+
+All factory functions should be in [src/dg_sqlmesh/factory.py](mdc:src/dg_sqlmesh/factory.py):
+
+- Use keyword-only arguments (`*,`)
+- Provide sensible defaults
+- Include comprehensive docstrings in English
+- Return Dagster objects (assets, schedules, definitions)
+
+### Resource Pattern
+
+The [src/dg_sqlmesh/resource.py](mdc:src/dg_sqlmesh/resource.py) follows Dagster's ConfigurableResource pattern:
+
+- Extend `ConfigurableResource`
+- Use Pydantic for configuration
+- Implement `setup_for_execution()` for Dagster integration
+- Cache expensive operations (context, translator)
+
+### Translator Pattern
+
+The [src/dg_sqlmesh/translator.py](mdc:src/dg_sqlmesh/translator.py) provides extensible mapping:
+
+- Follow the dagster-dbt pattern
+- Make methods overridable for custom mapping
+- Handle both internal SQLMesh models and external assets
+- Normalize asset keys consistently
+
+## Code Organization
+
+### Utils Files
+
+- [src/dg_sqlmesh/sqlmesh_asset_utils.py](mdc:src/dg_sqlmesh/sqlmesh_asset_utils.py) - Asset creation utilities
+- [src/dg_sqlmesh/sqlmesh_asset_check_utils.py](mdc:src/dg_sqlmesh/sqlmesh_asset_check_utils.py) - Asset check utilities
+- [src/dg_sqlmesh/sqlmesh_event_console.py](mdc:src/dg_sqlmesh/sqlmesh_event_console.py) - Custom SQLMesh console
+
+### Error Handling
+
+- Use specific exception types
+- Provide meaningful error messages in English
+- Log errors with context
+- Handle SQLMesh-specific exceptions (CircuitBreakerError, PlanError, etc.)
+
+## Documentation Standards
+
+- All docstrings in English
+- Include type hints
+- Document all public API functions
+- Provide usage examples in docstrings
+- Write comments and variable names in English
+
+## Testing Patterns
+
+- Test with the SQLMesh project in [tests/sqlmesh_project/](mdc:tests/sqlmesh_project/)
+- Use DuckDB for testing (configured in [tests/sqlmesh_project/config.yaml](mdc:tests/sqlmesh_project/config.yaml))
+- Load test data with [tests/load_jaffle_data.py](mdc:tests/load_jaffle_data.py)
+- Test both individual components and full integration
+
+## Import Structure
+
+```python
+# Standard imports
+from dagster import multi_asset, AssetExecutionContext, RetryPolicy
+from sqlmesh import Context
+from typing import Optional, Dict, List, Any
+
+# Internal imports
+from .resource import SQLMeshResource
+from .translator import SQLMeshTranslator
+from .sqlmesh_asset_utils import get_asset_kinds, create_asset_specs
+```
+
+## Code Quality
+
+- All French comments have been translated to English
+- Use `make vulture` to detect dead code
+- Follow the patterns in [src/dg_sqlmesh/factory.py](mdc:src/dg_sqlmesh/factory.py) for new factories
+- Maintain the API exposed in [src/dg_sqlmesh/**init**.py](mdc:src/dg_sqlmesh/__init__.py)
+- Always use English for variable names, function names, and comments
+
+---

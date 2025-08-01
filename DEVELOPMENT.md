@@ -31,6 +31,110 @@ make install-dev
 make vulture
 ```
 
+### 🧪 Configuration du projet SQLMesh de test
+
+Le projet inclut un projet SQLMesh de test complet dans `tests/sqlmesh_project/` pour tester l'intégration.
+
+#### Prérequis
+
+```bash
+# Installer les dépendances de développement (inclut SQLMesh et DuckDB)
+uv sync --group dev
+```
+
+#### Configuration de la base de données
+
+Le projet utilise DuckDB avec une base persistée pour les tests :
+
+```bash
+# Charger les données de test dans DuckDB
+uv run --group dev python tests/load_jaffle_data.py
+```
+
+**Données chargées :**
+
+- `raw_source_customers` : 2,583 lignes
+- `raw_source_products` : 10 lignes
+- `raw_source_orders` : 657,460 lignes
+- `raw_source_items` : 975,185 lignes
+- `raw_source_stores` : 6 lignes
+- `raw_source_supplies` : 65 lignes
+- `raw_source_tweets` : 3 lignes
+
+#### Test du projet SQLMesh
+
+```bash
+# Vérifier que le plan SQLMesh fonctionne
+uv run --group dev sqlmesh -p tests/sqlmesh_project plan --no-prompts
+
+# Appliquer le plan (optionnel)
+uv run --group dev sqlmesh -p tests/sqlmesh_project apply --no-prompts
+```
+
+#### Structure du projet de test
+
+```
+tests/
+├── sqlmesh_project/
+│   ├── config.yaml              # Configuration DuckDB
+│   ├── external_models.yaml     # Modèles externes
+│   ├── models/                  # Modèles SQLMesh
+│   │   ├── stg/                # Modèles staging
+│   │   └── marts/              # Modèles marts
+│   └── jaffle_test.db          # Base DuckDB (ignorée par Git)
+├── jaffle-data/                 # Données source CSV
+│   ├── raw_source_customers.csv
+│   ├── raw_source_products.csv
+│   ├── raw_source_orders.csv
+│   ├── raw_source_items.csv
+│   ├── raw_source_stores.csv
+│   ├── raw_source_supplies.csv
+│   └── raw_source_tweets.csv
+└── load_jaffle_data.py         # Script de chargement
+```
+
+#### Test de l'intégration avec notre package
+
+```python
+# Exemple d'utilisation avec le projet de test
+from dg_sqlmesh import sqlmesh_definitions_factory
+
+# Créer les definitions avec le projet de test
+defs = sqlmesh_definitions_factory(
+    project_dir="tests/sqlmesh_project",
+    gateway="duckdb",
+    ignore_cron=True  # Pour les tests
+)
+
+# Utiliser avec Dagster
+from dagster import materialize
+result = materialize(defs)
+```
+
+#### Dépannage
+
+**Erreur de table manquante :**
+
+```bash
+# Recharger les données
+uv run --group dev python tests/load_jaffle_data.py
+```
+
+**Erreur de configuration :**
+
+```bash
+# Vérifier la configuration
+uv run --group dev sqlmesh -p tests/sqlmesh_project plan --no-prompts
+```
+
+**Base de données corrompue :**
+
+```bash
+# Supprimer et recréer
+rm tests/sqlmesh_project/jaffle_test.db
+uv run --group dev python tests/load_jaffle_data.py
+```
+
 ### 🚀 Publication sur PyPI
 
 #### Préparation
