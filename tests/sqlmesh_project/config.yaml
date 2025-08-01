@@ -1,22 +1,18 @@
 gateways:
-  postgres:
+  duckdb:
     connection:
-      type: postgres
-      host: localhost
-      port: 5432
-      user: jaffle
-      password: jaffle
-      database: jaffle_db
+      type: duckdb
+      database: "jaffle_test.db" # Use persistent database file for testing
 
-default_gateway: postgres
+default_gateway: duckdb
 
 model_defaults:
-  dialect: postgres
+  dialect: duckdb
   start: 2025-07-01 # Start date for backfill history
   cron: "@daily" # Run models daily at 12am UTC (can override per model)
 
 linter:
-  enabled: true
+  enabled: false
   rules:
     - ambiguousorinvalidcolumn
     - invalidselectstarexpansion

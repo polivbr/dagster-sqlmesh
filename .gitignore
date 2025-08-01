@@ -171,3 +171,8 @@ htmlcov/
 
 # uv specific
 .uv/
+
+# DuckDB database files
+*.db
+*.duckdb
+tests/sqlmesh_project/*.db

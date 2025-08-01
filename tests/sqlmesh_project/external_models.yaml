@@ -1,17 +1,17 @@
-- name: '"jaffle_db"."main"."raw_source_customers"'
+- name: '"main"."main"."raw_source_customers"'
   columns:
     id: TEXT
     name: TEXT
     _sling_loaded_at: INT
-  gateway: postgres
-- name: '"jaffle_db"."main"."raw_source_items"'
+  gateway: duckdb
+- name: '"main"."main"."raw_source_items"'
   columns:
     id: TEXT
     order_id: TEXT
     sku: TEXT
     _sling_loaded_at: INT
-  gateway: postgres
-- name: '"jaffle_db"."main"."raw_source_orders"'
+  gateway: duckdb
+- name: '"main"."main"."raw_source_orders"'
   columns:
     id: TEXT
     customer: TEXT
@@ -21,8 +21,8 @@
     tax_paid: INT
     order_total: INT
     _sling_loaded_at: INT
-  gateway: postgres
-- name: '"jaffle_db"."main"."raw_source_products"'
+  gateway: duckdb
+- name: '"main"."main"."raw_source_products"'
   columns:
     sku: TEXT
     name: TEXT
@@ -30,16 +30,16 @@
     price: INT
     description: TEXT
     _sling_loaded_at: INT
-  gateway: postgres
-- name: '"jaffle_db"."main"."raw_source_stores"'
+  gateway: duckdb
+- name: '"main"."main"."raw_source_stores"'
   columns:
     id: TEXT
     name: TEXT
     opened_at: DATE
     tax_rate: DECIMAL
     _sling_loaded_at: INT
-  gateway: postgres
-- name: '"jaffle_db"."main"."raw_source_supplies"'
+  gateway: duckdb
+- name: '"main"."main"."raw_source_supplies"'
   columns:
     id: TEXT
     name: TEXT
@@ -47,12 +47,12 @@
     perishable: BOOLEAN
     sku: TEXT
     _sling_loaded_at: INT
-  gateway: postgres
-- name: '"jaffle_db"."main"."raw_source_tweets"'
+  gateway: duckdb
+- name: '"main"."main"."raw_source_tweets"'
   columns:
     id: TEXT
     user_id: TEXT
     tweeted_at: TIMESTAMP
     content: TEXT
     _sling_loaded_at: INT
-  gateway: postgres
+  gateway: duckdb

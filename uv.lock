@@ -480,7 +480,9 @@ dev = [
 dev = [
     { name = "dagster-dg-cli" },
     { name = "dagster-webserver" },
+    { name = "duckdb" },
     { name = "pytest" },
+    { name = "sqlmesh", extra = ["web"] },
 ]
 
 [package.metadata]
@@ -499,7 +501,9 @@ requires-dist = [
 dev = [
     { name = "dagster-dg-cli", extras = ["local"] },
     { name = "dagster-webserver" },
+    { name = "duckdb", specifier = ">=1.3.2" },
     { name = "pytest", specifier = ">=8.4.1" },
+    { name = "sqlmesh", extras = ["web"], specifier = ">=0.206.1" },
 ]
 
 [[package]]
