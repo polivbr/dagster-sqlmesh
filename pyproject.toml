@@ -1,7 +1,24 @@
 [project]
 name = "dg-sqlmesh"
 requires-python = ">=3.11,<3.13"
-version = "0.1.0"
+version = "0.1.1"
+description = "Seamless integration between Dagster and SQLMesh for modern data engineering workflows"
+readme = "README.md"
+license = "Apache-2.0"
+authors = [
+    {name = "Thomas Trividic", email = "thomas.trividic@gmail.com"}
+]
+keywords = ["dagster", "sqlmesh", "data-engineering", "etl", "data-pipeline"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "dagster==1.11.4",
     "pandas>=2.2.1",
@@ -11,10 +28,21 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+dev = [
+    "dagster-webserver",
+    "dagster-dg-cli[local]",
+    "pytest",
+]
 
+[project.urls]
+Homepage = "https://github.com/thomastrividic/dagster-sqlmesh"
+Repository = "https://github.com/thomastrividic/dagster-sqlmesh"
+Documentation = "https://github.com/thomastrividic/dagster-sqlmesh#readme"
+Issues = "https://github.com/thomastrividic/dagster-sqlmesh/issues"
 
 [dependency-groups]
 dev = [
     "dagster-webserver",
     "dagster-dg-cli[local]",
+    "pytest>=8.4.1",
 ]
