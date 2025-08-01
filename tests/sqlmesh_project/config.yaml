@@ -1,0 +1,22 @@
+gateways:
+  postgres:
+    connection:
+      type: postgres
+      host: localhost
+      port: 5432
+      user: jaffle
+      password: jaffle
+      database: jaffle_db
+
+default_gateway: postgres
+
+model_defaults:
+  dialect: postgres
+  start: 2025-07-01 # Start date for backfill history
+  cron: "@daily" # Run models daily at 12am UTC (can override per model)
+
+linter:
+  enabled: true
+  rules:
+    - ambiguousorinvalidcolumn
+    - invalidselectstarexpansion
