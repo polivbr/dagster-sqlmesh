@@ -85,7 +85,6 @@ from .sqlmesh_asset_utils import get_asset_kinds, create_asset_specs
 
 ## Code Quality
 
-- All French comments have been translated to English
 - Use `make vulture` to detect dead code
 - Follow the patterns in [src/dg_sqlmesh/factory.py](mdc:src/dg_sqlmesh/factory.py) for new factories
 - Maintain the API exposed in [src/dg_sqlmesh/**init**.py](mdc:src/dg_sqlmesh/__init__.py)

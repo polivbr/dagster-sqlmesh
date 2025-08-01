@@ -1,6 +1,5 @@
 ---
-globs: *.py
-alwaysApply: false
+alwaysApply: true
 ---
 
 # Development Workflow for dg-sqlmesh

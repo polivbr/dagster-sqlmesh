@@ -1,6 +1,5 @@
 ---
-globs: *.py,*.sql
-alwaysApply: false
+alwaysApply: true
 ---
 
 # SQLMesh Integration Patterns
