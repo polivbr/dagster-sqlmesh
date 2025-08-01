@@ -1,3 +1,8 @@
+---
+description: Testing patterns for dg-sqlmesh
+globs: tests/**/*.py,tests/**/*.md,pytest.ini,conftest.py,**/test_*.py
+---
+
 # Testing Patterns for dg-sqlmesh
 
 ## Test Structure Overview
