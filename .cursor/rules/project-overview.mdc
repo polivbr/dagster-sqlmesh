@@ -1,3 +1,8 @@
+---
+description: Project Overview
+alwaysApply: true
+---
+
 # dg-sqlmesh Project Overview
 
 This is a Python package that provides seamless integration between Dagster and SQLMesh for modern data engineering workflows.
@@ -48,8 +53,5 @@ dg-sqlmesh/
 2. Test with the SQLMesh project in `tests/sqlmesh_project/`
 3. Load test data with `uv run --group dev python tests/load_jaffle_data.py`
 4. Test SQLMesh integration with `uv run --group dev sqlmesh -p tests/sqlmesh_project plan`
-   description:
-   globs:
-   alwaysApply: false
 
 ---

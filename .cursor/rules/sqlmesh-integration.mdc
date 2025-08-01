@@ -1,3 +1,8 @@
+---
+globs: *.py,*.sql
+alwaysApply: false
+---
+
 # SQLMesh Integration Patterns
 
 ## Core Integration Components
@@ -107,8 +112,3 @@ translator = SQLMeshTranslator()
 - Handle SQLMesh-specific exceptions (CircuitBreakerError, PlanError)
 - Provide meaningful error messages
 - Log context for debugging
-  description:
-  globs:
-  alwaysApply: false
-
----

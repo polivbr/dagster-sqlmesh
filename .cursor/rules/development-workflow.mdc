@@ -1,3 +1,8 @@
+---
+globs: *.py
+alwaysApply: false
+---
+
 # Development Workflow for dg-sqlmesh
 
 ## Make Commands
@@ -67,8 +72,5 @@ The package is configured in [pyproject.toml](mdc:pyproject.toml) with:
 - Use `make vulture` to detect dead code
 - Follow the patterns in [src/dg_sqlmesh/factory.py](mdc:src/dg_sqlmesh/factory.py) for new factories
 - Maintain the API exposed in [src/dg_sqlmesh/**init**.py](mdc:src/dg_sqlmesh/__init__.py)
-  description:
-  globs:
-  alwaysApply: false
 
 ---
