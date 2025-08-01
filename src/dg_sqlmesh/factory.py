@@ -17,7 +17,7 @@ from .sqlmesh_asset_utils import (
 )
 import datetime
 from .translator import SQLMeshTranslator
-from typing import Optional, Dict, Set, List, Any
+from typing import Optional, Dict, List, Any
 
 def sqlmesh_assets_factory(
     *,
@@ -25,7 +25,6 @@ def sqlmesh_assets_factory(
     name: str = "sqlmesh_assets",
     group_name: str = "sqlmesh",
     op_tags: Optional[Dict[str, Any]] = None,
-    required_resource_keys: Optional[Set[str]] = None,
     retry_policy: Optional[RetryPolicy] = None,
     owners: Optional[List[str]] = None,
 ):
@@ -37,7 +36,6 @@ def sqlmesh_assets_factory(
         name: Nom du multi_asset
         group_name: Groupe par défaut pour les assets
         op_tags: Tags pour l'opération
-        required_resource_keys: Clés de resources requises
         retry_policy: Politique de retry
         owners: Propriétaires des assets
     """
@@ -126,7 +124,6 @@ def sqlmesh_definitions_factory(
     name: str = "sqlmesh_assets",
     group_name: str = "sqlmesh",
     op_tags: Optional[Dict[str, Any]] = None,
-    required_resource_keys: Optional[Set[str]] = None,
     retry_policy: Optional[RetryPolicy] = None,
     owners: Optional[List[str]] = None,
     schedule_name: str = "sqlmesh_adaptive_schedule",
@@ -143,7 +140,6 @@ def sqlmesh_definitions_factory(
         name: Nom du multi_asset
         group_name: Groupe par défaut pour les assets
         op_tags: Tags pour l'opération
-        required_resource_keys: Clés de resources requises
         retry_policy: Politique de retry
         owners: Propriétaires des assets
         schedule_name: Nom du schedule adaptatif
@@ -155,7 +151,6 @@ def sqlmesh_definitions_factory(
     
     # Valeurs par défaut robustes
     op_tags = op_tags or {"sqlmesh": "true"}
-    required_resource_keys = required_resource_keys or {"sqlmesh"}
     owners = owners or []
     
     # Créer la resource SQLMesh
@@ -182,7 +177,6 @@ def sqlmesh_definitions_factory(
         name=name,
         group_name=group_name,
         op_tags=op_tags,
-        required_resource_keys=required_resource_keys,
         retry_policy=retry_policy,
         owners=owners,
     )
