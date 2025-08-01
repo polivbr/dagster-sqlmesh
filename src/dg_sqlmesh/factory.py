@@ -29,21 +29,21 @@ def sqlmesh_assets_factory(
     owners: Optional[List[str]] = None,
 ):
     """
-    Factory pour créer des assets SQLMesh Dagster.
+    Factory to create SQLMesh Dagster assets.
     
     Args:
-        sqlmesh_resource: La resource SQLMesh configurée
-        name: Nom du multi_asset
-        group_name: Groupe par défaut pour les assets
-        op_tags: Tags pour l'opération
-        retry_policy: Politique de retry
-        owners: Propriétaires des assets
+        sqlmesh_resource: Configured SQLMesh resource
+        name: Multi-asset name
+        group_name: Default group for assets
+        op_tags: Operation tags
+        retry_policy: Retry policy
+        owners: Asset owners
     """
     try:
         extra_keys = get_extra_keys()
         kinds = get_asset_kinds(sqlmesh_resource)
 
-        # Créer les AssetSpec et AssetCheckSpec
+        # Create AssetSpec and AssetCheckSpec
         specs = create_asset_specs(sqlmesh_resource, extra_keys, kinds, owners, group_name)
         asset_checks = create_asset_checks(sqlmesh_resource)
     except Exception as e:
@@ -60,7 +60,7 @@ def sqlmesh_assets_factory(
     def _sqlmesh_assets(context: AssetExecutionContext, sqlmesh: SQLMeshResource):
         context.log.info("🚀 Starting SQLMesh materialization")
         
-        # Log des assets qui vont être materialisés (les vrais sélectionnés)
+        # Log assets to be materialized (the actually selected ones)
         selected_asset_keys = context.selected_asset_keys
         context.log.info(f"📦 Assets to materialize: {len(selected_asset_keys)} assets")
         for i, asset_key in enumerate(selected_asset_keys, 1):
@@ -82,17 +82,17 @@ def sqlmesh_adaptive_schedule_factory(
     name: str = "sqlmesh_adaptive_schedule",
 ):
     """
-    Factory pour créer un schedule Dagster adaptatif basé sur les crons SQLMesh.
+    Factory to create an adaptive Dagster schedule based on SQLMesh crons.
     
     Args:
-        sqlmesh_resource: La resource SQLMesh configurée
-        name: Nom du schedule
+        sqlmesh_resource: Configured SQLMesh resource
+        name: Schedule name
     """
     
-    # Obtenir le schedule recommandé basé sur les crons SQLMesh
+    # Get recommended schedule based on SQLMesh crons
     recommended_schedule = sqlmesh_resource.get_recommended_schedule()
     
-    # Créer automatiquement le job SQLMesh avec multi_asset (pour AssetCheckResult)
+    # Automatically create SQLMesh job with multi_asset (for AssetCheckResult)
     sqlmesh_assets = sqlmesh_assets_factory(sqlmesh_resource=sqlmesh_resource)
     sqlmesh_job = define_asset_job(
         name="sqlmesh_job",
@@ -103,7 +103,7 @@ def sqlmesh_adaptive_schedule_factory(
         job=sqlmesh_job,
         cron_schedule=recommended_schedule,
         name=name,
-        description=f"Schedule adaptatif basé sur les crons SQLMesh (granularité: {recommended_schedule})"
+        description=f"Adaptive schedule based on SQLMesh crons (granularity: {recommended_schedule})"
     )
     def _sqlmesh_adaptive_schedule(context):
         return RunRequest(
@@ -129,31 +129,31 @@ def sqlmesh_definitions_factory(
     schedule_name: str = "sqlmesh_adaptive_schedule",
 ):
     """
-    Factory tout-en-un pour créer une intégration SQLMesh complète avec Dagster.
+    All-in-one factory to create a complete SQLMesh integration with Dagster.
     
     Args:
-        project_dir: Répertoire du projet SQLMesh
-        gateway: Gateway SQLMesh (postgres, duckdb, etc.)
-        concurrency_limit: Limite de concurrence
-        ignore_cron: Ignorer les crons (pour les tests)
-        translator: Translator custom pour les asset keys
-        name: Nom du multi_asset
-        group_name: Groupe par défaut pour les assets
-        op_tags: Tags pour l'opération
-        retry_policy: Politique de retry
-        owners: Propriétaires des assets
-        schedule_name: Nom du schedule adaptatif
+        project_dir: SQLMesh project directory
+        gateway: SQLMesh gateway (postgres, duckdb, etc.)
+        concurrency_limit: Concurrency limit
+        ignore_cron: Ignore crons (for tests)
+        translator: Custom translator for asset keys
+        name: Multi-asset name
+        group_name: Default group for assets
+        op_tags: Operation tags
+        retry_policy: Retry policy
+        owners: Asset owners
+        schedule_name: Adaptive schedule name
     """
     
-    # Validation des paramètres
+    # Parameter validation
     if concurrency_limit < 1:
         raise ValueError("concurrency_limit must be >= 1")
     
-    # Valeurs par défaut robustes
+    # Robust default values
     op_tags = op_tags or {"sqlmesh": "true"}
     owners = owners or []
     
-    # Créer la resource SQLMesh
+    # Create SQLMesh resource
     sqlmesh_resource = SQLMeshResource(
         project_dir=project_dir,
         gateway=gateway,
@@ -162,7 +162,7 @@ def sqlmesh_definitions_factory(
         ignore_cron=ignore_cron
     )
     
-    # Valider les external dependencies
+    # Validate external dependencies
     try:
         models = sqlmesh_resource.get_models()
         validation_errors = validate_external_dependencies(sqlmesh_resource, models)
@@ -171,7 +171,7 @@ def sqlmesh_definitions_factory(
     except Exception as e:
         raise ValueError(f"Failed to validate external dependencies: {e}") from e
     
-    # Créer les assets SQLMesh
+    # Create SQLMesh assets
     sqlmesh_assets = sqlmesh_assets_factory(
         sqlmesh_resource=sqlmesh_resource,
         name=name,
@@ -181,13 +181,13 @@ def sqlmesh_definitions_factory(
         owners=owners,
     )
     
-    # Créer le schedule adaptatif et le job
+    # Create adaptive schedule and job
     sqlmesh_adaptive_schedule, sqlmesh_job, _ = sqlmesh_adaptive_schedule_factory(
         sqlmesh_resource=sqlmesh_resource,
         name=schedule_name
     )
     
-    # Retourner les Definitions complètes
+    # Return complete Definitions
     return Definitions(
         assets=[sqlmesh_assets],
         jobs=[sqlmesh_job],

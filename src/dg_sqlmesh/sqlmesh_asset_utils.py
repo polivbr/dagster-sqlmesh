@@ -7,18 +7,18 @@ from .sqlmesh_asset_check_utils import create_all_asset_checks
 
 def get_models_to_materialize(selected_asset_keys, get_models_func, translator):
     """
-    Retourne les modèles SQLMesh à matérialiser, en excluant les external models.
+    Returns SQLMesh models to materialize, excluding external models.
     """
     all_models = get_models_func()
     
-    # Filtrer les external models
+    # Filter external models
     internal_models = []
     for model in all_models:
-        # Vérifier si c'est un ExternalModel
+        # Check if it's an ExternalModel
         if not isinstance(model, ExternalModel):
             internal_models.append(model)
     
-    # Si des assets spécifiques sont sélectionnés, filtrer par AssetKey
+    # If specific assets are selected, filter by AssetKey
     if selected_asset_keys:
         assetkey_to_model = translator.get_assetkey_to_model(internal_models)
         models_to_materialize = []
@@ -29,21 +29,21 @@ def get_models_to_materialize(selected_asset_keys, get_models_func, translator):
         
         return models_to_materialize
     
-    # Sinon, retourner tous les modèles internes
+    # Otherwise, return all internal models
     return internal_models
 
 
 def get_model_partitions_from_plan(plan, translator, asset_key, snapshot) -> dict:
-    """Retourne les informations de partition pour un asset en utilisant le plan."""
-    # Convertir AssetKey vers le modèle SQLMesh
+    """Returns partition information for an asset using the plan."""
+    # Convert AssetKey to SQLMesh model
     model = snapshot.model if snapshot else None
     
     if model:
         partitioned_by = getattr(model, "partitioned_by", [])
-        # Extraire les noms des colonnes de partition
+        # Extract partition column names
         partition_columns = [col.name for col in partitioned_by] if partitioned_by else []
         
-        # Utiliser les intervals du snapshot du plan (qui est catégorisé)
+        # Use intervals from plan snapshot (which is categorized)
         intervals = getattr(snapshot, "intervals", [])
         grain = getattr(model, "grain", [])
         is_partitioned = len(partition_columns) > 0
@@ -60,8 +60,8 @@ def get_model_partitions_from_plan(plan, translator, asset_key, snapshot) -> dic
 
 
 def get_model_from_asset_key(context, translator, asset_key) -> Any:
-    """Convertit un AssetKey Dagster vers le modèle SQLMesh correspondant."""
-    # Utiliser le mapping inverse du translator
+    """Converts a Dagster AssetKey to the corresponding SQLMesh model."""
+    # Use inverse mapping from translator
     all_models = list(context.models.values())
     assetkey_to_model = translator.get_assetkey_to_model(all_models)
     
@@ -90,7 +90,7 @@ def has_breaking_changes(plan, logger, context=None) -> bool:
     """
     Returns True if the given SQLMesh plan contains breaking changes
     (any directly or indirectly modified models).
-    Logs the models concernés, using context.log if available.
+    Logs the concerned models, using context.log if available.
     """
     directly_modified = getattr(plan, "directly_modified", set())
     indirectly_modified = getattr(plan, "indirectly_modified", set())
@@ -123,7 +123,7 @@ def has_breaking_changes_with_message(plan, logger, context=None) -> tuple[bool,
     """
     Returns (True, message) if the given SQLMesh plan contains breaking changes
     (any directly or indirectly modified models).
-    Logs the models concernés, using context.log if available.
+    Logs the concerned models, using context.log if available.
     """
     directly_modified = getattr(plan, "directly_modified", set())
     indirectly_modified = getattr(plan, "indirectly_modified", set())
@@ -154,7 +154,7 @@ def has_breaking_changes_with_message(plan, logger, context=None) -> tuple[bool,
 
 def get_asset_kinds(sqlmesh_resource) -> set:
     """
-    Retourne les kinds des assets avec le dialecte SQL.
+    Returns asset kinds with SQL dialect.
     """
     translator = sqlmesh_resource.translator
     context = sqlmesh_resource.context
@@ -164,36 +164,36 @@ def get_asset_kinds(sqlmesh_resource) -> set:
 
 def get_asset_tags(translator, context, model) -> dict:
     """
-    Retourne les tags pour un asset.
+    Returns tags for an asset.
     """
     return translator.get_tags(context, model)
 
 
 def get_asset_metadata(translator, model, code_version, extra_keys, owners) -> dict:
     """
-    Retourne les métadonnées pour un asset.
+    Returns metadata for an asset.
     """
     metadata = {}
     
-    # Métadonnées de base
+    # Base metadata
     if code_version:
         metadata["code_version"] = code_version
     
-    # Métadonnées de table avec column descriptions
+    # Table metadata with column descriptions
     table_metadata = translator.get_table_metadata(model)
     metadata.update(table_metadata)
     
-    # Ajouter les column descriptions si disponibles
+    # Add column descriptions if available
     column_descriptions = get_column_descriptions_from_model(model)
     if column_descriptions:
         metadata["column_descriptions"] = column_descriptions
     
-    # Métadonnées supplémentaires
+    # Additional metadata
     if extra_keys:
         serialized_metadata = translator.serialize_metadata(model, extra_keys)
         metadata.update(serialized_metadata)
     
-    # Propriétaires
+    # Owners
     if owners:
         metadata["owners"] = owners
     
@@ -202,21 +202,21 @@ def get_asset_metadata(translator, model, code_version, extra_keys, owners) -> d
 
 def format_partition_metadata(model_partitions: dict) -> dict:
     """
-    Formate les métadonnées de partition pour les rendre plus lisibles.
+    Formats partition metadata to make it more readable.
     
     Args:
-        model_partitions: Dict avec les infos de partition brutes de SQLMesh
+        model_partitions: Dict with raw partition info from SQLMesh
     
     Returns:
-        Dict avec les métadonnées formatées
+        Dict with formatted metadata
     """
     formatted_metadata = {}
     
-    # Colonnes de partition (on prend partitioned_by qui est plus standard)
+    # Partition columns (use partitioned_by which is more standard)
     if model_partitions.get("partitioned_by"):
         formatted_metadata["partition_columns"] = model_partitions["partitioned_by"]
     
-    # Intervalles convertis en datetime lisible
+    # Intervals converted to readable datetime
     if model_partitions.get("intervals"):
         readable_intervals = []
         intervals = model_partitions["intervals"]
@@ -224,7 +224,7 @@ def format_partition_metadata(model_partitions: dict) -> dict:
         for interval in intervals:
             if len(interval) == 2:
                 start_ts, end_ts = interval
-                # Convertir les timestamps Unix (millisecondes) en datetime
+                # Convert Unix timestamps (milliseconds) to datetime
                 start_dt = datetime.fromtimestamp(start_ts / 1000).strftime("%Y-%m-%d %H:%M:%S")
                 end_dt = datetime.fromtimestamp(end_ts / 1000).strftime("%Y-%m-%d %H:%M:%S")
                 readable_intervals.append({
@@ -234,10 +234,10 @@ def format_partition_metadata(model_partitions: dict) -> dict:
                     "end_timestamp": end_ts
                 })
         
-        # Utiliser directement l'objet Python (Dagster peut le gérer)
+        # Use Python object directly (Dagster can handle it)
         formatted_metadata["partition_intervals"] = readable_intervals
     
-    # Grain (si présent et non vide)
+    # Grain (if present and not empty)
     if model_partitions.get("grain") and model_partitions["grain"]:
         formatted_metadata["partition_grain"] = model_partitions["grain"]
     
@@ -246,15 +246,15 @@ def format_partition_metadata(model_partitions: dict) -> dict:
 
 def get_column_descriptions_from_model(model) -> dict:
     """
-    Extrait les column_descriptions d'un modèle SQLMesh et les formate pour Dagster.
+    Extracts column_descriptions from a SQLMesh model and formats them for Dagster.
     """
     column_descriptions = {}
     
-    # Essayer d'accéder aux column_descriptions du modèle
+    # Try to access column_descriptions from model
     if hasattr(model, 'column_descriptions') and model.column_descriptions:
         column_descriptions = model.column_descriptions
     
-    # Essayer d'accéder via le modèle SQLMesh
+    # Try to access via SQLMesh model
     elif hasattr(model, 'model') and hasattr(model.model, 'column_descriptions'):
         column_descriptions = model.model.column_descriptions
     
@@ -263,102 +263,102 @@ def get_column_descriptions_from_model(model) -> dict:
 
 def safe_extract_audit_query(model, audit_obj, audit_args, logger=None):
     """
-    Extrait la query d'audit de manière sécurisée avec fallback.
+    Safely extracts audit query with fallback.
     
     Args:
-        model: Modèle SQLMesh
-        audit_obj: Objet d'audit SQLMesh
-        audit_args: Arguments de l'audit
-        logger: Logger optionnel pour les warnings
+        model: SQLMesh model
+        audit_obj: SQLMesh audit object
+        audit_args: Audit arguments
+        logger: Optional logger for warnings
     
     Returns:
-        str: La query SQL ou "N/A" si extraction échoue
+        str: SQL query or "N/A" if extraction fails
     """
     try:
         return model.render_audit_query(audit_obj, **audit_args).sql()
     except Exception as e:
         if logger:
-            logger.warning(f"⚠️ Erreur lors du rendu de la query d'audit: {e}")
+            logger.warning(f"⚠️ Error rendering audit query: {e}")
         try:
             return audit_obj.query.sql()
         except Exception as e2:
             if logger:
-                logger.warning(f"⚠️ Erreur lors de l'extraction de la query de base: {e2}")
+                logger.warning(f"⚠️ Error extracting base query: {e2}")
             return "N/A"
 
 
 def analyze_sqlmesh_crons_using_api(context):
     """
-    Analyse tous les crons des modèles SQLMesh et retourne le schedule Dagster recommandé.
+    Analyzes all SQLMesh model crons and returns the recommended Dagster schedule.
     
     Args:
         context: SQLMesh Context
     
     Returns:
-        str: Expression cron Dagster recommandée
+        str: Recommended Dagster cron expression
     """
     try:
         models = context.models.values()
         
-        # Collecter les intervalles des modèles avec cron
+        # Collect intervals from models with cron
         intervals = []
         for model in models:
             if hasattr(model, 'cron') and model.cron:
                 intervals.append(model.interval_unit.seconds)
         
         if not intervals:
-            return "0 */6 * * *"  # Default: toutes les 6h
+            return "0 */6 * * *"  # Default: every 6h
         
-        # Trouver la granularité la plus fine
+        # Find finest granularity
         finest_interval = min(intervals)
         
-        # Retourner le schedule Dagster recommandé
+        # Return recommended Dagster schedule
         return get_dagster_schedule_from_interval(finest_interval)
         
     except Exception as e:
-        # Fallback en cas d'erreur
-        return "0 */6 * * *"  # Default: toutes les 6h
+        # Fallback in case of error
+        return "0 */6 * * *"  # Default: every 6h
 
 
 def get_dagster_schedule_from_interval(interval_seconds):
     """
-    Convertit un intervalle en secondes vers une expression cron Dagster.
+    Converts an interval in seconds to a Dagster cron expression.
     
     Args:
-        interval_seconds: Intervalle en secondes
+        interval_seconds: Interval in seconds
     
     Returns:
-        str: Expression cron Dagster
+        str: Dagster cron expression
     """
-    # Mapping des intervalles vers les expressions cron
+    # Mapping of intervals to cron expressions
     if interval_seconds <= 300:  # <= 5 minutes
         return "*/5 * * * *"
     elif interval_seconds <= 900:  # <= 15 minutes
         return "*/15 * * * *"
     elif interval_seconds <= 1800:  # <= 30 minutes
         return "*/30 * * * *"
-    elif interval_seconds <= 3600:  # <= 1 heure
+    elif interval_seconds <= 3600:  # <= 1 hour
         return "0 * * * *"
-    elif interval_seconds <= 21600:  # <= 6 heures
+    elif interval_seconds <= 21600:  # <= 6 hours
         return "0 */6 * * *"
-    elif interval_seconds <= 86400:  # <= 1 jour
+    elif interval_seconds <= 86400:  # <= 1 day
         return "0 0 * * *"
     else:
-        return "0 0 * * 0"  # Toutes les semaines
+        return "0 0 * * 0"  # Every week
 
 
 
 
 def validate_external_dependencies(sqlmesh_resource, models) -> list:
     """
-    Valide que tous les external dependencies peuvent être proprement mappés.
-    Retourne une liste d'erreurs de validation.
+    Validates that all external dependencies can be properly mapped.
+    Returns a list of validation errors.
     """
     translator = sqlmesh_resource.translator
     context = sqlmesh_resource.context
     errors = []
     for model in models:
-        # Ignorer les external models dans la validation
+        # Ignore external models in validation
         if isinstance(model, ExternalModel):
             continue
             
@@ -379,18 +379,18 @@ def create_all_asset_specs(
     group_name
 ) -> list[AssetSpec]:
     """
-    Crée tous les AssetSpec pour tous les modèles SQLMesh.
+    Creates all AssetSpec for all SQLMesh models.
     
     Args:
-        models: Liste des modèles SQLMesh
+        models: List of SQLMesh models
         sqlmesh_resource: SQLMeshResource
-        extra_keys: Clés supplémentaires pour les métadonnées
-        kinds: Kinds des assets
-        owners: Propriétaires des assets
-        group_name: Nom du groupe par défaut
+        extra_keys: Additional keys for metadata
+        kinds: Asset kinds
+        owners: Asset owners
+        group_name: Default group name
     
     Returns:
-        Liste de tous les AssetSpec
+        List of all AssetSpec
     """
     translator = sqlmesh_resource.translator
     context = sqlmesh_resource.context
@@ -424,17 +424,17 @@ def create_asset_specs(
     group_name
 ) -> list[AssetSpec]:
     """
-    Crée tous les AssetSpec pour tous les modèles SQLMesh.
+    Creates all AssetSpec for all SQLMesh models.
     
     Args:
         sqlmesh_resource: SQLMeshResource
-        extra_keys: Clés supplémentaires pour les métadonnées
-        kinds: Kinds des assets
-        owners: Propriétaires des assets
-        group_name: Nom du groupe par défaut
+        extra_keys: Additional keys for metadata
+        kinds: Asset kinds
+        owners: Asset owners
+        group_name: Default group name
     
     Returns:
-        Liste de tous les AssetSpec
+        List of all AssetSpec
     """
     models = [model for model in sqlmesh_resource.get_models() if not isinstance(model, ExternalModel)]
     return create_all_asset_specs(models, sqlmesh_resource, extra_keys, kinds, owners, group_name)
@@ -442,10 +442,10 @@ def create_asset_specs(
 
 def get_extra_keys() -> list[str]:
     """
-    Retourne les clés supplémentaires pour les métadonnées des assets SQLMesh.
+    Returns additional keys for SQLMesh asset metadata.
     
     Returns:
-        Liste des clés supplémentaires
+        List of additional keys
     """
     return ["cron", "tags", "kind", "dialect", "query", "partitioned_by", "clustered_by"]
 
@@ -454,13 +454,13 @@ def create_asset_checks(
     sqlmesh_resource
 ) -> list[AssetCheckSpec]:
     """
-    Crée tous les AssetCheckSpec pour tous les modèles SQLMesh.
+    Creates all AssetCheckSpec for all SQLMesh models.
     
     Args:
         sqlmesh_resource: SQLMeshResource
     
     Returns:
-        Liste de tous les AssetCheckSpec
+        List of all AssetCheckSpec
     """
     models = [model for model in sqlmesh_resource.get_models() if not isinstance(model, ExternalModel)]
     return create_all_asset_checks(models, sqlmesh_resource.translator) 

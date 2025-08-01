@@ -7,30 +7,30 @@ from sqlmesh.core.model.definition import ExternalModel
 
 def create_asset_checks_from_model(model, asset_key: AssetKey) -> List[AssetCheckSpec]:
     """
-    Crée les AssetCheckSpec pour les audits d'un modèle SQLMesh.
+    Creates AssetCheckSpec for audits of a SQLMesh model.
     
     Args:
-        model: Modèle SQLMesh
-        asset_key: AssetKey Dagster associé au modèle
+        model: SQLMesh model
+        asset_key: Dagster AssetKey associated with the model
     
     Returns:
-        Liste des AssetCheckSpec pour les audits du modèle
+        List of AssetCheckSpec for model audits
     """
     asset_checks = []
     
-    # Récupérer les audits du modèle
+    # Get model audits
     audits_with_args = model.audits_with_args if hasattr(model, 'audits_with_args') else []
     
     for audit_obj, audit_args in audits_with_args:
         asset_checks.append(
             AssetCheckSpec(
                 name=audit_obj.name,
-                asset=asset_key,  # ← C'est "asset" pas "asset_key" !
+                asset=asset_key,  # ← It's "asset" not "asset_key" !
                 description=f"Triggered by sqlmesh audit {audit_obj.name} on model {model.name}",
                 blocking=False,  # ← sqlmesh can block materialization if audit fails, but we don't want to block dagster
                 metadata={
                     "audit_query": str(audit_obj.query.sql()),
-                    "audit_blocking": audit_obj.blocking,  # ← Garder l'info originale dans les métadonnées
+                    "audit_blocking": audit_obj.blocking,  # ← Keep original info in metadata
                     "audit_dialect": audit_obj.dialect,
                     "audit_args": audit_args
                 }
@@ -42,19 +42,19 @@ def create_asset_checks_from_model(model, asset_key: AssetKey) -> List[AssetChec
 
 def create_all_asset_checks(models, translator) -> List[AssetCheckSpec]:
     """
-    Crée tous les AssetCheckSpec pour tous les modèles SQLMesh.
+    Creates all AssetCheckSpec for all SQLMesh models.
     
     Args:
-        models: Liste des modèles SQLMesh
-        translator: SQLMeshTranslator pour mapper les modèles vers AssetKey
+        models: List of SQLMesh models
+        translator: SQLMeshTranslator to map models to AssetKey
     
     Returns:
-        Liste de tous les AssetCheckSpec
+        List of all AssetCheckSpec
     """
     all_checks = []
     
     for model in models:
-        # Ignorer les external models
+        # Ignore external models
         if isinstance(model, ExternalModel):
             continue
             

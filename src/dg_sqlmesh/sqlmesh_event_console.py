@@ -13,7 +13,7 @@ from .sqlmesh_asset_utils import safe_extract_audit_query
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# ÉVÉNEMENTS SQLMESH (basé sur dagster-sqlmesh)
+# SQLMESH EVENTS (based on dagster-sqlmesh)
 # =============================================================================
 
 @dataclass(kw_only=True)
@@ -73,7 +73,7 @@ class LogSkippedModels(BaseConsoleEvent):
 class ConsoleException(BaseConsoleEvent):
     exception: Exception
 
-# Union de tous les événements possibles
+# Union of all possible events
 ConsoleEvent = (
     StartPlanEvaluation
     | StopPlanEvaluation
@@ -92,7 +92,7 @@ ConsoleEvent = (
 ConsoleEventHandler = t.Callable[[ConsoleEvent], None]
 
 # =============================================================================
-# CONSOLE ÉVÉNEMENTIELLE (basé sur dagster-sqlmesh)
+# EVENT CONSOLE (based on dagster-sqlmesh)
 # =============================================================================
 
 def get_console_event_by_name(event_name: str) -> type[ConsoleEvent] | None:
@@ -104,7 +104,7 @@ def get_console_event_by_name(event_name: str) -> type[ConsoleEvent] | None:
     return console_event_map.get(event_name)
 
 class IntrospectingConsole(Console):
-    """Une console qui implémente dynamiquement les méthodes basées sur les événements SQLMesh"""
+    """A console that dynamically implements methods based on SQLMesh events"""
 
     events: t.ClassVar[list[type[ConsoleEvent]]] = [
         StartPlanEvaluation,
@@ -130,7 +130,7 @@ class IntrospectingConsole(Console):
             assert inspect.isclass(known_event), "event must be a class"
             known_events.append(known_event.__name__)
 
-        # Créer dynamiquement les méthodes pour chaque événement
+        # Dynamically create methods for each event
         for method_name in Console.__abstractmethods__:
             if hasattr(cls, method_name):
                 if not getattr(getattr(cls, method_name), '__isabstractmethod__', False):
@@ -139,7 +139,7 @@ class IntrospectingConsole(Console):
             
             logger.debug(f"Checking {method_name}")
 
-            # Convertir snake_case en camelCase
+            # Convert snake_case to camelCase
             camel_case_method_name = "".join(
                 word.capitalize()
                 for _, word in enumerate(method_name.split("_"))
@@ -172,7 +172,7 @@ class IntrospectingConsole(Console):
         func_signature: list[str] = []
         call_params: list[str] = []
         
-        # Séparer les paramètres avec et sans valeurs par défaut
+        # Separate parameters with and without default values
         required_params = []
         optional_params = []
         
@@ -186,10 +186,10 @@ class IntrospectingConsole(Console):
                 param_type_name = param_type_name.__name__
             
             if param.default is inspect._empty:
-                # Paramètre requis (sans valeur par défaut)
+                # Required parameter (no default value)
                 required_params.append((param_name, f"{param_name}: '{param_type_name}'"))
             else:
-                # Paramètre optionnel (avec valeur par défaut)
+                # Optional parameter (with default value)
                 default_value = param.default
                 if isinstance(param.default, str):
                     default_value = f"'{param.default}'"
@@ -197,7 +197,7 @@ class IntrospectingConsole(Console):
             
             call_params.append(f"{param_name}={param_name}")
         
-        # Ajouter d'abord les paramètres requis, puis les optionnels
+        # Add required parameters first, then optional ones
         for _, sig in required_params:
             func_signature.append(sig)
         for _, sig in optional_params:
@@ -217,7 +217,7 @@ class IntrospectingConsole(Console):
         return t.cast(t.Callable[[t.Any], t.Any], locals()[method_name])
 
     def __init__(self, log_override: logging.Logger | None = None, **kwargs) -> None:
-        # Ignorer les kwargs non supportés (verbosity, ignore_warnings, etc.)
+        # Ignore unsupported kwargs (verbosity, ignore_warnings, etc.)
         self._handlers: dict[str, ConsoleEventHandler] = {}
         self.logger = log_override or logger
         self.id = str(uuid.uuid4())
@@ -262,61 +262,61 @@ class IntrospectingConsole(Console):
         del self._handlers[handler_id]
 
 # =============================================================================
-# CONSOLE PERSONNALISÉE POUR CAPTURER LES AUDITS
+# CUSTOM CONSOLE FOR CAPTURING AUDITS
 # =============================================================================
 
 class SQLMeshEventCaptureConsole(IntrospectingConsole):
     """
-    Console SQLMesh personnalisée qui capture TOUS les événements :
-    - Plan (création, application)
-    - Apply (évaluation, promotion)
-    - Audits (résultats, erreurs)
-    - Debug (logs, erreurs, succès)
+    Custom SQLMesh console that captures ALL events:
+    - Plan (creation, application)
+    - Apply (evaluation, promotion)
+    - Audits (results, errors)
+    - Debug (logs, errors, success)
     """
 
     def __init__(self, translator=None, **kwargs):
         super().__init__(**kwargs)
-        self._translator = translator  # ← Ajouter le translator
+        self._translator = translator  # ← Add translator
         self.audit_results: list[dict[str, t.Any]] = []
         self.audit_stats: dict[str, dict[str, int]] = {}
         self.plan_events: list[dict[str, t.Any]] = []
         self.evaluation_events: list[dict[str, t.Any]] = []
         self.log_events: list[dict[str, t.Any]] = []
         
-        # Logger contextuel qui peut être changé dynamiquement
-        # Récupérer le log_override depuis les kwargs ou utiliser un logger par défaut
+        # Contextual logger that can be changed dynamically
+        # Get log_override from kwargs or use default logger
         self._context_logger = kwargs.get('log_override') or logging.getLogger(__name__)
-        # S'assurer que le logger est en niveau INFO
+        # Ensure logger is at INFO level
         self._context_logger.setLevel(logging.INFO)
         
-        # Console initialisée et prête
+        # Console initialized and ready
         
-        # Ajouter notre handler personnalisé
+        # Add our custom handler
         self.add_handler(self._event_handler)
     
     @property
     def context_logger(self):
-        """Retourne le logger contextuel actuel"""
+        """Returns the current contextual logger"""
         return self._context_logger
     
     @context_logger.setter
     def context_logger(self, logger):
-        """Permet de changer le logger contextuel dynamiquement"""
+        """Allows changing the contextual logger dynamically"""
         self._context_logger = logger
 
     def _event_handler(self, event: ConsoleEvent) -> None:
-        """Handler principal qui capture TOUS les événements SQLMesh"""
+        """Main handler that captures ALL SQLMesh events"""
         
-        # Debug: afficher tous les événements reçus
+        # Debug: display all received events
         self.context_logger.debug(f"🔍 EVENT RECEIVED: {event.__class__.__name__}")
         
-        # Capture des événements de plan
+        # Capture plan events
         if isinstance(event, StartPlanEvaluation):
             self._handle_start_plan_evaluation(event)
         elif isinstance(event, StopPlanEvaluation):
             self._handle_stop_plan_evaluation(event)
         
-        # Capture des événements d'évaluation (où les audits se déclenchent)
+        # Capture evaluation events (where audits can trigger)
         elif isinstance(event, StartSnapshotEvaluationProgress):
             self._handle_start_snapshot_evaluation(event)
         elif isinstance(event, UpdateSnapshotEvaluationProgress):
@@ -324,31 +324,31 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
         elif isinstance(event, StopEvaluationProgress):
             self._handle_stop_evaluation(event)
         
-        # Capture des logs d'erreur (pour les audits qui échouent)
+        # Capture error logs (for failed audits)
         elif isinstance(event, LogError):
             self._handle_log_error(event)
         elif isinstance(event, LogFailedModels):
             self._handle_log_failed_models(event)
         
-        # Capture des logs de succès
+        # Capture success logs
         elif isinstance(event, LogSuccess):
             self._handle_log_success(event)
         
-        # Capture des logs de statut
+        # Capture status logs
         elif isinstance(event, LogStatusUpdate):
             self._handle_log_status_update(event)
         
 
 
     def _handle_log_status_update(self, event: LogStatusUpdate) -> None:
-        """Capture les logs de statut"""
-        # Utiliser le logger Dagster si disponible
+        """Captures status logs"""
+        # Use Dagster logger if available
         if hasattr(self, '_dagster_logger') and self._dagster_logger:
             self._dagster_logger.info(f"ℹ️ SQLMesh: {event.message}")
         
 
     def _handle_start_plan_evaluation(self, event: StartPlanEvaluation) -> None:
-        """Capture le début d'un plan"""
+        """Captures plan start"""
         plan_info = {
             'event_type': 'start_plan_evaluation',
             'plan_id': getattr(event.plan, 'plan_id', 'N/A'),
@@ -357,7 +357,7 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
         self.plan_events.append(plan_info)
 
     def _handle_stop_plan_evaluation(self, event: StopPlanEvaluation) -> None:
-        """Capture la fin d'un plan"""
+        """Captures plan end"""
         plan_info = {
             'event_type': 'stop_plan_evaluation',
             'timestamp': t.cast(float, t.Any),
@@ -365,7 +365,7 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
         self.plan_events.append(plan_info)
 
     def _handle_start_snapshot_evaluation(self, event: StartSnapshotEvaluationProgress) -> None:
-        """Capture le début de l'évaluation d'un snapshot (où les audits peuvent se déclencher)"""
+        """Captures snapshot evaluation start (where audits can trigger)"""
         eval_info = {
             'event_type': 'start_snapshot_evaluation',
             'snapshot_name': event.snapshot.name,
@@ -375,7 +375,7 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
         self.evaluation_events.append(eval_info)
 
     def _handle_update_snapshot_evaluation(self, event: UpdateSnapshotEvaluationProgress) -> None:
-        """Capture les mises à jour pendant l'évaluation (c'est ici que les audits se déclenchent !)"""
+        """Captures updates during evaluation (this is where audits trigger!)"""
         self.context_logger.debug(f"✅ _handle_update_snapshot_evaluation called")
         eval_info = {
             'event_type': 'update_snapshot_evaluation',
@@ -387,17 +387,17 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
         }
         self.evaluation_events.append(eval_info)
         
-        # Capture des résultats d'audit via les paramètres
+        # Capture audit results via parameters
         if event.num_audits_passed is not None or event.num_audits_failed is not None:
             if hasattr(self, '_dagster_logger') and self._dagster_logger:
                 self._dagster_logger.info(f"✅ AUDITS RESULTS: {event.num_audits_passed} passed, {event.num_audits_failed} failed")
             
-            # Si on a des audits dans ce snapshot, on peut les capturer ici
+            # If we have audits in this snapshot, we can capture them here
             if hasattr(event.snapshot, 'model') and hasattr(event.snapshot.model, 'audits_with_args') and event.snapshot.model.audits_with_args:
                 audit_results = []
                 for audit_obj, audit_args in event.snapshot.model.audits_with_args:
                     try:
-                        # Utiliser le translator existant pour obtenir l'asset_key
+                        # Use existing translator to get asset_key
                         asset_key = self._translator.get_asset_key(event.snapshot.model) if self._translator else None
                         
                         audit_result = {
@@ -408,15 +408,15 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
                         }
                         audit_results.append(audit_result)
                     except Exception as e:
-                        self._dagster_logger.warning(f"⚠️ Erreur lors de la capture d'audit: {e}")
+                        self._dagster_logger.warning(f"⚠️ Error capturing audit: {e}")
                         continue
                 
                 self.audit_results.extend(audit_results)
 
     def _extract_audit_details(self, audit_obj, audit_args, model):
-        """Extrait toutes les informations utiles d'un audit"""
+        """Extracts all useful information from an audit"""
         
-        # Utiliser la fonction utilitaire
+        # Use utility function
         sql_query = safe_extract_audit_query(
             model=model,
             audit_obj=audit_obj,
@@ -433,7 +433,7 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
         }
 
     def _handle_stop_evaluation(self, event: StopEvaluationProgress) -> None:
-        """Capture la fin de l'évaluation"""
+        """Captures evaluation end"""
         eval_info = {
             'event_type': 'stop_evaluation',
             'success': event.success,
@@ -442,7 +442,7 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
         self.evaluation_events.append(eval_info)
 
     def _handle_log_error(self, event: LogError) -> None:
-        """Capture les erreurs (y compris les audits qui échouent)"""
+        """Captures errors (including failed audits)"""
         error_info = {
             'event_type': 'log_error',
             'message': event.message,
@@ -451,7 +451,7 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
         self.log_events.append(error_info)
 
     def _handle_log_failed_models(self, event: LogFailedModels) -> None:
-        """Capture les modèles qui ont échoué"""
+        """Captures failed models"""
         for error in event.errors:
             error_info = {
                 'event_type': 'log_failed_model',
@@ -461,7 +461,7 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
             self.log_events.append(error_info)
 
     def _handle_log_success(self, event: LogSuccess) -> None:
-        """Capture les succès"""
+        """Captures successes"""
         success_info = {
             'event_type': 'log_success',
             'message': event.message,
@@ -470,19 +470,19 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
         self.log_events.append(success_info)
 
     def get_audit_results(self) -> list[dict[str, t.Any]]:
-        """Retourne tous les résultats d'audit capturés"""
+        """Returns all captured audit results"""
         return self.audit_results
 
     def get_evaluation_events(self) -> list[dict[str, t.Any]]:
-        """Retourne tous les événements d'évaluation"""
+        """Returns all evaluation events"""
         return self.evaluation_events
 
     def get_plan_events(self) -> list[dict[str, t.Any]]:
-        """Retourne tous les événements de plan"""
+        """Returns all plan events"""
         return self.plan_events
 
     def get_all_events(self) -> dict[str, list[dict[str, t.Any]]]:
-        """Retourne TOUS les événements capturés organisés par catégorie"""
+        """Returns ALL captured events organized by category"""
         return {
             'audit_results': self.audit_results,
             'evaluation_events': self.evaluation_events,
@@ -491,7 +491,7 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
         }
 
     def clear_events(self) -> None:
-        """Nettoie tous les événements capturés"""
+        """Clears all captured events"""
         self.audit_results.clear()
         self.audit_stats.clear()
         self.plan_events.clear()

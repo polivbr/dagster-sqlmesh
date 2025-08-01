@@ -9,7 +9,6 @@ from dagster import (
     MaterializeResult, 
     DataVersion, 
     AssetCheckResult,
-    get_dagster_logger,
     InitResourceContext
 )
 from sqlmesh import Context
@@ -38,35 +37,35 @@ from sqlmesh.utils.errors import (
 
 def convert_unix_timestamp_to_readable(timestamp):
     """
-    Convertit un timestamp Unix en date lisible.
+    Converts a Unix timestamp to a readable date.
     
     Args:
-        timestamp: Timestamp Unix en millisecondes (int ou float)
+        timestamp: Unix timestamp in milliseconds (int or float)
         
     Returns:
-        str: Date au format "YYYY-MM-DD HH:MM:SS" ou None si timestamp est None
+        str: Date in "YYYY-MM-DD HH:MM:SS" format or None if timestamp is None
     """
     if timestamp is None:
         return None
     
     try:
-        # Convertir les millisecondes en secondes
+        # Convert milliseconds to seconds
         timestamp_seconds = timestamp / 1000
         dt = datetime.datetime.fromtimestamp(timestamp_seconds)
         return dt.strftime("%Y-%m-%d %H:%M:%S")
     except (ValueError, TypeError):
-        # Fallback si la conversion échoue
+        # Fallback if conversion fails
         return str(timestamp)
 
 
-# Lock global pour le singleton de la console SQLMesh
+# Global lock for SQLMesh console singleton
 _console_lock = threading.Lock()
 
 
 class SQLMeshResource(ConfigurableResource):
     """
-    Resource Dagster pour interagir avec SQLMesh.
-    Gère le contexte SQLMesh, le caching et orchestre la matérialisation.
+    Dagster resource for interacting with SQLMesh.
+    Manages SQLMesh context, caching and orchestrates materialization.
     """
     
     project_dir: str
@@ -74,40 +73,40 @@ class SQLMeshResource(ConfigurableResource):
     concurrency_limit: int = 1
     ignore_cron: bool = False
     
-    # Attribut privé pour le logger Dagster (non soumis à l'immuabilité Pydantic)
+    # Private attribute for Dagster logger (not subject to Pydantic immutability)
     _logger: Any = PrivateAttr(default=None)
     
-    # Singleton pour la console SQLMesh (initialisé de manière lazy)
+    # Singleton for SQLMesh console (lazy initialized)
     
     def __init__(self, **kwargs):
-        # Extraire le translator avant d'appeler super().__init__
+        # Extract translator before calling super().__init__
         translator = kwargs.pop('translator', None)
         super().__init__(**kwargs)
         
-        # Stocker le translator pour utilisation ultérieure
+        # Store translator for later use
         if translator:
             self._translator_instance = translator
             
-        # Créer la console SQLMesh dès l'initialisation
+        # Create SQLMesh console at initialization
         self._console = self._get_or_create_console()
         
-        # Configurer le translator dans la console après sa création
+        # Configure translator in console after creation
         if hasattr(self, '_translator_instance') and self._translator_instance:
             self._console._translator = self._translator_instance
         
 
     def __del__(self):
-        pass  # Cleanup simplifié
+        pass  # Simplified cleanup
 
     @property
     def logger(self):
-        """Retourne le logger pour cette resource."""
+        """Returns the logger for this resource."""
         return logging.getLogger(__name__)
 
     @classmethod
     def _get_or_create_console(cls) -> 'SQLMeshEventCaptureConsole':
-        """Crée ou retourne l'instance singleton de la console SQLMesh événementielle."""
-        # Initialiser les variables de classe de manière lazy
+        """Creates or returns the singleton instance of the SQLMesh event console."""
+        # Initialize class variables lazily
         if not hasattr(cls, '_console_instance'):
             cls._console_instance = None
         
@@ -123,12 +122,12 @@ class SQLMeshResource(ConfigurableResource):
     @property
     def context(self) -> Context:
         """
-        Retourne le contexte SQLMesh. Cached pour les performances.
+        Returns the SQLMesh context. Cached for performance.
         """
         if not hasattr(self, '_context_cache'):
-            # Configurer la console custom avant de créer le contexte
+            # Configure custom console before creating context
             console = self._get_or_create_console()
-            console._dagster_logger = self._logger  # Mettre à jour le logger
+            console._dagster_logger = self._logger  # Update logger
             
             self._context_cache = Context(
                 paths=self.project_dir,
@@ -139,25 +138,25 @@ class SQLMeshResource(ConfigurableResource):
     @property
     def translator(self) -> SQLMeshTranslator:
         """
-        Retourne une instance SQLMeshTranslator pour mapper AssetKeys et modèles.
-        Cached pour les performances.
+        Returns a SQLMeshTranslator instance for mapping AssetKeys and models.
+        Cached for performance.
         """
         if not hasattr(self, '_translator_cache'):
-            # Utilise le translator fourni en paramètre ou crée un nouveau
+            # Use translator provided as parameter or create a new one
             self._translator_cache = getattr(self, '_translator_instance', None) or SQLMeshTranslator()
         return self._translator_cache
 
     def setup_for_execution(self, context: InitResourceContext) -> None:
-        # Stocker le logger Dagster dans l'attribut privé
+        # Store Dagster logger in private attribute
         self._logger = context.log
         
-        # Configurer la console avec le logger Dagster
+        # Configure console with Dagster logger
         if hasattr(self, '_console') and self._console:
             self._console._dagster_logger = self._logger
 
     def get_models(self):
         """
-        Retourne tous les modèles SQLMesh. Cached pour les performances.
+        Returns all SQLMesh models. Cached for performance.
         """
         if not hasattr(self, '_models_cache'):
             self._models_cache = list(self.context.models.values())
@@ -165,16 +164,16 @@ class SQLMeshResource(ConfigurableResource):
 
     def get_recommended_schedule(self):
         """
-        Analyse les crons SQLMesh et retourne le schedule Dagster recommandé.
+        Analyzes SQLMesh crons and returns the recommended Dagster schedule.
         
         Returns:
-            str: Expression cron Dagster recommandée
+            str: Recommended Dagster cron expression
         """
         return analyze_sqlmesh_crons_using_api(self.context)
 
     def _serialize_audit_args(self, audit_args):
         """
-        Sérialise les arguments d'audit en format JSON-compatible.
+        Serializes audit arguments to JSON-compatible format.
         """
         if not audit_args:
             return {}
@@ -182,27 +181,27 @@ class SQLMeshResource(ConfigurableResource):
         serialized = {}
         for key, value in audit_args.items():
             try:
-                # Essayer de convertir en string si c'est un objet complexe
+                # Try to convert to string if it's a complex object
                 if hasattr(value, '__str__'):
                     serialized[key] = str(value)
                 elif hasattr(value, '__dict__'):
-                    # Pour les objets avec __dict__, extraire les attributs principaux
+                    # For objects with __dict__, extract main attributes
                     serialized[key] = {k: str(v) for k, v in value.__dict__.items() if not k.startswith('_')}
                 else:
-                    # Fallback: conversion directe
+                    # Fallback: direct conversion
                     serialized[key] = str(value)
             except Exception:
-                # En cas d'erreur, utiliser une représentation simple
+                # In case of error, use simple representation
                 serialized[key] = f"<non-serializable: {type(value).__name__}>"
         
         return serialized
 
     def materialize_assets(self, models, context=None):
         """
-        Matérialise les assets SQLMesh spécifiés avec gestion d'erreurs robuste.
+        Materializes specified SQLMesh assets with robust error handling.
         """
         model_names = [model.name for model in models]
-        # S'assurer que notre console est active pour SQLMesh
+        # Ensure our console is active for SQLMesh
         set_console(self._console)
         self._console.clear_events()
         
@@ -220,27 +219,27 @@ class SQLMeshResource(ConfigurableResource):
             return plan
 
         except CircuitBreakerError:
-            self._logger.error("Run interrompu : l'environnement a changé pendant l'exécution.")
+            self._logger.error("Run interrupted: environment changed during execution.")
             raise
         except (PlanError, ConflictingPlanError, NoChangesPlanError, UncategorizedPlanError) as e:
-            self._logger.error(f"Erreur de planification : {e}")
+            self._logger.error(f"Planning error: {e}")
             raise
         except (AuditError, NodeAuditsErrors) as e:
-            self._logger.error(f"Erreur d'audit : {e}")
+            self._logger.error(f"Audit error: {e}")
             raise
         except (PythonModelEvalError, SignalEvalError) as e:
-            self._logger.error(f"Erreur d'exécution de modèle ou de signal : {e}")
+            self._logger.error(f"Model or signal execution error: {e}")
             raise
         except SQLMeshError as e:
-            self._logger.error(f"Erreur SQLMesh : {e}")
+            self._logger.error(f"SQLMesh error: {e}")
             raise
         except Exception as e:
-            self._logger.error(f"Erreur inattendue : {e}")
+            self._logger.error(f"Unexpected error: {e}")
             raise
 
     def materialize_assets_threaded(self, models, context=None):
         """
-        Wrapper synchrone pour Dagster qui utilise anyio.
+        Synchronous wrapper for Dagster that uses anyio.
         """
 
         def run_materialization():
@@ -253,7 +252,7 @@ class SQLMeshResource(ConfigurableResource):
 
     def materialize_all_assets(self, context):
         """
-        Matérialise tous les assets sélectionnés et yield les résultats.
+        Materializes all selected assets and yields results.
         """
 
         selected_asset_keys = context.selected_asset_keys
@@ -263,35 +262,35 @@ class SQLMeshResource(ConfigurableResource):
             self.translator,
         )
         
-        # Créer et appliquer le plan
+        # Create and apply plan
         plan = self.materialize_assets_threaded(models_to_materialize, context=context)
         
-        # Extraire les snapshots catégorisés directement depuis le plan
+        # Extract categorized snapshots directly from plan
         assetkey_to_snapshot = {}
         for snapshot in plan.snapshots.values():
             model = snapshot.model
             asset_key = self.translator.get_asset_key(model)
             assetkey_to_snapshot[asset_key] = snapshot
         
-        # Trier les asset keys dans l'ordre topologique
+        # Sort asset keys in topological order
         ordered_asset_keys = get_topologically_sorted_asset_keys(
             self.context, self.translator, selected_asset_keys
         )
 
-        # Créer les MaterializeResult avec les infos du plan
+        # Create MaterializeResult with plan info
         for asset_key in ordered_asset_keys:
             snapshot = assetkey_to_snapshot.get(asset_key)
             if snapshot:
                 snapshot_version = getattr(snapshot, "version", None)
                 model_partitions = get_model_partitions_from_plan(plan, self.translator, asset_key, snapshot)
-                # Préparer les métadonnées de base
+                # Prepare base metadata
                 metadata = {
                     "dagster-sqlmesh/snapshot_version": snapshot_version,
                     "dagster-sqlmesh/snapshot_timestamp": convert_unix_timestamp_to_readable(getattr(snapshot, "created_ts", None)) if snapshot else None,
                     "dagster-sqlmesh/model_name": asset_key.path[-1] if asset_key.path else None,
                 }
                 
-                # Ajouter les métadonnées de partition si le modèle est partitionné
+                # Add partition metadata if model is partitioned
                 if model_partitions and model_partitions.get("is_partitioned", False):
                     metadata["dagster-sqlmesh/partitions"] = format_partition_metadata(model_partitions)
                 
@@ -301,16 +300,16 @@ class SQLMeshResource(ConfigurableResource):
                     data_version=DataVersion(str(snapshot_version)) if snapshot_version else None
                 )
         
-        # Émettre les AssetCheckResult après tous les MaterializeResult
+        # Emit AssetCheckResult after all MaterializeResult
         audit_results = self._console.get_audit_results()
         for audit_result in audit_results:
             audit_details = audit_result['audit_details']
             asset_key = audit_result['asset_key']
             
-            # Déterminer si l'audit a passé (pour l'instant on assume True, on affinera plus tard)
-            passed = True  # TODO: déterminer le vrai statut basé sur les événements
+            # Determine if audit passed (for now assume True, we'll refine later)
+            passed = True  # TODO: determine real status based on events
             
-            # Sérialiser les arguments d'audit en format JSON-compatible
+            # Serialize audit arguments to JSON-compatible format
             serialized_args = self._serialize_audit_args(audit_details['arguments'])
             
             yield AssetCheckResult(
@@ -318,7 +317,7 @@ class SQLMeshResource(ConfigurableResource):
                 asset_key=asset_key,
                 check_name=audit_details['name'],
                 metadata={
-                    "sqlmesh_model_name": audit_result['model_name'],  # ← Nom du modèle SQLMesh
+                    "sqlmesh_model_name": audit_result['model_name'],  # ← SQLMesh model name
                     "audit_query": audit_details['sql'],
                     "audit_blocking": audit_details['blocking'],
                     "audit_dialect": getattr(audit_details, 'dialect', 'unknown'),
@@ -326,5 +325,5 @@ class SQLMeshResource(ConfigurableResource):
                 }
             )
         
-        # Nettoyer les événements de la console après avoir émis tous les AssetCheckResult
+        # Clean console events after emitting all AssetCheckResult
         self._console.clear_events()

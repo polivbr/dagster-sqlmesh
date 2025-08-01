@@ -9,19 +9,19 @@ from sqlmesh.core.model.definition import ExternalModel
 @dataclass
 class SQLMeshTranslator:
     """
-    Translator pour mapper les concepts SQLMesh vers Dagster.
-    Suit le pattern dagster-dbt avec des méthodes extensibles.
+    Translator to map SQLMesh concepts to Dagster.
+    Follows the dagster-dbt pattern with extensible methods.
     """
     
     def normalize_segment(self, segment: str) -> str:
-        """Normalise un segment d'AssetKey en remplaçant les caractères spéciaux."""
+        """Normalizes an AssetKey segment by replacing special characters."""
         segment = segment.replace('"', '').replace("'", "")
         return re.sub(r'[^A-Za-z0-9_]', '_', segment)
 
     def get_asset_key(self, model) -> AssetKey:
         """
-        Génère un AssetKey pour un modèle SQLMesh.
-        Peut être override pour un mapping custom.
+        Generates an AssetKey for a SQLMesh model.
+        Can be overridden for custom mapping.
         """
         catalog = self.normalize_segment(getattr(model, "catalog", "default"))
         schema = self.normalize_segment(getattr(model, "schema_name", "default"))
@@ -30,10 +30,10 @@ class SQLMeshTranslator:
 
     def get_external_asset_key(self, external_fqn: str) -> AssetKey:
         """
-        Génère un AssetKey pour un asset externe (source SQLMesh).
-        Peut être override pour un mapping custom.
+        Generates an AssetKey for an external asset (SQLMesh source).
+        Can be overridden for custom mapping.
         """
-        # Parse une string du type '"catalog"."schema"."view"'
+        # Parse a string like '"catalog"."schema"."view"'
         parts = [self.normalize_segment(s) for s in re.findall(r'"([^"]+)"', external_fqn)]
         if len(parts) == 3:
             catalog, schema, table = parts
@@ -50,18 +50,18 @@ class SQLMeshTranslator:
         return AssetKey(["external"] + parts)
 
     def get_asset_key_from_dep_str(self, dep_str: str) -> AssetKey:
-        """Parse une string de dépendance et retourne un AssetKey."""
+        """Parse a dependency string and return an AssetKey."""
         parts = [self.normalize_segment(s) for s in re.findall(r'"([^"]+)"', dep_str)]
         if len(parts) == 3:
             return AssetKey(parts)
-        # Fallback: split sur les points si pas de guillemets
+        # Fallback: split on dots if no quotes
         return AssetKey([self.normalize_segment(s) for s in dep_str.split(".")])
 
     def get_model_deps_with_external(self, context, model) -> list:
         """
-        Retourne les dépendances d'un modèle, distinguant les modèles internes SQLMesh
-        et les assets externes (comme Sling assets).
-        Peut être override pour un mapping custom des external assets.
+        Returns model dependencies, distinguishing internal SQLMesh models
+        and external assets (like Sling assets).
+        Can be overridden for custom mapping of external assets.
         """
         depends_on = getattr(model, "depends_on", set())
         deps = []
@@ -77,24 +77,24 @@ class SQLMeshTranslator:
                 # Internal SQLMesh model
                 deps.append(dep_asset_key)
             else:
-                # External asset (like Sling) - utilise le mapping custom
+                # External asset (like Sling) - use custom mapping
                 external_asset_key = self.get_external_asset_key(dep_str)
                 deps.append(external_asset_key)
 
         return deps
 
     def get_table_metadata(self, model) -> TableMetadataSet:
-        """Génère les métadonnées de table pour un modèle."""
+        """Generates table metadata for a model."""
         columns_to_types = getattr(model, "columns_to_types", {})
         
-        # Récupérer les descriptions de colonnes
+        # Get column descriptions
         column_descriptions = getattr(model, "column_descriptions", {})
         
         columns = [
             TableColumn(
                 name=col,
                 type=str(getattr(dtype, "this", dtype)),
-                description=column_descriptions.get(col)  # Utiliser la description si disponible
+                description=column_descriptions.get(col)  # Use description if available
             )
             for col, dtype in columns_to_types.items()
         ]
@@ -112,39 +112,39 @@ class SQLMeshTranslator:
         )
 
     def serialize_metadata(self, model, keys: list[str]) -> dict:
-        """Sérialise les métadonnées du modèle en JSON."""
+        """Serializes model metadata to JSON."""
         model_metadata = json.loads(model.json()) if hasattr(model, "json") else {}
         return {f"dagster-sqlmesh/{key}": model_metadata.get(key) for key in keys}
 
     def get_assetkey_to_model(self, models: list) -> dict:
-        """Retourne un mapping {AssetKey: model} pour une liste de modèles SQLMesh."""
+        """Returns a mapping {AssetKey: model} for a list of SQLMesh models."""
         return {self.get_asset_key(model): model for model in models}
 
     def get_asset_key_name(self, fqn: str) -> list:
-        """Découpe un FQN en segments (catalog, schema, name)."""
+        """Splits an FQN into segments (catalog, schema, name)."""
         return [self.normalize_segment(s) for s in fqn.split(".")]
 
     def get_group_name_with_fallback(self, context, model, factory_group_name: str) -> str:
         """
-        Détermine le group_name avec fallback vers la factory.
-        Priorité : tag > factory > fallback par défaut
+        Determines group_name with fallback to factory.
+        Priority: tag > factory > default fallback
         """
-        # Vérifier les tags SQLMesh pour les propriétés Dagster
+        # Check SQLMesh tags for Dagster properties
         dagster_property = self._get_dagster_property_from_tags(model, "group_name")
         if dagster_property:
             return dagster_property
         
-        # Si pas de tag, utiliser la valeur de la factory
+        # If no tag, use factory value
         if factory_group_name:
             return factory_group_name
         
-        # Fallback: logique par défaut
+        # Fallback: default logic
         path = self.get_asset_key_name(getattr(model, "fqn", getattr(model, "view_name", "")))
         return path[-2] if len(path) >= 2 else "default"
 
     def _get_dagster_property_from_tags(self, model, property_name: str) -> Optional[str]:
         """
-        Parse les tags SQLMesh pour extraire les propriétés Dagster.
+        Parse SQLMesh tags to extract Dagster properties.
         Convention: "dagster:property_name:value"
         """
         tags = getattr(model, "tags", set())
@@ -158,30 +158,30 @@ class SQLMeshTranslator:
         return None
 
     def get_tags(self, context, model) -> dict:
-        """Retourne les tags du modèle sous forme de dict."""
+        """Returns model tags as dict."""
         tags = getattr(model, "tags", set())
         
-        # Filtrer les tags de configuration Dagster
+        # Filter Dagster configuration tags
         dagster_tags = {}
         for tag in tags:
-            # Ignorer les tags qui commencent par "dagster:" (configuration interne)
+            # Ignore tags starting with "dagster:" (internal configuration)
             if not tag.startswith("dagster:"):
                 dagster_tags[tag] = "true"
         
         return dagster_tags
 
     def _get_context_dialect(self, context) -> str:
-        """Retourne le dialecte SQL du contexte SQLMesh."""
+        """Returns the SQL dialect of the SQLMesh context."""
         return getattr(getattr(context, "engine_adapter", None), "dialect", "")
 
-    # --- Méthodes utilitaires pour les external assets ---
+    # --- Utility methods for external assets ---
 
     def is_external_dependency(self, context, dep_str: str) -> bool:
-        """Vérifie si une dépendance fait référence à un asset externe."""
+        """Check if a dependency refers to an external asset."""
         return context.get_model(dep_str) is None
 
     def get_external_dependencies(self, context, model) -> list:
-        """Retourne seulement les dépendances externes d'un modèle."""
+        """Returns only external dependencies of a model."""
         depends_on = getattr(model, "depends_on", set())
         external_deps = []
 
