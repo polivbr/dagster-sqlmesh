@@ -15,6 +15,8 @@ class SQLMeshTranslator:
     
     def normalize_segment(self, segment: str) -> str:
         """Normalizes an AssetKey segment by replacing special characters."""
+        if segment is None:
+            return "unknown"
         segment = segment.replace('"', '').replace("'", "")
         return re.sub(r'[^A-Za-z0-9_]', '_', segment)
 

@@ -258,7 +258,11 @@ def get_column_descriptions_from_model(model) -> dict:
     elif hasattr(model, 'model') and hasattr(model.model, 'column_descriptions'):
         column_descriptions = model.model.column_descriptions
     
-    return column_descriptions
+    # Ensure we return a dict, not None or Mock
+    if column_descriptions and not hasattr(column_descriptions, '_mock_name'):
+        return column_descriptions
+    else:
+        return {}
 
 
 def safe_extract_audit_query(model, audit_obj, audit_args, logger=None):

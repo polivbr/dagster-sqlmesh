@@ -116,7 +116,7 @@ def _create_sqlmesh_context(
     project_dir: Path, load_test_data: bool = True
 ) -> Context:
     """Create a SQLMesh context for testing."""
-    context = Context(path=project_dir)
+    context = Context(str(project_dir))
     
     if load_test_data:
         # Load test data if not already loaded
