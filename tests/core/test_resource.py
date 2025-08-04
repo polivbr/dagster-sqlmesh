@@ -268,6 +268,57 @@ class TestSQLMeshResourceExecution:
         assert result.metadata["error_type"].value == "audit_extraction_failure"
         assert "Failed to extract audit details" in result.metadata["audit_message"].value
 
+    def test_deduplicate_asset_check_results(self, sqlmesh_resource: SQLMeshResource) -> None:
+        """Test the _deduplicate_asset_check_results method"""
+        from dagster import AssetCheckResult, AssetKey, MetadataValue
+        
+        # Create test AssetCheckResult objects
+        asset_key = AssetKey(["test_db", "test_schema", "test_model"])
+        
+        successful_audit = AssetCheckResult(
+            passed=True,
+            asset_key=asset_key,
+            check_name="test_audit",
+            metadata={"error_type": "audit_success"}
+        )
+        
+        failed_audit = AssetCheckResult(
+            passed=False,
+            asset_key=asset_key,
+            check_name="test_audit",
+            metadata={"error_type": "audit_failure"}
+        )
+        
+        different_audit = AssetCheckResult(
+            passed=True,
+            asset_key=asset_key,
+            check_name="different_audit",
+            metadata={"error_type": "audit_success"}
+        )
+        
+        # Test 1: No conflicts (should return all)
+        results = sqlmesh_resource._deduplicate_asset_check_results([successful_audit, different_audit])
+        assert len(results) == 2
+        
+        # Test 2: Conflict between successful and failed (should prioritize failed)
+        results = sqlmesh_resource._deduplicate_asset_check_results([successful_audit, failed_audit])
+        assert len(results) == 1
+        assert results[0].passed == False
+        assert results[0].metadata["error_type"].value == "audit_failure"
+        
+        # Test 3: Conflict with failed first (should keep failed)
+        results = sqlmesh_resource._deduplicate_asset_check_results([failed_audit, successful_audit])
+        assert len(results) == 1
+        assert results[0].passed == False
+        
+        # Test 4: Empty list
+        results = sqlmesh_resource._deduplicate_asset_check_results([])
+        assert len(results) == 0
+        
+        # Test 5: None list
+        results = sqlmesh_resource._deduplicate_asset_check_results(None)
+        assert len(results) == 0
+
 
 class TestSQLMeshResourceIntegration:
     """Integration tests for SQLMeshResource."""

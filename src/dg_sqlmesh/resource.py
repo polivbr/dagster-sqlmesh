@@ -35,6 +35,7 @@ from sqlmesh.utils.errors import (
     PythonModelEvalError,
     SignalEvalError,
 )
+import json
 
 def convert_unix_timestamp_to_readable(timestamp):
     """
@@ -174,29 +175,34 @@ class SQLMeshResource(ConfigurableResource):
         return analyze_sqlmesh_crons_using_api(self.context)
 
     def _serialize_audit_args(self, audit_args):
+        """Serialize audit arguments to JSON-compatible format"""
+        try:
+            return json.dumps(audit_args, default=str)
+        except Exception:
+            return "{}"
+
+    def _deduplicate_asset_check_results(self, asset_check_results: list[AssetCheckResult]) -> list[AssetCheckResult]:
         """
-        Serializes audit arguments to JSON-compatible format.
+        Deduplicate AssetCheckResult events to prevent conflicts.
+        If an asset has both successful and failed audits, prioritize failed ones.
         """
-        if not audit_args:
-            return {}
+        if not asset_check_results:
+            return []
         
-        serialized = {}
-        for key, value in audit_args.items():
-            try:
-                # Try to convert to string if it's a complex object
-                if hasattr(value, '__str__'):
-                    serialized[key] = str(value)
-                elif hasattr(value, '__dict__'):
-                    # For objects with __dict__, extract main attributes
-                    serialized[key] = {k: str(v) for k, v in value.__dict__.items() if not k.startswith('_')}
-                else:
-                    # Fallback: direct conversion
-                    serialized[key] = str(value)
-            except Exception:
-                # In case of error, use simple representation
-                serialized[key] = f"<non-serializable: {type(value).__name__}>"
+        # Group by asset_key and check_name
+        grouped_results = {}
+        for result in asset_check_results:
+            key = (result.asset_key, result.check_name)
+            if key not in grouped_results:
+                grouped_results[key] = result
+            else:
+                # If we have both passed=True and passed=False for same check, prioritize failed
+                if result.passed == False and grouped_results[key].passed == True:
+                    grouped_results[key] = result
+                    if self._logger:
+                        self._logger.warning(f"⚠️ Conflicting audit results for {result.asset_key}.{result.check_name}: prioritizing failed result")
         
-        return serialized
+        return list(grouped_results.values())
 
     def materialize_assets(self, models, context=None):
         """
@@ -432,35 +438,42 @@ class SQLMeshResource(ConfigurableResource):
                     data_version=DataVersion(str(snapshot_version)) if snapshot_version else None
                 )
         
-        # TODO: Re-enable successful audits processing after fixing audit_results
         # Emit AssetCheckResult for successful audits
-        # audit_results = self._console.get_audit_results()
-        # for audit_result in audit_results:
-        #     audit_details = audit_result['audit_details']
-        #     asset_key = audit_result['asset_key']
-        #     
-        #     # Determine if audit passed (for now assume True, we'll refine later)
-        #     passed = True  # TODO: determine real status based on events
-        #     
-        #     # Serialize audit arguments to JSON-compatible format
-        #     serialized_args = self._serialize_audit_args(audit_details['arguments'])
-        #     
-        #     yield AssetCheckResult(
-        #         passed=passed,
-        #         asset_key=asset_key,
-        #         check_name=audit_details['name'],
-        #         metadata={
-        #             "sqlmesh_model_name": audit_result['model_name'],  # ← SQLMesh model name
-        #             "audit_query": audit_details['sql'],
-        #             "audit_blocking": audit_details['blocking'],
-        #             "audit_dialect": getattr(audit_details, 'dialect', 'unknown'),
-        #             "audit_args": serialized_args
-        #         }
-        #     )
+        successful_audit_results = []
+        audit_results = self._console.get_audit_results()
+        for audit_result in audit_results:
+            audit_details = audit_result['audit_details']
+            asset_key = audit_result['asset_key']
+            
+            # Successful audits are always passed=True
+            passed = True
+            
+            # Serialize audit arguments to JSON-compatible format
+            serialized_args = self._serialize_audit_args(audit_details['arguments'])
+            
+            successful_audit_results.append(AssetCheckResult(
+                passed=passed,
+                asset_key=asset_key,
+                check_name=audit_details['name'],
+                metadata={
+                    "sqlmesh_model_name": audit_result['model_name'],  # ← SQLMesh model name
+                    "audit_query": audit_details['sql'],
+                    "audit_blocking": audit_details['blocking'],
+                    "audit_dialect": getattr(audit_details, 'dialect', 'unknown'),
+                    "audit_args": serialized_args,
+                    "error_type": "audit_success"
+                }
+            ))
         
         # Emit AssetCheckResult for failed models/audits
         failed_models_results = self._process_failed_models_events()
-        for asset_check_result in failed_models_results:
+        
+        # Combine and deduplicate all AssetCheckResult events
+        all_asset_check_results = successful_audit_results + failed_models_results
+        deduplicated_results = self._deduplicate_asset_check_results(all_asset_check_results)
+        
+        # Yield all deduplicated AssetCheckResult events
+        for asset_check_result in deduplicated_results:
             yield asset_check_result
         
         # Clean console events after emitting all AssetCheckResult
