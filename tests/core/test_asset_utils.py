@@ -18,7 +18,6 @@ from dg_sqlmesh.sqlmesh_asset_utils import (
     get_asset_metadata,
     format_partition_metadata,
     get_column_descriptions_from_model,
-    safe_extract_audit_query,
     analyze_sqlmesh_crons_using_api,
     get_dagster_schedule_from_interval,
     validate_external_dependencies,
@@ -27,6 +26,7 @@ from dg_sqlmesh.sqlmesh_asset_utils import (
     get_extra_keys,
     create_asset_checks,
 )
+from dg_sqlmesh.sqlmesh_asset_check_utils import safe_extract_audit_query
 
 
 class TestAssetUtils:

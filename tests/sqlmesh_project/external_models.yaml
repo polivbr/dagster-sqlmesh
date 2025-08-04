@@ -13,32 +13,32 @@
   columns:
     id: TEXT
     customer: TEXT
-    ordered_at: TIMESTAMP
+    ordered_at: TEXT
     store_id: TEXT
-    subtotal: INT
-    tax_paid: INT
-    order_total: INT
+    subtotal: BIGINT
+    tax_paid: BIGINT
+    order_total: BIGINT
   gateway: duckdb
 - name: '"jaffle_test"."main"."raw_source_products"'
   columns:
     sku: TEXT
     name: TEXT
     type: TEXT
-    price: INT
+    price: BIGINT
     description: TEXT
   gateway: duckdb
 - name: '"jaffle_test"."main"."raw_source_stores"'
   columns:
     id: TEXT
     name: TEXT
-    opened_at: DATE
-    tax_rate: DECIMAL
+    opened_at: TEXT
+    tax_rate: DOUBLE
   gateway: duckdb
 - name: '"jaffle_test"."main"."raw_source_supplies"'
   columns:
     id: TEXT
     name: TEXT
-    cost: INT
+    cost: BIGINT
     perishable: BOOLEAN
     sku: TEXT
   gateway: duckdb
@@ -46,6 +46,6 @@
   columns:
     id: TEXT
     user_id: TEXT
-    tweeted_at: TIMESTAMP
+    tweeted_at: TEXT
     content: TEXT
   gateway: duckdb
