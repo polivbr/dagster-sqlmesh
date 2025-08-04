@@ -3,7 +3,7 @@ description: Test commands
 globs: tests/**/*.py,tests/**/*.md,pytest.ini,conftest.py,**/test_*.py
 ---
 
-# Test Commands and Environment Setup
+# Test Commands and Environment Setup (dagster-sqlmesh folder)
 
 ## **Test Execution Commands**
 

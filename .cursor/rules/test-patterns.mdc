@@ -3,7 +3,7 @@ description: Test patterns and best practices
 globs: tests/**/*.py,tests/**/*.md,pytest.ini,conftest.py,**/test_*.py
 ---
 
-# Test Patterns and Best Practices
+# Test Patterns and Best Practices (dagster-sqlmesh folder)
 
 ## **Test Class Structure**
 

@@ -3,7 +3,7 @@ description: Project Overview
 alwaysApply: true
 ---
 
-# dg-sqlmesh Project Overview
+# dg-sqlmesh Project Overview (dagster-sqlmesh folder)
 
 This is a Python package that provides seamless integration between Dagster and SQLMesh for modern data engineering workflows.
 

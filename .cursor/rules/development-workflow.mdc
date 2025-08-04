@@ -2,7 +2,7 @@
 alwaysApply: true
 ---
 
-# Development Workflow for dg-sqlmesh
+# Development Workflow for dg-sqlmesh (dagster-sqlmesh folder)
 
 ## Make Commands
 

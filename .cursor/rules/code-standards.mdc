@@ -2,7 +2,7 @@
 alwaysApply: true
 ---
 
-# Code Standards for dg-sqlmesh
+# Code Standards for dg-sqlmesh (dagster-sqlmesh folder)
 
 ## Language Requirements
 

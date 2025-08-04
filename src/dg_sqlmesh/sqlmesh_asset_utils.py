@@ -265,30 +265,10 @@ def get_column_descriptions_from_model(model) -> dict:
         return {}
 
 
-def safe_extract_audit_query(model, audit_obj, audit_args, logger=None):
-    """
-    Safely extracts audit query with fallback.
-    
-    Args:
-        model: SQLMesh model
-        audit_obj: SQLMesh audit object
-        audit_args: Audit arguments
-        logger: Optional logger for warnings
-    
-    Returns:
-        str: SQL query or "N/A" if extraction fails
-    """
-    try:
-        return model.render_audit_query(audit_obj, **audit_args).sql()
-    except Exception as e:
-        if logger:
-            logger.warning(f"⚠️ Error rendering audit query: {e}")
-        try:
-            return audit_obj.query.sql()
-        except Exception as e2:
-            if logger:
-                logger.warning(f"⚠️ Error extracting base query: {e2}")
-            return "N/A"
+
+
+
+
 
 
 def analyze_sqlmesh_crons_using_api(context):

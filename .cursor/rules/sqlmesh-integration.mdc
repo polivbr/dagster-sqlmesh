@@ -2,7 +2,7 @@
 alwaysApply: true
 ---
 
-# SQLMesh Integration Patterns
+# SQLMesh Integration Patterns (dagster-sqlmesh folder)
 
 ## Core Integration Components
 

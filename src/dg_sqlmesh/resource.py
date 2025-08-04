@@ -20,6 +20,7 @@ from .sqlmesh_asset_utils import (
     format_partition_metadata,
     get_model_partitions_from_plan,
     analyze_sqlmesh_crons_using_api,
+    safe_extract_audit_query,
 )
 from .sqlmesh_event_console import SQLMeshEventCaptureConsole
 from sqlmesh.utils.errors import (
@@ -128,7 +129,7 @@ class SQLMeshResource(ConfigurableResource):
         if not hasattr(self, '_context_cache'):
             # Configure custom console before creating context
             console = self._get_or_create_console()
-            console._dagster_logger = self._logger  # Update logger
+            console._logger = self._logger  # Update logger
             
             self._context_cache = Context(
                 paths=self.project_dir,
@@ -153,7 +154,7 @@ class SQLMeshResource(ConfigurableResource):
         
         # Configure console with Dagster logger
         if hasattr(self, '_console') and self._console:
-            self._console._dagster_logger = self._logger
+            self._console._logger = self._logger
 
     def get_models(self):
         """
@@ -252,6 +253,135 @@ class SQLMeshResource(ConfigurableResource):
                 raise
         return anyio.run(anyio.to_thread.run_sync, run_materialization)
 
+    def _process_failed_models_events(self) -> list[AssetCheckResult]:
+        """
+        Process failed models events and convert them to AssetCheckResult.
+        """
+        failed_models_events = self._console.get_failed_models_events()
+        asset_check_results = []
+        
+        for event in failed_models_events:
+            errors = event.get('errors', [])
+            
+            for error in errors:
+                try:
+                    # Extract basic information
+                    model_name = error.node[0] if hasattr(error, 'node') and error.node else 'unknown'
+                    
+                    # Convert to asset key
+                    asset_key = None
+                    try:
+                        model = self.context.get_model(model_name)
+                        if model:
+                            asset_key = self.translator.get_asset_key(model)
+                    except Exception as e:
+                        if self._logger:
+                            self._logger.warning(f"⚠️ Error converting model name to asset key: {e}")
+                    
+                    # Process audit errors if present
+                    if hasattr(error, '__cause__') and error.__cause__:
+                        if isinstance(error.__cause__, NodeAuditsErrors):
+                            for audit_error in error.__cause__.errors:
+                                try:
+                                    # Extract audit details using utility function
+                                    audit_sql = safe_extract_audit_query(
+                                        model=None,  # We don't have the model here
+                                        audit_obj=audit_error,
+                                        audit_args=getattr(audit_error, 'audit_args', {}),
+                                        logger=self._logger
+                                    )
+                                    
+                                    audit_name = getattr(audit_error, 'audit_name', 'unknown')
+                                    audit_args = getattr(audit_error, 'audit_args', {})
+                                    audit_message = str(audit_error)
+                                    audit_blocking = getattr(audit_error, 'blocking', False)
+                                    
+                                    # Create AssetCheckResult for failed audit
+                                    serialized_args = self._serialize_audit_args(audit_args)
+                                    
+                                    asset_check_results.append(AssetCheckResult(
+                                        passed=False,  # Failed audit
+                                        asset_key=asset_key,
+                                        check_name=audit_name,
+                                        metadata={
+                                            "sqlmesh_model_name": model_name,
+                                            "audit_query": audit_sql,
+                                            "audit_blocking": audit_blocking,
+                                            "audit_message": audit_message,
+                                            "audit_args": serialized_args,
+                                            "error_type": "audit_failure"
+                                        }
+                                    ))
+                                    
+                                except Exception as audit_e:
+                                    if self._logger:
+                                        self._logger.warning(f"⚠️ Failed to extract audit details: {audit_e}")
+                                    # Fallback AssetCheckResult
+                                    asset_check_results.append(AssetCheckResult(
+                                        passed=False,
+                                        asset_key=asset_key,
+                                        check_name="unknown_audit",
+                                        metadata={
+                                            "sqlmesh_model_name": model_name,
+                                            "audit_query": "N/A",
+                                            "audit_blocking": False,
+                                            "audit_message": f"Failed to extract audit details: {audit_e}",
+                                            "audit_args": {},
+                                            "error_type": "audit_extraction_failure"
+                                        }
+                                    ))
+                        else:
+                            # General error (not audit-specific)
+                            asset_check_results.append(AssetCheckResult(
+                                passed=False,
+                                asset_key=asset_key,
+                                check_name="model_execution_error",
+                                metadata={
+                                    "sqlmesh_model_name": model_name,
+                                    "audit_query": "N/A",
+                                    "audit_blocking": False,
+                                    "audit_message": str(error.__cause__),
+                                    "audit_args": {},
+                                    "error_type": "general_execution_error"
+                                }
+                            ))
+                    else:
+                        # No specific cause, general model failure
+                        asset_check_results.append(AssetCheckResult(
+                            passed=False,
+                            asset_key=asset_key,
+                            check_name="model_execution_error",
+                            metadata={
+                                "sqlmesh_model_name": model_name,
+                                "audit_query": "N/A",
+                                "audit_blocking": False,
+                                "audit_message": str(error),
+                                "audit_args": {},
+                                "error_type": "general_model_failure"
+                            }
+                        ))
+                        
+                except Exception as e:
+                    if self._logger:
+                        self._logger.warning(f"⚠️ Failed to process error: {e}")
+                    # Fallback for completely unprocessable errors
+                    asset_check_results.append(AssetCheckResult(
+                        passed=False,
+                        asset_key=None,
+                        check_name="unknown_error",
+                        metadata={
+                            "sqlmesh_model_name": "unknown",
+                            "audit_query": "N/A",
+                            "audit_blocking": False,
+                            "audit_message": str(error),
+                            "audit_args": {},
+                            "error_type": "processing_failure",
+                            "processing_error": str(e)
+                        }
+                    ))
+        
+        return asset_check_results
+
     def materialize_all_assets(self, context):
         """
         Materializes all selected assets and yields results.
@@ -302,30 +432,36 @@ class SQLMeshResource(ConfigurableResource):
                     data_version=DataVersion(str(snapshot_version)) if snapshot_version else None
                 )
         
-        # Emit AssetCheckResult after all MaterializeResult
-        audit_results = self._console.get_audit_results()
-        for audit_result in audit_results:
-            audit_details = audit_result['audit_details']
-            asset_key = audit_result['asset_key']
-            
-            # Determine if audit passed (for now assume True, we'll refine later)
-            passed = True  # TODO: determine real status based on events
-            
-            # Serialize audit arguments to JSON-compatible format
-            serialized_args = self._serialize_audit_args(audit_details['arguments'])
-            
-            yield AssetCheckResult(
-                passed=passed,
-                asset_key=asset_key,
-                check_name=audit_details['name'],
-                metadata={
-                    "sqlmesh_model_name": audit_result['model_name'],  # ← SQLMesh model name
-                    "audit_query": audit_details['sql'],
-                    "audit_blocking": audit_details['blocking'],
-                    "audit_dialect": getattr(audit_details, 'dialect', 'unknown'),
-                    "audit_args": serialized_args
-                }
-            )
+        # TODO: Re-enable successful audits processing after fixing audit_results
+        # Emit AssetCheckResult for successful audits
+        # audit_results = self._console.get_audit_results()
+        # for audit_result in audit_results:
+        #     audit_details = audit_result['audit_details']
+        #     asset_key = audit_result['asset_key']
+        #     
+        #     # Determine if audit passed (for now assume True, we'll refine later)
+        #     passed = True  # TODO: determine real status based on events
+        #     
+        #     # Serialize audit arguments to JSON-compatible format
+        #     serialized_args = self._serialize_audit_args(audit_details['arguments'])
+        #     
+        #     yield AssetCheckResult(
+        #         passed=passed,
+        #         asset_key=asset_key,
+        #         check_name=audit_details['name'],
+        #         metadata={
+        #             "sqlmesh_model_name": audit_result['model_name'],  # ← SQLMesh model name
+        #             "audit_query": audit_details['sql'],
+        #             "audit_blocking": audit_details['blocking'],
+        #             "audit_dialect": getattr(audit_details, 'dialect', 'unknown'),
+        #             "audit_args": serialized_args
+        #         }
+        #     )
+        
+        # Emit AssetCheckResult for failed models/audits
+        failed_models_results = self._process_failed_models_events()
+        for asset_check_result in failed_models_results:
+            yield asset_check_result
         
         # Clean console events after emitting all AssetCheckResult
         self._console.clear_events()
