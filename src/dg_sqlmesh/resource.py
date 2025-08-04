@@ -20,8 +20,8 @@ from .sqlmesh_asset_utils import (
     format_partition_metadata,
     get_model_partitions_from_plan,
     analyze_sqlmesh_crons_using_api,
-    safe_extract_audit_query,
 )
+from .sqlmesh_asset_check_utils import safe_extract_audit_query
 from .sqlmesh_event_console import SQLMeshEventCaptureConsole
 from sqlmesh.utils.errors import (
     SQLMeshError,
