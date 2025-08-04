@@ -3,6 +3,10 @@ from unittest.mock import Mock, MagicMock
 from sqlmesh.utils.errors import NodeAuditsErrors
 from dg_sqlmesh.sqlmesh_event_console import SQLMeshEventCaptureConsole, LogFailedModels
 from dg_sqlmesh.sqlmesh_event_console import LogStatusUpdate
+from dg_sqlmesh.sqlmesh_asset_check_utils import extract_successful_audit_results
+from dg_sqlmesh.sqlmesh_event_console import UpdateSnapshotEvaluationProgress
+from sqlmesh.core.snapshot import Snapshot
+from dagster import AssetKey
 
 
 class TestSQLMeshEventConsole:
@@ -166,3 +170,81 @@ class TestSQLMeshEventConsole:
         
         assert event_info['event_type'] == 'log_status_update'
         assert event_info['message'] == "Test status via publish_known_event" 
+
+    def test_extract_successful_audit_results(self):
+        """Test the extract_successful_audit_results utility function"""
+        
+        # Create mock translator
+        mock_translator = Mock()
+        mock_translator.get_asset_key.return_value = AssetKey(["test_db", "test_schema", "test_model"])
+        
+        # Create mock logger
+        mock_logger = Mock()
+        
+        # Test 1: Successful audits (should return results)
+        mock_snapshot = Mock()
+        mock_snapshot.name = "test_model"
+        mock_snapshot.model = Mock()
+        mock_snapshot.model.name = "test_model"
+        mock_snapshot.model.audits_with_args = [
+            (Mock(name="audit1"), {"arg1": "value1"}),
+            (Mock(name="audit2"), {"arg2": "value2"})
+        ]
+        
+        event = UpdateSnapshotEvaluationProgress(
+            snapshot=mock_snapshot,
+            batch_idx=0,
+            duration_ms=100,
+            num_audits_passed=2,
+            num_audits_failed=0
+        )
+        
+        results = extract_successful_audit_results(event, mock_translator, mock_logger)
+        
+        assert len(results) == 2
+        assert results[0]['model_name'] == "test_model"
+        assert results[0]['asset_key'] == AssetKey(["test_db", "test_schema", "test_model"])
+        assert results[0]['batch_idx'] == 0
+        assert 'audit_details' in results[0]
+        
+        # Test 2: Failed audits (should return empty list)
+        event_failed = UpdateSnapshotEvaluationProgress(
+            snapshot=mock_snapshot,
+            batch_idx=0,
+            duration_ms=100,
+            num_audits_passed=1,
+            num_audits_failed=1
+        )
+        
+        results_failed = extract_successful_audit_results(event_failed, mock_translator, mock_logger)
+        assert len(results_failed) == 0
+        
+        # Test 3: No audits (should return empty list)
+        event_no_audits = UpdateSnapshotEvaluationProgress(
+            snapshot=mock_snapshot,
+            batch_idx=0,
+            duration_ms=100,
+            num_audits_passed=0,
+            num_audits_failed=0
+        )
+        
+        results_no_audits = extract_successful_audit_results(event_no_audits, mock_translator, mock_logger)
+        assert len(results_no_audits) == 0
+        
+        # Test 4: No model with audits (should return empty list)
+        mock_snapshot_no_audits = Mock()
+        mock_snapshot_no_audits.name = "test_model"
+        mock_snapshot_no_audits.model = Mock()
+        mock_snapshot_no_audits.model.name = "test_model"
+        mock_snapshot_no_audits.model.audits_with_args = []
+        
+        event_no_model_audits = UpdateSnapshotEvaluationProgress(
+            snapshot=mock_snapshot_no_audits,
+            batch_idx=0,
+            duration_ms=100,
+            num_audits_passed=2,
+            num_audits_failed=0
+        )
+        
+        results_no_model_audits = extract_successful_audit_results(event_no_model_audits, mock_translator, mock_logger)
+        assert len(results_no_model_audits) == 0 

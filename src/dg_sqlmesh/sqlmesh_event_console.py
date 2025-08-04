@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from sqlmesh.core.console import Console
 from sqlmesh.core.plan import EvaluatablePlan
 from sqlmesh.core.snapshot import Snapshot
-from .sqlmesh_asset_check_utils import extract_audit_details
+from .sqlmesh_asset_check_utils import extract_audit_details, extract_successful_audit_results
 
 logger = logging.getLogger(__name__)
 
@@ -398,31 +398,9 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
         }
         self.evaluation_events.append(eval_info)
         
-        # Capture audit results via parameters
-        if event.num_audits_passed is not None or event.num_audits_failed is not None:
-            model_name = event.snapshot.name if hasattr(event.snapshot, 'name') else 'unknown'
-            self._logger.info(f"✅ AUDITS RESULTS for model '{model_name}': {event.num_audits_passed} passed, {event.num_audits_failed} failed")
-            
-            # If we have audits in this snapshot, we can capture them here
-            if hasattr(event.snapshot, 'model') and hasattr(event.snapshot.model, 'audits_with_args') and event.snapshot.model.audits_with_args:
-                audit_results = []
-                for audit_obj, audit_args in event.snapshot.model.audits_with_args:
-                    try:
-                        # Use existing translator to get asset_key
-                        asset_key = self._translator.get_asset_key(event.snapshot.model) if self._translator else None
-                        
-                        audit_result = {
-                            'model_name': event.snapshot.model.name,
-                            'asset_key': asset_key,
-                            'audit_details': extract_audit_details(audit_obj, audit_args, event.snapshot.model, self._logger),
-                            'batch_idx': event.batch_idx,
-                        }
-                        audit_results.append(audit_result)
-                    except Exception as e:
-                        self._logger.warning(f"⚠️ Error capturing audit: {e}")
-                        continue
-                
-                self.audit_results.extend(audit_results)
+        # Capture successful audit results using utility function
+        audit_results = extract_successful_audit_results(event, self._translator, self._logger)
+        self.audit_results.extend(audit_results)
 
     def _handle_stop_evaluation(self, event: StopEvaluationProgress) -> None:
         """Captures evaluation end"""

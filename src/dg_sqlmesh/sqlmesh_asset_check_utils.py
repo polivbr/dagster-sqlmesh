@@ -120,3 +120,54 @@ def extract_audit_details(audit_obj, audit_args, model, logger=None) -> Dict[str
         'skip': getattr(audit_obj, 'skip', False),
         'arguments': audit_args
     } 
+
+
+def extract_successful_audit_results(event, translator, logger=None) -> list[dict[str, Any]]:
+    """
+    Extract successful audit results from UpdateSnapshotEvaluationProgress event.
+    
+    Only processes events where num_audits_passed > 0 and num_audits_failed = 0
+    to avoid conflicts with failed audit processing in the resource.
+    
+    Args:
+        event: UpdateSnapshotEvaluationProgress event
+        translator: SQLMeshTranslator instance for asset key conversion
+        logger: Optional logger for warnings
+        
+    Returns:
+        List of audit result dictionaries with model_name, asset_key, audit_details, batch_idx
+    """
+    # Only process successful audits (no failures)
+    if not (event.num_audits_passed and event.num_audits_passed > 0 and 
+            event.num_audits_failed == 0):
+        return []
+    
+    model_name = event.snapshot.name if hasattr(event.snapshot, 'name') else 'unknown'
+    if logger:
+        logger.info(f"✅ AUDITS RESULTS for model '{model_name}': {event.num_audits_passed} passed, {event.num_audits_failed} failed")
+    
+    audit_results = []
+    
+    # Check if snapshot has model with audits
+    if (hasattr(event.snapshot, 'model') and 
+        hasattr(event.snapshot.model, 'audits_with_args') and 
+        event.snapshot.model.audits_with_args):
+        
+        for audit_obj, audit_args in event.snapshot.model.audits_with_args:
+            try:
+                # Use translator to get asset_key
+                asset_key = translator.get_asset_key(event.snapshot.model) if translator else None
+                
+                audit_result = {
+                    'model_name': event.snapshot.model.name,
+                    'asset_key': asset_key,
+                    'audit_details': extract_audit_details(audit_obj, audit_args, event.snapshot.model, logger),
+                    'batch_idx': event.batch_idx,
+                }
+                audit_results.append(audit_result)
+            except Exception as e:
+                if logger:
+                    logger.warning(f"⚠️ Error capturing audit: {e}")
+                continue
+    
+    return audit_results 
