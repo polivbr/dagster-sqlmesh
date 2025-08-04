@@ -32,14 +32,14 @@ class TestBlockingParameter:
             print(f"    Blocking: {check_spec.blocking}")
             print(f"    Metadata: {check_spec.metadata}")
             
-            # Verify that blocking is True (SQLMesh default)
-            assert check_spec.blocking is True, f"Check {check_spec.name} should be blocking=True"
+            # Verify that blocking is False (we let SQLMesh handle blocking)
+            assert check_spec.blocking is False, f"Check {check_spec.name} should be blocking=False"
             
             # Verify that metadata includes audit_blocking
             assert "audit_blocking" in check_spec.metadata, f"Check {check_spec.name} should have audit_blocking in metadata"
             assert check_spec.metadata["audit_blocking"] is True, f"Check {check_spec.name} should have audit_blocking=True"
         
-        print("\n✅ All checks are correctly set to blocking=True!")
+        print("\n✅ All checks are correctly set to blocking=False!")
         
         # Verify we have the expected 3 audits
         expected_audits = {"number_of_rows", "not_null", "not_constant"}
@@ -69,9 +69,9 @@ class TestBlockingParameter:
             
             for check_spec in check_specs:
                 print(f"  Check: {check_spec.name} - Blocking: {check_spec.blocking}")
-                # All audits should be blocking by default
-                assert check_spec.blocking is True, f"Check {check_spec.name} should be blocking=True"
+                # All audits should be non-blocking (we let SQLMesh handle blocking)
+                assert check_spec.blocking is False, f"Check {check_spec.name} should be blocking=False"
             
-            print("✅ Custom audits also respect blocking=True default!")
+            print("✅ Custom audits also respect blocking=False!")
         else:
             pytest.skip("No models with audits found for testing") 

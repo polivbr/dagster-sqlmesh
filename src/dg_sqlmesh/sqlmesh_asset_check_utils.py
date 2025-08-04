@@ -27,7 +27,7 @@ def create_asset_checks_from_model(model, asset_key: AssetKey) -> List[AssetChec
                 name=audit_obj.name,
                 asset=asset_key,  # ← It's "asset" not "asset_key" !
                 description=f"Triggered by sqlmesh audit {audit_obj.name} on model {model.name}",
-                blocking=getattr(audit_obj, 'blocking', True),  # ← Use SQLMesh's default blocking behavior
+                blocking=False, # SQLMesh handles blocking itself with audits
                 metadata={
                     "audit_query": str(audit_obj.query.sql()),
                     "audit_blocking": getattr(audit_obj, 'blocking', True),  # ← Keep original info in metadata
@@ -70,7 +70,7 @@ def safe_extract_audit_query(model, audit_obj, audit_args, logger=None):
     
     Args:
         model: SQLMesh model
-        audit_obj: SQLMesh audit object
+        audit_obj: SQLMesh audit object (should not be an AuditError)
         audit_args: Audit arguments
         logger: Optional logger for warnings
     

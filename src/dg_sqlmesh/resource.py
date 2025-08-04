@@ -278,24 +278,18 @@ class SQLMeshResource(ConfigurableResource):
         
         return model_name, model, asset_key
 
-    def _create_failed_audit_check_result(self, audit_error, model_name, model, asset_key) -> AssetCheckResult | None:
+    def _create_failed_audit_check_result(self, audit_error, model_name, asset_key) -> AssetCheckResult | None:
         """
         Create AssetCheckResult for a failed audit.
         Returns None if audit details cannot be extracted (just logs the error).
         """
         try:
-            audit_sql = safe_extract_audit_query(
-                model=model,
-                audit_obj=audit_error,
-                audit_args=getattr(audit_error, 'audit_args', {}),
-                logger=self._logger
-            )
-            
+        
+            audit_sql = audit_error.sql()
             audit_name = getattr(audit_error, 'audit_name', 'unknown')
             audit_args = getattr(audit_error, 'audit_args', {})
             audit_message = str(audit_error)
             audit_blocking = getattr(audit_error, 'blocking', False)
-            
             serialized_args = self._serialize_audit_args(audit_args)
             
             # Log failed audit
@@ -362,7 +356,7 @@ class SQLMeshResource(ConfigurableResource):
                             # Process each audit error
                             for audit_error in error.__cause__.errors:
                                 audit_result = self._create_failed_audit_check_result(
-                                    audit_error, model_name, model, asset_key
+                                    audit_error, model_name, asset_key
                                 )
                                 if audit_result is not None:
                                     asset_check_results.append(audit_result)
