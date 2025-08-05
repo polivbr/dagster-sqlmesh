@@ -292,7 +292,6 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
         self.failed_models_events: list[dict[str, t.Any]] = []
         self.skipped_models_events: list[dict[str, t.Any]] = []
         self._logger = kwargs.get('log_override') or logging.getLogger(__name__)
-        self.model_batch_counts: dict[str, int] = {}
         self.add_handler(self._event_handler)
     
     @property

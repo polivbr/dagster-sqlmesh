@@ -41,11 +41,6 @@ class SQLMeshResultsResource(ConfigurableResource):
     def has_results(self, run_id: str) -> bool:
         """Vérifie si des résultats existent pour un run donné."""
         return run_id in self._results
-    
-    def clear_results(self, run_id: str) -> None:
-        """Efface les résultats pour un run donné."""
-        if run_id in self._results:
-            del self._results[run_id]
 
 def sqlmesh_assets_factory(
     *,
