@@ -199,25 +199,36 @@ def sqlmesh_assets_factory(
                     
                     # Créer des AssetCheckResult failed pour tous les checks
                     for check in current_model_checks:
+                        # Trouver le message d'erreur spécifique pour ce check
+                        audit_message = "Model materialization succeeded but audits failed"
+                        for check_result in failed_check_results:
+                            if check_result.asset_key == current_asset_spec.key:
+                                audit_message = check_result.metadata.get('audit_message', audit_message)
+                                break
+                        
                         check_result = AssetCheckResult(
                             check_name=check.name,
                             passed=False,
                             metadata={
-                                "audit_message": "Model materialization succeeded but audits failed",
+                                "audit_message": audit_message,
                                 "audits_passed": 0,
-                                "audits_failed": len(current_model_checks)
+                                "audits_failed": len(current_model_checks),
+                                "sqlmesh_audit_name": check.name,  # Nom de l'audit SQLMesh
+                                "sqlmesh_model": current_model_name,  # Nom du modèle SQLMesh
+                                "error_details": f"SQLMesh audit '{check.name}' failed: {audit_message}"
                             }
                         )
                         check_results.append(check_result)
-                        context.log.info(f"🔍 DEBUG: Created failed check result for: {check.name}")
+                        context.log.info(f"🔍 DEBUG: Created failed check result for: {check.name} with message: {audit_message}")
                     
                     context.log.info(f"🔍 DEBUG: Returning {len(check_results)} failed check results")
                     return MaterializeResult(
                         asset_key=current_asset_spec.key,
                         metadata={
                             "status": "materialization_success_audit_failed"
-                        }
-                    ), *check_results
+                        },
+                        check_results=check_results  # ← CORRECT !
+                    )
                 else:
                     context.log.warning(f"⚠️ No checks defined for model {current_model_name}, returning only MaterializeResult")
                     return MaterializeResult(
@@ -283,8 +294,9 @@ def sqlmesh_assets_factory(
                         asset_key=current_asset_spec.key,
                         metadata={
                             "status": "success"
-                        }
-                    ), *check_results
+                        },
+                        check_results=check_results
+                    )
                 else:
                     context.log.info(f"🔍 DEBUG: No checks defined, returning simple MaterializeResult")
                     return MaterializeResult(
