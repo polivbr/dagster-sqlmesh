@@ -6,7 +6,7 @@
 
 ## Context
 
-SQLMesh models can have tags that provide metadata about the model. We need a way to pass SQLMesh model properties to Dagster assets (group names, owners, etc.) while maintaining separation between SQLMesh configuration and Dagster presentation.
+SQLMesh models can have tags that provide metadata about the model. Unlike dbt which has a native `meta` field for passing metadata to downstream tools, SQLMesh only provides a simple `tags` set without structured metadata support. We need a way to pass SQLMesh model properties to Dagster assets (group names, owners, etc.) while maintaining separation between SQLMesh configuration and Dagster presentation.
 
 ## Decision
 
@@ -27,6 +27,7 @@ SQLMesh models can have tags that provide metadata about the model. We need a wa
 2. **Flexible Override**: Can override Dagster properties via tags
 3. **Extensible**: Easy to add new Dagster properties via tags
 4. **Filtered Display**: Only non-Dagster tags appear in Dagster UI
+5. **SQLMesh-Native**: Works with SQLMesh's existing tag system without requiring changes to SQLMesh
 
 ## Implementation
 
@@ -210,6 +211,42 @@ MODEL (
 - ⚠️ **String parsing** - Need to parse tag strings in translator
 - ⚠️ **Validation** - No validation of tag format
 - ⚠️ **Documentation** - Users need to know supported properties
+
+## Comparison with dbt
+
+### dbt Native Approach
+
+```yaml
+# dbt model with native meta field
+models:
+  - name: my_model
+    meta:
+      dagster:
+        group_name: custom_group
+        owner: data_team
+        description: Custom model description
+```
+
+### SQLMesh Custom Approach
+
+```sql
+-- SQLMesh model with custom tag convention
+MODEL (
+    name my_model,
+    tags [
+        "dagster:group_name:custom_group",
+        "dagster:owner:data_team",
+        "dagster:description:Custom model description"
+    ]
+)
+```
+
+**Key Differences:**
+
+- **dbt**: Native `meta` field with structured YAML
+- **SQLMesh**: Custom tag convention using existing `tags` set
+- **dbt**: Type-safe metadata with schema validation
+- **SQLMesh**: String-based parsing with manual validation
 
 ## Related Decisions
 
