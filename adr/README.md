@@ -13,15 +13,16 @@ Architecture Decision Records are documents that capture important architectural
 
 ## ADR Index
 
-| ADR                                                    | Title                                           | Status   | Date       |
-| ------------------------------------------------------ | ----------------------------------------------- | -------- | ---------- |
-| [ADR-0001](./0001-individual-assets-vs-multi-asset.md) | Individual Assets vs Multi-Asset Pattern        | Accepted | 2025-08-05 |
-| [ADR-0002](./0002-shared-sqlmesh-execution.md)         | Shared SQLMesh Execution per Dagster Run        | Accepted | 2025-08-05 |
-| [ADR-0003](./0003-asset-check-integration.md)          | Asset Check Integration for SQLMesh Audits      | Accepted | 2025-08-05 |
-| [ADR-0004](./0004-retry-policy-management.md)          | Retry Policy Management for SQLMesh Integration | Accepted | 2025-08-05 |
-| [ADR-0005](./0005-custom-sqlmesh-console.md)           | Custom SQLMesh Console for Event Capture        | Accepted | 2025-08-05 |
-| [ADR-0006](./0006-sqlmesh-dagster-tag-convention.md)   | SQLMesh to Dagster Tag Convention               | Accepted | 2025-08-05 |
-| [ADR-0007](./0007-code-version-data-version-mapping.md) | Code Version and Data Version Mapping           | Accepted | 2025-08-05 |
+| ADR                                                     | Title                                            | Status   | Date       |
+| ------------------------------------------------------- | ------------------------------------------------ | -------- | ---------- |
+| [ADR-0001](./0001-individual-assets-vs-multi-asset.md)  | Individual Assets vs Multi-Asset Pattern         | Accepted | 2025-08-05 |
+| [ADR-0002](./0002-shared-sqlmesh-execution.md)          | Shared SQLMesh Execution per Dagster Run         | Accepted | 2025-08-05 |
+| [ADR-0003](./0003-asset-check-integration.md)           | Asset Check Integration for SQLMesh Audits       | Accepted | 2025-08-05 |
+| [ADR-0004](./0004-retry-policy-management.md)           | Retry Policy Management for SQLMesh Integration  | Accepted | 2025-08-05 |
+| [ADR-0005](./0005-custom-sqlmesh-console.md)            | Custom SQLMesh Console for Event Capture         | Accepted | 2025-08-05 |
+| [ADR-0006](./0006-sqlmesh-dagster-tag-convention.md)    | SQLMesh to Dagster Tag Convention                | Accepted | 2025-08-05 |
+| [ADR-0007](./0007-code-version-data-version-mapping.md) | Code Version and Data Version Mapping            | Accepted | 2025-08-05 |
+| [ADR-0008](./0008-sqlmesh-plan-run-flow.md)             | SQLMesh Plan/Run Flow and Separation of Concerns | Accepted | 2025-08-05 |
 
 ## Key Architectural Patterns
 
@@ -48,6 +49,10 @@ Custom SQLMesh console captures execution events and converts them to Dagster co
 ### 6. Version Mapping Strategy
 
 SQLMesh `data_hash` maps to Dagster `code_version`, SQLMesh snapshot version maps to Dagster `data_version` for accurate sync status.
+
+### 7. Plan/Run Flow and Separation of Concerns
+
+Use SQLMesh `plan` for metadata extraction and `run` for materialization. Our module is a materialization orchestrator, not a workflow manager - we don't handle environments, breaking changes, or plan validation.
 
 ## Current Limitations
 
