@@ -128,38 +128,76 @@ def sqlmesh_assets_factory(
             evaluation_events = results["evaluation_events"]
             
             # Vérifier le statut de notre modèle spécifique
-            model_failed = False
-            
-            # Vérifier les échecs directs
-            for check_result in failed_check_results:
-                if check_result.asset_key == current_asset_spec.key:
-                    model_failed = True
-                    context.log.error(f"❌ Model {current_model_name} failed: {check_result.metadata.get('audit_message', 'Unknown error')}")
-                    break
+            model_was_skipped = False
+            model_has_audit_failures = False
             
             # Vérifier les skips à cause d'échecs upstream
-            if not model_failed:
-                for event in skipped_models_events:
-                    skipped_snapshots = event.get('snapshot_names', set())
-                    context.log.info(f"🔍 Skipped snapshots: {skipped_snapshots}")
-                    
-                    for snapshot_name in skipped_snapshots:
-                        if snapshot_name:
-                            parts = snapshot_name.split('"."')
-                            if len(parts) >= 3:
-                                skipped_model_name = parts[1] + '.' + parts[2].replace('"', '')
-                                if skipped_model_name == current_model_name:
-                                    model_failed = True
-                                    context.log.error(f"❌ Model {current_model_name} was skipped due to upstream failures")
-                                    break
-                    if model_failed:
-                        break
+            for event in skipped_models_events:
+                skipped_snapshots = event.get('snapshot_names', set())
+                context.log.info(f"🔍 Skipped snapshots: {skipped_snapshots}")
+                
+                for snapshot_name in skipped_snapshots:
+                    if snapshot_name:
+                        parts = snapshot_name.split('"."')
+                        if len(parts) >= 3:
+                            skipped_model_name = parts[1] + '.' + parts[2].replace('"', '')
+                            if skipped_model_name == current_model_name:
+                                model_was_skipped = True
+                                context.log.error(f"❌ Model {current_model_name} was skipped due to upstream failures")
+                                break
+                if model_was_skipped:
+                    break
             
-            if model_failed:
-                error_msg = f"Model {current_model_name} failed during materialization"
+            # Vérifier les échecs d'audit (modèle exécuté mais audit failed)
+            for check_result in failed_check_results:
+                if check_result.asset_key == current_asset_spec.key:
+                    model_has_audit_failures = True
+                    context.log.error(f"❌ Model {current_model_name} has audit failures: {check_result.metadata.get('audit_message', 'Unknown error')}")
+                    break
+            
+            # Décider de l'action à prendre
+            if model_was_skipped:
+                # Modèle skip → Lever une exception (pas de materialization)
+                error_msg = f"Model {current_model_name} was skipped due to upstream failures"
                 context.log.error(f"❌ {error_msg}")
                 raise Exception(error_msg)
+            elif model_has_audit_failures:
+                # Modèle exécuté mais audit failed → Materializer + AssetCheckResult(failed=True)
+                context.log.info(f"⚠️ Model {current_model_name}: MATERIALIZATION SUCCESS but AUDIT FAILED")
+                
+                # Si on a des checks, on doit retourner leurs résultats
+                if current_model_checks:
+                    check_results = []
+                    
+                    # Créer des AssetCheckResult failed pour tous les checks
+                    for check in current_model_checks:
+                        check_results.append(
+                            AssetCheckResult(
+                                check_name=check.name,
+                                passed=False,
+                                metadata={
+                                    "audit_message": "Model materialization succeeded but audits failed",
+                                    "audits_passed": 0,
+                                    "audits_failed": len(current_model_checks)
+                                }
+                            )
+                        )
+                    
+                    return MaterializeResult(
+                        asset_key=current_asset_spec.key,
+                        metadata={
+                            "status": "materialization_success_audit_failed"
+                        }
+                    ), *check_results
+                else:
+                    return MaterializeResult(
+                        asset_key=current_asset_spec.key,
+                        metadata={
+                            "status": "materialization_success_audit_failed"
+                        }
+                    )
             else:
+                # Modèle exécuté et audit passed → Materializer + AssetCheckResult(passed=True)
                 context.log.info(f"✅ Model {current_model_name}: SUCCESS")
                 
                 # Si on a des checks, on doit retourner leurs résultats
