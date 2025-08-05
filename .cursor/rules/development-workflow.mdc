@@ -1,6 +1,3 @@
----
-alwaysApply: true
----
 
 # Development Workflow for dg-sqlmesh (dagster-sqlmesh folder)
 
@@ -65,11 +62,48 @@ The package is configured in [pyproject.toml](mdc:pyproject.toml) with:
 - Dev dependencies: `dagster-webserver`, `pytest`, `duckdb`
 - Package metadata and classifiers for PyPI
 
+## Architecture Decisions
+
+The project follows documented architecture decisions in the [adr/](mdc:adr/) folder:
+
+- **Individual Assets**: Each SQLMesh model becomes a separate Dagster asset
+- **Shared Execution**: Single SQLMesh execution per Dagster run via `SQLMeshResultsResource`
+- **Event-Driven Status**: Asset status determined from SQLMesh events
+- **No Retries**: Forced no retries via tags to prevent infinite loops
+- **Tag Convention**: `dagster:property_name:value` for SQLMesh to Dagster mapping
+
 ## Code Quality
 
 - All French comments have been translated to English
 - Use `make vulture` to detect dead code
 - Follow the patterns in [src/dg_sqlmesh/factory.py](mdc:src/dg_sqlmesh/factory.py) for new factories
-- Maintain the API exposed in [src/dg_sqlmesh/**init**.py](mdc:src/dg_sqlmesh/__init__.py)
+- Maintain the API exposed in [src/dg_sqlmesh/__init__.py](mdc:src/dg_sqlmesh/__init__.py)
+- Force no retries via tags to prevent infinite loops on SQLMesh audit failures
+
+## Testing Patterns
+
+### Individual Asset Testing
+
+- Test individual asset creation and execution
+- Verify shared execution logic via `SQLMeshResultsResource`
+- Test asset status determination (success, failure, audit failure)
+- Verify no retry behavior on persistent failures
+
+### Integration Testing
+
+- Test complete SQLMesh integration with Dagster
+- Verify event capture and processing
+- Test external asset handling (Sling sources)
+- Verify tag convention implementation
+
+### Error Handling Testing
+
+- Test SQLMesh-specific exception handling
+- Verify infinite loop prevention via retry tags
+- Test audit failure vs materialization failure distinction
+- Verify upstream/downstream dependency logic
+
+---
+
 
 ---

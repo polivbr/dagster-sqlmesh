@@ -1,6 +1,3 @@
----
-alwaysApply: true
----
 
 # Code Standards for dg-sqlmesh (dagster-sqlmesh folder)
 
@@ -10,7 +7,7 @@ alwaysApply: true
 
 ## API Design
 
-The main API is exposed through [src/dg_sqlmesh/**init**.py](mdc:src/dg_sqlmesh/__init__.py). Follow these patterns:
+The main API is exposed through [src/dg_sqlmesh/__init__.py](mdc:src/dg_sqlmesh/__init__.py). Follow these patterns:
 
 ### Factory Functions
 
@@ -20,6 +17,7 @@ All factory functions should be in [src/dg_sqlmesh/factory.py](mdc:src/dg_sqlmes
 - Provide sensible defaults
 - Include comprehensive docstrings in English
 - Return Dagster objects (assets, schedules, definitions)
+- Create individual assets in a loop, not multi-assets
 
 ### Resource Pattern
 
@@ -30,6 +28,15 @@ The [src/dg_sqlmesh/resource.py](mdc:src/dg_sqlmesh/resource.py) follows Dagster
 - Implement `setup_for_execution()` for Dagster integration
 - Cache expensive operations (context, translator)
 
+### SQLMeshResultsResource
+
+The `SQLMeshResultsResource` in [src/dg_sqlmesh/factory.py](mdc:src/dg_sqlmesh/factory.py) enables shared execution:
+
+- Store results per run ID
+- Thread-safe operations
+- Share failed checks, skipped models, and evaluation events
+- Clear results after run completion
+
 ### Translator Pattern
 
 The [src/dg_sqlmesh/translator.py](mdc:src/dg_sqlmesh/translator.py) provides extensible mapping:
@@ -37,7 +44,8 @@ The [src/dg_sqlmesh/translator.py](mdc:src/dg_sqlmesh/translator.py) provides ex
 - Follow the dagster-dbt pattern
 - Make methods overridable for custom mapping
 - Handle both internal SQLMesh models and external assets
-- Normalize asset keys consistently
+- Normalize asset key segments
+- Implement `dagster:property_name:value` tag convention
 
 ## Code Organization
 
@@ -45,7 +53,7 @@ The [src/dg_sqlmesh/translator.py](mdc:src/dg_sqlmesh/translator.py) provides ex
 
 - [src/dg_sqlmesh/sqlmesh_asset_utils.py](mdc:src/dg_sqlmesh/sqlmesh_asset_utils.py) - Asset creation utilities
 - [src/dg_sqlmesh/sqlmesh_asset_check_utils.py](mdc:src/dg_sqlmesh/sqlmesh_asset_check_utils.py) - Asset check utilities
-- [src/dg_sqlmesh/sqlmesh_event_console.py](mdc:src/dg_sqlmesh/sqlmesh_event_console.py) - Custom SQLMesh console
+- [src/dg_sqlmesh/sqlmesh_event_console.py](mdc:src/dg_sqlmesh/sqlmesh_event_console.py) - Custom SQLMesh console for event capture
 
 ### Error Handling
 
@@ -53,6 +61,7 @@ The [src/dg_sqlmesh/translator.py](mdc:src/dg_sqlmesh/translator.py) provides ex
 - Provide meaningful error messages in English
 - Log errors with context
 - Handle SQLMesh-specific exceptions (CircuitBreakerError, PlanError, etc.)
+- Force no retries via tags to prevent infinite loops
 
 ## Documentation Standards
 
@@ -73,7 +82,7 @@ The [src/dg_sqlmesh/translator.py](mdc:src/dg_sqlmesh/translator.py) provides ex
 
 ```python
 # Standard imports
-from dagster import multi_asset, AssetExecutionContext, RetryPolicy
+from dagster import asset, AssetExecutionContext, MaterializeResult, AssetCheckResult
 from sqlmesh import Context
 from typing import Optional, Dict, List, Any
 
@@ -83,11 +92,57 @@ from .translator import SQLMeshTranslator
 from .sqlmesh_asset_utils import get_asset_kinds, create_asset_specs
 ```
 
+## Asset Creation Pattern
+
+### Individual Assets
+
+```python
+def create_model_asset(current_model_name, current_asset_spec, current_model_checks):
+    @asset(
+        key=current_asset_spec.key,
+        description=f"SQLMesh model: {current_model_name}",
+        group_name=current_asset_spec.group_name,
+        metadata=current_asset_spec.metadata,
+        deps=current_asset_spec.deps,
+        check_specs=current_model_checks,
+        tags={
+            **(current_asset_spec.tags or {}),
+            "dagster/max_retries": "0",
+            "dagster/retry_on_asset_or_op_failure": "false"
+        },
+    )
+    def model_asset(context: AssetExecutionContext, sqlmesh: SQLMeshResource, sqlmesh_results: SQLMeshResultsResource):
+        # Shared execution logic
+        pass
+```
+
+### Shared Execution Logic
+
+```python
+# Check if SQLMesh already executed for this run
+if not sqlmesh_results.has_results(context.run_id):
+    # First asset in run - execute SQLMesh for all selected assets
+    models_to_materialize = get_models_to_materialize(selected_asset_keys, ...)
+    plan = sqlmesh.materialize_assets_threaded(models_to_materialize)
+    
+    # Store results for other assets
+    results = {
+        "failed_check_results": sqlmesh._process_failed_models_events(),
+        "skipped_models_events": sqlmesh._console.get_skipped_models_events(),
+        "evaluation_events": sqlmesh._console.get_evaluation_events(),
+    }
+    sqlmesh_results.store_results(context.run_id, results)
+```
+
 ## Code Quality
 
 - Use `make vulture` to detect dead code
 - Follow the patterns in [src/dg_sqlmesh/factory.py](mdc:src/dg_sqlmesh/factory.py) for new factories
-- Maintain the API exposed in [src/dg_sqlmesh/**init**.py](mdc:src/dg_sqlmesh/__init__.py)
+- Maintain the API exposed in [src/dg_sqlmesh/__init__.py](mdc:src/dg_sqlmesh/__init__.py)
 - Always use English for variable names, function names, and comments
+- Force no retries via tags to prevent infinite loops
+
+---
+
 
 ---

@@ -1,17 +1,32 @@
----
-alwaysApply: true
----
 
 # SQLMesh Integration Patterns (dagster-sqlmesh folder)
 
 ## Core Integration Components
+
+### Individual Asset Pattern
+
+The [src/dg_sqlmesh/factory.py](mdc:src/dg_sqlmesh/factory.py) creates individual assets for each SQLMesh model:
+
+- **Granular Control**: Each SQLMesh model becomes a separate Dagster asset
+- **Independent Success/Failure**: Individual assets can succeed or fail independently
+- **Better UI Experience**: Each model visible as separate asset in Dagster UI
+- **Selective Materialization**: Can materialize specific models or groups
+
+### SQLMeshResultsResource
+
+The `SQLMeshResultsResource` enables shared SQLMesh execution per Dagster run:
+
+- **Single Execution**: One SQLMesh execution per Dagster run, shared between all selected assets
+- **Results Sharing**: Stores failed checks, skipped models, and evaluation events
+- **Thread Safety**: Safe concurrent access to shared results
+- **Run Isolation**: Results isolated per Dagster run ID
 
 ### SQLMeshResource
 
 The [src/dg_sqlmesh/resource.py](mdc:src/dg_sqlmesh/resource.py) provides the main integration:
 
 - Manages SQLMesh Context with caching
-- Handles materialization orchestration
+- Handles materialization orchestration via `materialize_assets_threaded`
 - Captures audit results via custom console
 - Provides thread-safe operations with anyio
 
@@ -19,10 +34,11 @@ The [src/dg_sqlmesh/resource.py](mdc:src/dg_sqlmesh/resource.py) provides the ma
 
 The [src/dg_sqlmesh/sqlmesh_event_console.py](mdc:src/dg_sqlmesh/sqlmesh_event_console.py) captures SQLMesh events:
 
-- Extends SQLMesh's Console class
+- Extends SQLMesh's Console class with `SQLMeshEventCaptureConsole`
 - Captures plan, evaluation, and audit events
 - Provides audit results for Dagster AssetCheckResult
 - Handles both known and unknown event types
+- Captures `LogFailedModels`, `LogSkippedModels`, `UpdateSnapshotEvaluationProgress`
 
 ### Translator
 
@@ -32,6 +48,7 @@ The [src/dg_sqlmesh/translator.py](mdc:src/dg_sqlmesh/translator.py) maps SQLMes
 - Handles external assets (like Sling sources)
 - Provides extensible mapping patterns
 - Normalizes asset key segments
+- Implements `dagster:property_name:value` tag convention
 
 ## Test Project Structure
 
@@ -65,7 +82,7 @@ from dg_sqlmesh import sqlmesh_definitions_factory
 defs = sqlmesh_definitions_factory(
     project_dir="tests/sqlmesh_project",
     gateway="duckdb",
-    ignore_cron=True  # For testing
+    enable_schedule=False  # Disabled by default
 )
 ```
 
@@ -92,6 +109,53 @@ translator = SQLMeshTranslator()
 # Override methods for custom mapping
 ```
 
+## Asset Execution Logic
+
+### Shared Execution Pattern
+
+```python
+def model_asset(context: AssetExecutionContext, sqlmesh: SQLMeshResource, sqlmesh_results: SQLMeshResultsResource):
+    # Check if SQLMesh already executed for this run
+    if not sqlmesh_results.has_results(context.run_id):
+        # First asset in run - execute SQLMesh for all selected assets
+        selected_asset_keys = context.selected_asset_keys
+        models_to_materialize = get_models_to_materialize(selected_asset_keys, ...)
+        plan = sqlmesh.materialize_assets_threaded(models_to_materialize)
+
+        # Store results for other assets in this run
+        results = {
+            "failed_check_results": sqlmesh._process_failed_models_events(),
+            "skipped_models_events": sqlmesh._console.get_skipped_models_events(),
+            "evaluation_events": sqlmesh._console.get_evaluation_events(),
+        }
+        sqlmesh_results.store_results(context.run_id, results)
+    else:
+        # Use existing results from this run
+        results = sqlmesh_results.get_results(context.run_id)
+```
+
+### Asset Status Determination
+
+```python
+# Check if model was skipped due to upstream failure
+if model_was_skipped:
+    raise Exception(f"Model {model_name} was skipped due to upstream failures")
+
+# Check if model materialized but audits failed
+elif model_has_audit_failures:
+    # Asset materializes successfully but with failed checks
+    return MaterializeResult(
+        asset_key=asset_key,
+        check_results=[AssetCheckResult(passed=False, ...)]
+    )
+else:
+    # Full success - materialization and audits passed
+    return MaterializeResult(
+        asset_key=asset_key,
+        check_results=[AssetCheckResult(passed=True, ...)]
+    )
+```
+
 ## Common Patterns
 
 ### Asset Creation
@@ -109,5 +173,17 @@ translator = SQLMeshTranslator()
 ### Error Handling
 
 - Handle SQLMesh-specific exceptions (CircuitBreakerError, PlanError)
+- Provide meaningful error messages
+- Log context for debugging
+- Force no retries via tags to prevent infinite loops
+
+### Retry Policy
+
+- Use tags `"dagster/max_retries": "0"` and `"dagster/retry_on_asset_or_op_failure": "false"`
+- Prevents infinite loops on persistent SQLMesh audit failures
+- Works regardless of user's global Dagster configuration
+
+---
+
 - Provide meaningful error messages
 - Log context for debugging

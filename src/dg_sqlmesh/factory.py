@@ -80,9 +80,9 @@ def sqlmesh_assets_factory(
         )
         def model_asset(context: AssetExecutionContext, sqlmesh: SQLMeshResource, sqlmesh_results: SQLMeshResultsResource):
             context.log.info(f"🔄 Processing SQLMesh model: {current_model_name}")
-            context.log.info(f"🔍 DEBUG: Run ID: {context.run_id}")
-            context.log.info(f"🔍 DEBUG: Asset Key: {current_asset_spec.key}")
-            context.log.info(f"🔍 DEBUG: Selected assets: {context.selected_asset_keys}")
+            context.log.debug(f"🔍 Run ID: {context.run_id}")
+            context.log.debug(f"🔍 Asset Key: {current_asset_spec.key}")
+            context.log.debug(f"🔍 Selected assets: {context.selected_asset_keys}")
             
             # Vérifier si on a déjà exécuté SQLMesh dans ce run
             run_id = context.run_id
@@ -90,7 +90,7 @@ def sqlmesh_assets_factory(
             # Récupérer ou créer les résultats SQLMesh partagés
             if not sqlmesh_results.has_results(run_id):
                 context.log.info(f"🚀 First asset in run, launching SQLMesh execution for all selected assets")
-                context.log.info(f"🔍 DEBUG: No existing results for run {run_id}")
+                context.log.debug(f"🔍 No existing results for run {run_id}")
                 
                 # Obtenir tous les assets sélectionnés dans ce run
                 selected_asset_keys = context.selected_asset_keys
@@ -109,22 +109,22 @@ def sqlmesh_assets_factory(
                 context.log.info(f"🔍 Materializing {len(models_to_materialize)} models: {[m.name for m in models_to_materialize]}")
                 
                 # Exécution SQLMesh unique
-                context.log.info(f"🔍 DEBUG: Starting SQLMesh materialization...")
+                context.log.debug(f"🔍 Starting SQLMesh materialization...")
                 plan = sqlmesh.materialize_assets_threaded(models_to_materialize, context=context)
-                context.log.info(f"🔍 DEBUG: SQLMesh materialization completed")
+                context.log.debug(f"🔍 SQLMesh materialization completed")
                 
                 # Capturer tous les résultats
-                context.log.info(f"🔍 DEBUG: Processing failed models events...")
+                context.log.debug(f"🔍 Processing failed models events...")
                 failed_check_results = sqlmesh._process_failed_models_events()
-                context.log.info(f"🔍 DEBUG: Failed check results count: {len(failed_check_results)}")
+                context.log.debug(f"🔍 Failed check results count: {len(failed_check_results)}")
                 
-                context.log.info(f"🔍 DEBUG: Processing skipped models events...")
+                context.log.debug(f"🔍 Processing skipped models events...")
                 skipped_models_events = sqlmesh._console.get_skipped_models_events()
-                context.log.info(f"🔍 DEBUG: Skipped models events count: {len(skipped_models_events)}")
+                context.log.debug(f"🔍 Skipped models events count: {len(skipped_models_events)}")
                 
-                context.log.info(f"🔍 DEBUG: Processing evaluation events...")
+                context.log.debug(f"🔍 Processing evaluation events...")
                 evaluation_events = sqlmesh._console.get_evaluation_events()
-                context.log.info(f"🔍 DEBUG: Evaluation events count: {len(evaluation_events)}")
+                context.log.debug(f"🔍 Evaluation events count: {len(evaluation_events)}")
                 
                 # Stocker les résultats dans le resource partagé
                 results = {
@@ -139,7 +139,7 @@ def sqlmesh_assets_factory(
                 
             else:
                 context.log.info(f"📋 Using existing SQLMesh results from run {run_id}")
-                context.log.info(f"🔍 DEBUG: Found existing results for run {run_id}")
+                context.log.debug(f"🔍 Found existing results for run {run_id}")
             
             # Récupérer les résultats pour ce run
             results = sqlmesh_results.get_results(run_id)
@@ -147,27 +147,27 @@ def sqlmesh_assets_factory(
             skipped_models_events = results["skipped_models_events"]
             evaluation_events = results["evaluation_events"]
             
-            context.log.info(f"🔍 DEBUG: Processing results for model {current_model_name}")
-            context.log.info(f"🔍 DEBUG: Failed check results: {len(failed_check_results)}")
-            context.log.info(f"🔍 DEBUG: Skipped models events: {len(skipped_models_events)}")
-            context.log.info(f"🔍 DEBUG: Evaluation events: {len(evaluation_events)}")
+            context.log.debug(f"🔍 Processing results for model {current_model_name}")
+            context.log.debug(f"🔍 Failed check results: {len(failed_check_results)}")
+            context.log.debug(f"🔍 Skipped models events: {len(skipped_models_events)}")
+            context.log.debug(f"🔍 Evaluation events: {len(evaluation_events)}")
             
             # Vérifier le statut de notre modèle spécifique
             model_was_skipped = False
             model_has_audit_failures = False
             
             # Vérifier les skips à cause d'échecs upstream
-            context.log.info(f"🔍 DEBUG: Checking for skipped models...")
+            context.log.debug(f"🔍 Checking for skipped models...")
             for event in skipped_models_events:
                 skipped_snapshots = event.get('snapshot_names', set())
-                context.log.info(f"🔍 Skipped snapshots: {skipped_snapshots}")
+                context.log.debug(f"🔍 Skipped snapshots: {skipped_snapshots}")
                 
                 for snapshot_name in skipped_snapshots:
                     if snapshot_name:
                         parts = snapshot_name.split('"."')
                         if len(parts) >= 3:
                             skipped_model_name = parts[1] + '.' + parts[2].replace('"', '')
-                            context.log.info(f"🔍 DEBUG: Checking skipped model: {skipped_model_name} vs {current_model_name}")
+                            context.log.debug(f"🔍 Checking skipped model: {skipped_model_name} vs {current_model_name}")
                             if skipped_model_name == current_model_name:
                                 model_was_skipped = True
                                 context.log.error(f"❌ Model {current_model_name} was skipped due to upstream failures")
@@ -176,27 +176,27 @@ def sqlmesh_assets_factory(
                     break
             
             # Vérifier les échecs d'audit (modèle exécuté mais audit failed)
-            context.log.info(f"🔍 DEBUG: Checking for audit failures...")
+            context.log.debug(f"🔍 Checking for audit failures...")
             for check_result in failed_check_results:
-                context.log.info(f"🔍 DEBUG: Checking failed check: {check_result.asset_key} vs {current_asset_spec.key}")
+                context.log.debug(f"🔍 Checking failed check: {check_result.asset_key} vs {current_asset_spec.key}")
                 if check_result.asset_key == current_asset_spec.key:
                     model_has_audit_failures = True
                     context.log.error(f"❌ Model {current_model_name} has audit failures: {check_result.metadata.get('audit_message', 'Unknown error')}")
                     break
             
-            context.log.info(f"🔍 DEBUG: Model {current_model_name} - was_skipped: {model_was_skipped}, has_audit_failures: {model_has_audit_failures}")
+            context.log.debug(f"🔍 Model {current_model_name} - was_skipped: {model_was_skipped}, has_audit_failures: {model_has_audit_failures}")
             
             # Décider de l'action à prendre
             if model_was_skipped:
                 # Modèle skip → Lever une exception (pas de materialization)
                 error_msg = f"Model {current_model_name} was skipped due to upstream failures"
                 context.log.error(f"❌ {error_msg}")
-                context.log.info(f"🔍 DEBUG: Raising exception for skipped model")
+                context.log.debug(f"🔍 Raising exception for skipped model")
                 raise Exception(error_msg)
             elif model_has_audit_failures:
                 # Modèle exécuté mais audit failed → Materializer + AssetCheckResult(failed=True)
                 context.log.info(f"⚠️ Model {current_model_name}: MATERIALIZATION SUCCESS but AUDIT FAILED")
-                context.log.info(f"🔍 DEBUG: Returning MaterializeResult with failed checks")
+                context.log.debug(f"🔍 Returning MaterializeResult with failed checks")
                 
                 # Si on a des checks, on doit retourner leurs résultats
                 if current_model_checks:
@@ -224,9 +224,9 @@ def sqlmesh_assets_factory(
                             }
                         )
                         check_results.append(check_result)
-                        context.log.info(f"🔍 DEBUG: Created failed check result for: {check.name} with message: {audit_message}")
+                        context.log.debug(f"🔍 Created failed check result for: {check.name} with message: {audit_message}")
                     
-                    context.log.info(f"🔍 DEBUG: Returning {len(check_results)} failed check results")
+                    context.log.debug(f"🔍 Returning {len(check_results)} failed check results")
                     return MaterializeResult(
                         asset_key=current_asset_spec.key,
                         metadata={
@@ -245,7 +245,7 @@ def sqlmesh_assets_factory(
             else:
                 # Modèle exécuté et audit passed → Materializer + AssetCheckResult(passed=True)
                 context.log.info(f"✅ Model {current_model_name}: SUCCESS")
-                context.log.info(f"🔍 DEBUG: Returning MaterializeResult with passed checks")
+                context.log.debug(f"🔍 Returning MaterializeResult with passed checks")
                 
                 # Si on a des checks, on doit retourner leurs résultats
                 if current_model_checks:
@@ -294,7 +294,7 @@ def sqlmesh_assets_factory(
                                 )
                             )
                     
-                    context.log.info(f"🔍 DEBUG: Returning {len(check_results)} check results")
+                    context.log.debug(f"🔍 Returning {len(check_results)} check results")
                     return MaterializeResult(
                         asset_key=current_asset_spec.key,
                         metadata={
@@ -303,7 +303,7 @@ def sqlmesh_assets_factory(
                         check_results=check_results
                     )
                 else:
-                    context.log.info(f"🔍 DEBUG: No checks defined, returning simple MaterializeResult")
+                    context.log.debug(f"🔍 No checks defined, returning simple MaterializeResult")
                     return MaterializeResult(
                         asset_key=current_asset_spec.key,
                         metadata={

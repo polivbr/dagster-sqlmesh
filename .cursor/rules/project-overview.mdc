@@ -1,30 +1,39 @@
----
-description: Project Overview
-alwaysApply: true
----
 
 # dg-sqlmesh Project Overview (dagster-sqlmesh folder)
 
 This is a Python package that provides seamless integration between Dagster and SQLMesh for modern data engineering workflows.
 
+## Core Architecture
+
+The project follows the **Individual Asset Pattern** with **Shared SQLMesh Execution**:
+
+- **Individual Assets**: Each SQLMesh model becomes a separate Dagster asset for granular control
+- **Shared Execution**: Single SQLMesh execution per Dagster run, shared via `SQLMeshResultsResource`
+- **Event-Driven Status**: Asset and check status derived from SQLMesh events via custom console
+
 ## Core Components
 
-The main entry points are in [src/dg_sqlmesh/**init**.py](mdc:src/dg_sqlmesh/__init__.py) which exposes:
+The main entry points are in [src/dg_sqlmesh/__init__.py](mdc:src/dg_sqlmesh/__init__.py) which exposes:
 
 - `sqlmesh_definitions_factory` - All-in-one factory for complete SQLMesh integration
-- `sqlmesh_assets_factory` - Factory for creating Dagster assets from SQLMesh models
+- `sqlmesh_assets_factory` - Factory for creating individual Dagster assets from SQLMesh models
 - `sqlmesh_adaptive_schedule_factory` - Factory for adaptive schedules based on SQLMesh crons
 - `SQLMeshResource` - Dagster resource for SQLMesh interaction
 - `SQLMeshTranslator` - Translator for mapping SQLMesh concepts to Dagster
 
 ## Key Files
 
-- [src/dg_sqlmesh/factory.py](mdc:src/dg_sqlmesh/factory.py) - Main factory functions (renamed from decorators.py)
+- [src/dg_sqlmesh/factory.py](mdc:src/dg_sqlmesh/factory.py) - Main factory functions with individual asset creation
 - [src/dg_sqlmesh/resource.py](mdc:src/dg_sqlmesh/resource.py) - SQLMeshResource implementation
 - [src/dg_sqlmesh/translator.py](mdc:src/dg_sqlmesh/translator.py) - SQLMeshTranslator for concept mapping
-- [src/dg_sqlmesh/sqlmesh_asset_utils.py](mdc:src/dg_sqlmesh/sqlmesh_asset_utils.py) - Internal utilities
+- [src/dg_sqlmesh/sqlmesh_asset_utils.py](mdc:src/dg_sqlmesh/sqlmesh_asset_utils.py) - Asset creation utilities
 - [src/dg_sqlmesh/sqlmesh_asset_check_utils.py](mdc:src/dg_sqlmesh/sqlmesh_asset_check_utils.py) - Asset check utilities
-- [src/dg_sqlmesh/sqlmesh_event_console.py](mdc:src/dg_sqlmesh/sqlmesh_event_console.py) - Custom event console
+- [src/dg_sqlmesh/sqlmesh_event_console.py](mdc:src/dg_sqlmesh/sqlmesh_event_console.py) - Custom event console for capturing SQLMesh events
+
+## Key Resources
+
+- `SQLMeshResultsResource` - Shares SQLMesh execution results across assets in the same run
+- `SQLMeshEventCaptureConsole` - Captures detailed SQLMesh events for asset status determination
 
 ## Development Tools
 
@@ -42,6 +51,7 @@ dg-sqlmesh/
 ├── tests/                    # Test files and SQLMesh project
 ├── examples/                 # Usage examples
 ├── docs/                     # Documentation
+├── adr/                      # Architecture Decision Records
 ├── pyproject.toml           # Package configuration
 ├── Makefile                 # Development automation
 └── README.md                # Main documentation
@@ -52,6 +62,23 @@ dg-sqlmesh/
 1. Use `make` commands for development tasks
 2. Test with the SQLMesh project in `tests/sqlmesh_project/`
 3. Load test data with `uv run --group dev python tests/load_jaffle_data.py`
+4. Test SQLMesh integration with `uv run --group dev sqlmesh -p tests/sqlmesh_project plan`
+
+## Architecture Decisions
+
+See the [adr/](mdc:adr/) folder for detailed architecture decisions:
+
+- [ADR-0001](mdc:adr/0001-individual-assets-vs-multi-asset.md) - Individual Assets vs Multi-Asset Pattern
+- [ADR-0002](mdc:adr/0002-shared-sqlmesh-execution.md) - Shared SQLMesh Execution per Dagster Run
+- [ADR-0003](mdc:adr/0003-asset-check-integration.md) - Asset Check Integration for SQLMesh Audits
+- [ADR-0004](mdc:adr/0004-retry-policy-management.md) - Retry Policy Management
+- [ADR-0005](mdc:adr/0005-custom-sqlmesh-console.md) - Custom SQLMesh Console for Event Capture
+- [ADR-0006](mdc:adr/0006-sqlmesh-dagster-tag-convention.md) - SQLMesh to Dagster Tag Convention
+- [ADR-0007](mdc:adr/0007-code-version-data-version-mapping.md) - Code Version and Data Version Mapping
+- [ADR-0008](mdc:adr/0008-sqlmesh-plan-run-flow.md) - SQLMesh Plan/Run Flow and Separation of Concerns
+
+---
+
 4. Test SQLMesh integration with `uv run --group dev sqlmesh -p tests/sqlmesh_project plan`
 
 ---
