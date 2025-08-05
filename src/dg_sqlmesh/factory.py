@@ -171,17 +171,16 @@ def sqlmesh_assets_factory(
                     
                     # Créer des AssetCheckResult failed pour tous les checks
                     for check in current_model_checks:
-                        check_results.append(
-                            AssetCheckResult(
-                                check_name=check.name,
-                                passed=False,
-                                metadata={
-                                    "audit_message": "Model materialization succeeded but audits failed",
-                                    "audits_passed": 0,
-                                    "audits_failed": len(current_model_checks)
-                                }
-                            )
+                        check_result = AssetCheckResult(
+                            check_name=check.name,
+                            passed=False,
+                            metadata={
+                                "audit_message": "Model materialization succeeded but audits failed",
+                                "audits_passed": 0,
+                                "audits_failed": len(current_model_checks)
+                            }
                         )
+                        check_results.append(check_result)
                     
                     return MaterializeResult(
                         asset_key=current_asset_spec.key,
@@ -190,6 +189,7 @@ def sqlmesh_assets_factory(
                         }
                     ), *check_results
                 else:
+                    context.log.warning(f"⚠️ No checks defined for model {current_model_name}, returning only MaterializeResult")
                     return MaterializeResult(
                         asset_key=current_asset_spec.key,
                         metadata={
