@@ -1,6 +1,5 @@
 ---
-description: Testing patterns for dg-sqlmesh
-globs: tests/**/*.py,tests/**/*.md,pytest.ini,conftest.py,**/test_*.py
+alwaysApply: false
 ---
 
 # Testing Patterns for dg-sqlmesh (dagster-sqlmesh folder)

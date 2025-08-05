@@ -1,6 +1,5 @@
 ---
-description: Test patterns and best practices
-globs: tests/**/*.py,tests/**/*.md,pytest.ini,conftest.py,**/test_*.py
+alwaysApply: false
 ---
 
 # Test Patterns and Best Practices (dagster-sqlmesh folder)
