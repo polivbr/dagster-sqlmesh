@@ -72,6 +72,12 @@ def sqlmesh_assets_factory(
             deps=current_asset_spec.deps,
             check_specs=current_model_checks,
             op_tags=op_tags,
+            # Force no retries to prevent infinite loops with SQLMesh audit failures
+            tags={
+                **(current_asset_spec.tags or {}),
+                "dagster/max_retries": 0,
+                "dagster/retry_on_asset_or_op_failure": False
+            },
         )
         def model_asset(context: AssetExecutionContext, sqlmesh: SQLMeshResource, sqlmesh_results: SQLMeshResultsResource):
             context.log.info(f"🔄 Processing SQLMesh model: {current_model_name}")
@@ -363,9 +369,14 @@ def sqlmesh_adaptive_schedule_factory(
         raise ValueError("No SQLMesh assets created - check if models exist")
     
     # Create job with all assets (no selection needed since we have individual assets)
+    # Force run_retries=false to prevent infinite loops with SQLMesh audit failures
     sqlmesh_job = define_asset_job(
         name="sqlmesh_job",
         selection=sqlmesh_assets,  # Pass the list of assets directly
+        tags={
+            "dagster/max_retries": 0,
+            "dagster/retry_on_asset_or_op_failure": False
+        }
     )
     
     @schedule(
