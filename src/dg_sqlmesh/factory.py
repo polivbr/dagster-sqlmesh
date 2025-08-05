@@ -68,7 +68,6 @@ def sqlmesh_assets_factory(
             description=f"SQLMesh model: {current_model_name}",
             group_name=current_asset_spec.group_name,
             metadata=current_asset_spec.metadata,
-            tags=current_asset_spec.tags,
             deps=current_asset_spec.deps,
             check_specs=current_model_checks,
             op_tags=op_tags,
