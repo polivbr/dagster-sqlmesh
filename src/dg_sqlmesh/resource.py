@@ -5,14 +5,10 @@ import datetime
 from typing import Any
 from pydantic import PrivateAttr
 from dagster import (
-    multi_asset,
-    AssetExecutionContext,
     AssetKey,
     AssetCheckResult,
-    AssetCheckSpec,
     MaterializeResult,
     DataVersion,
-    MetadataValue,
     ConfigurableResource,
     InitResourceContext,
 )
@@ -27,7 +23,6 @@ from .sqlmesh_asset_utils import (
     analyze_sqlmesh_crons_using_api,
     get_model_from_asset_key,
 )
-from .sqlmesh_asset_check_utils import safe_extract_audit_query
 from .sqlmesh_event_console import SQLMeshEventCaptureConsole
 from sqlmesh.utils.errors import (
     SQLMeshError,
@@ -587,108 +582,3 @@ class SQLMeshResource(ConfigurableResource):
         
         # Clean console events after emitting all AssetCheckResult
         self._console.clear_events()
-
-    def run_atomic_operation(self, context) -> dict:
-        """
-        Runs SQLMesh operation atomically and returns results for each model.
-        Uses our custom console to determine success/failure.
-        
-        Returns:
-            dict: {model_name: ModelResult} where ModelResult has success, rows, error attributes
-        """
-        from dataclasses import dataclass
-        
-        @dataclass
-        class ModelResult:
-            success: bool
-            rows: int = 0
-            error: str = None
-            execution_time: float = 0.0
-        
-        selected_asset_keys = context.selected_asset_keys
-        context.log.info(f"🔍 Selected asset keys: {selected_asset_keys}")
-        
-        models_to_materialize = get_models_to_materialize(
-            selected_asset_keys,
-            self.get_models,
-            self.translator,
-        )
-        
-        context.log.info(f"🔍 Models to materialize: {[m.name for m in models_to_materialize]}")
-        
-        if not models_to_materialize:
-            context.log.warning("⚠️ No models to materialize! This might cause issues.")
-        
-        # Clear console events before starting
-        self._console.clear_events()
-        
-        # Create and apply plan
-        try:
-            plan = self.materialize_assets_threaded(models_to_materialize, context=context)
-            
-            # Use our console to determine results
-            results = {}
-            
-            # Get failed models from console
-            failed_models_events = self._console.get_failed_models_events()
-            failed_model_names = set()
-            
-            for event in failed_models_events:
-                for error in event.get('errors', []):
-                    model_name = self._extract_model_info(error)[0]
-                    if model_name:
-                        failed_model_names.add(model_name)
-            
-            # Get evaluation events to see which models were processed
-            evaluation_events = self._console.get_evaluation_events()
-            processed_model_names = set()
-            
-            for event in evaluation_events:
-                if event.get('event_type') == 'update_snapshot_evaluation':
-                    snapshot_name = event.get('snapshot_name')
-                    if snapshot_name:
-                        processed_model_names.add(snapshot_name)
-            
-            # Determine results for each model
-            for model in models_to_materialize:
-                model_name = model.name
-                
-                if model_name in failed_model_names:
-                    # Model failed
-                    results[model_name] = ModelResult(
-                        success=False,
-                        error=f"Model {model_name} failed during materialization"
-                    )
-                elif model_name in processed_model_names:
-                    # Model was processed successfully
-                    # Try to get rows from plan snapshots
-                    rows = 0
-                    for snapshot in plan.snapshots.values():
-                        if snapshot.model.name == model_name:
-                            rows = getattr(snapshot, 'rows', 0)
-                            break
-                    
-                    results[model_name] = ModelResult(
-                        success=True,
-                        rows=rows,
-                        execution_time=0.0  # Could extract from evaluation events if needed
-                    )
-                else:
-                    # Model was not processed (skipped)
-                    results[model_name] = ModelResult(
-                        success=False,
-                        error=f"Model {model_name} was not processed"
-                    )
-            
-            return results
-            
-        except Exception as e:
-            # If the entire operation fails, return failure for all models
-            results = {}
-            for model in models_to_materialize:
-                model_name = model.name
-                results[model_name] = ModelResult(
-                    success=False,
-                    error=str(e)
-                )
-            return results

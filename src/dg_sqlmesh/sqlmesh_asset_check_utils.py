@@ -25,7 +25,7 @@ def create_asset_checks_from_model(model, asset_key: AssetKey) -> List[AssetChec
         asset_checks.append(
             AssetCheckSpec(
                 name=audit_obj.name,
-                asset=asset_key,  # ← It's "asset" not "asset_key" !
+                asset=asset_key,
                 description=f"Triggered by sqlmesh audit {audit_obj.name} on model {model.name}",
                 blocking=False, # SQLMesh handles blocking itself with audits
                 metadata={

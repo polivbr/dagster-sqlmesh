@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from sqlmesh.core.console import Console
 from sqlmesh.core.plan import EvaluatablePlan
 from sqlmesh.core.snapshot import Snapshot
-from .sqlmesh_asset_check_utils import extract_audit_details, extract_successful_audit_results
+from .sqlmesh_asset_check_utils import extract_successful_audit_results
 
 logger = logging.getLogger(__name__)
 

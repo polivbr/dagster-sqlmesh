@@ -13,7 +13,6 @@ from .resource import SQLMeshResource
 from .sqlmesh_asset_utils import (
     get_asset_kinds,
     create_asset_specs,
-    create_asset_checks,
     get_extra_keys,
     validate_external_dependencies,
     get_models_to_materialize,
@@ -62,7 +61,6 @@ def sqlmesh_assets_factory(
         extra_keys = get_extra_keys()
         kinds = get_asset_kinds(sqlmesh_resource)
         specs = create_asset_specs(sqlmesh_resource, extra_keys, kinds, owners, group_name)
-        asset_checks = create_asset_checks(sqlmesh_resource)
     except Exception as e:
         raise ValueError(f"Failed to create SQLMesh assets: {e}") from e
 
