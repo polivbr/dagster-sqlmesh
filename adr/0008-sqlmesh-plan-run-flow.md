@@ -10,7 +10,7 @@ Our module integrates SQLMesh with Dagster for data materialization. We need to 
 
 ## Decision
 
-**Use SQLMesh `plan` for metadata extraction and `run` for materialization, with clear separation from SQLMesh's environment management and breaking change handling.**
+**Use SQLMesh `plan` for validation and `run` for materialization in a combined operation, with clear separation from SQLMesh's environment management and breaking change handling.**
 
 ## Rationale
 
@@ -27,75 +27,65 @@ Our module acts as a **materialization orchestrator**, not a **workflow manager*
 
 - ✅ **Materialize data** when needed
 - ✅ **Report audit results** to Dagster
-- ✅ **Extract metadata** from SQLMesh plans
+- ✅ **Extract metadata** from SQLMesh models directly
+- ✅ **Validate execution** using SQLMesh plan
 - ❌ **NOT manage environments** (dev/staging/prod)
 - ❌ **NOT handle breaking changes**
-- ❌ **NOT validate plans**
+- ❌ **NOT validate plans** (assumes plan is already validated)
 
 ## Implementation Flow
 
-### 1. Metadata Extraction (Plan Phase)
+### 1. Combined Plan/Run Operation
 
 ```python
-# Extract metadata from SQLMesh plan without applying it
-def extract_plan_metadata(sqlmesh_resource, selected_models):
-    """Extract metadata from SQLMesh plan for asset definition."""
-    
-    # Generate plan (doesn't apply changes)
+# Execute plan validation and materialization in one operation
+def materialize_assets(sqlmesh_resource, selected_models):
+    """Materialize assets using SQLMesh plan + run in combined operation."""
+
+    model_names = [model.name for model in selected_models]
+
+    # Generate plan for validation (doesn't apply changes)
     plan = sqlmesh_resource.context.plan(
-        models=selected_models,
-        environment=sqlmesh_resource.environment
+        select_models=model_names,
+        auto_apply=False,  # Never apply the plan, just validate
+        no_prompts=True
     )
-    
-    # Extract metadata from plan
-    metadata = {
-        "snapshot_versions": {},
-        "partition_info": {},
-        "model_dependencies": {},
-        "audit_specs": {}
-    }
-    
-    for snapshot in plan.snapshots.values():
-        model = snapshot.model
-        asset_key = sqlmesh_resource.translator.get_asset_key(model)
-        
-        metadata["snapshot_versions"][asset_key] = snapshot.version
-        metadata["partition_info"][asset_key] = get_partition_info(snapshot)
-        metadata["model_dependencies"][asset_key] = get_dependencies(snapshot)
-        metadata["audit_specs"][asset_key] = get_audit_specs(model)
-    
-    return metadata
+
+    # Execute run (applies the validated plan)
+    sqlmesh_resource.context.run(
+        environment=sqlmesh_resource.environment,
+        select_models=model_names,
+        execution_time=datetime.datetime.now(),
+    )
+
+    return plan  # Return plan for metadata extraction
 ```
 
-### 2. Materialization (Run Phase)
+### 2. Metadata Extraction from Models
 
 ```python
-# Execute materialization using SQLMesh run
-def materialize_assets(sqlmesh_resource, selected_models):
-    """Materialize assets using SQLMesh run command."""
-    
-    # Execute run (applies the plan)
-    results = sqlmesh_resource.context.run(
-        models=selected_models,
-        environment=sqlmesh_resource.environment
-    )
-    
-    # Extract results for Dagster
-    materialization_results = []
-    for snapshot in results.snapshots.values():
-        asset_key = sqlmesh_resource.translator.get_asset_key(snapshot.model)
-        
-        materialization_results.append(MaterializeResult(
-            asset_key=asset_key,
-            data_version=DataVersion(str(snapshot.version)),
-            metadata={
-                "rows_processed": snapshot.rows_processed,
-                "execution_time": snapshot.execution_time,
-                "status": "success"
-            }
-        ))
-    
-    return materialization_results
+# Extract metadata directly from SQLMesh models (not from plan)
+def extract_model_metadata(sqlmesh_resource, models):
+    """Extract metadata directly from SQLMesh models for asset definition."""
+
+    metadata = {}
+    for model in models:
+        asset_key = sqlmesh_resource.translator.get_asset_key(model)
+
+        metadata[asset_key] = {
+            "code_version": str(getattr(model, "data_hash", "")),
+            "dependencies": sqlmesh_resource.translator.get_model_deps_with_external(
+                sqlmesh_resource.context, model
+            ),
+            "tags": sqlmesh_resource.translator.get_tags(
+                sqlmesh_resource.context, model
+            ),
+            "group_name": sqlmesh_resource.translator.get_group_name_with_fallback(
+                sqlmesh_resource.context, model, "sqlmesh"
+            )
+        }
+
+    return metadata
 ```
 
 ## Architecture Diagram
@@ -103,28 +93,29 @@ def materialize_assets(sqlmesh_resource, selected_models):
 ```mermaid
 graph TD
     A[Dagster UI] --> B[Asset Materialization Request]
-    B --> C[SQLMesh Plan Phase]
-    C --> D[Extract Metadata]
+    B --> C[SQLMesh Plan + Run Combined]
+    C --> D[Extract Metadata from Models]
     D --> E[Build Asset Definitions]
     E --> F[Dagster Asset Graph]
-    
-    G[User Triggers Materialization] --> H[SQLMesh Run Phase]
-    H --> I[Execute Materialization]
-    I --> J[Capture Results]
-    J --> K[Update Dagster Assets]
-    
-    L[SQLMesh CLI/CI-CD] --> M[Environment Management]
-    M --> N[Breaking Change Validation]
-    N --> O[Plan Approval]
-    O --> P[Production Deployment]
-    
+
+    G[User Triggers Materialization] --> H[Execute Plan + Run]
+    H --> I[Validate with Plan]
+    I --> J[Execute with Run]
+    J --> K[Capture Results]
+    K --> L[Update Dagster Assets]
+
+    M[SQLMesh CLI/CI-CD] --> N[Environment Management]
+    N --> O[Breaking Change Validation]
+    O --> P[Plan Approval]
+    P --> Q[Production Deployment]
+
     style C fill:#e3f2fd
     style H fill:#fff3e0
-    style L fill:#f3e5f5
-    
-    C -.->|Metadata Only| D
-    H -.->|Execution Only| I
-    L -.->|Workflow Management| M
+    style M fill:#f3e5f5
+
+    C -.->|Validation + Execution| D
+    H -.->|Combined Operation| I
+    M -.->|Workflow Management| N
 ```
 
 ## Separation of Concerns
@@ -133,23 +124,25 @@ graph TD
 
 #### ✅ **What We Do**
 
-1. **Metadata Extraction**
+1. **Metadata Extraction from Models**
+
    ```python
-   # Extract from plan without applying
-   plan = context.plan(models=selected_models)
-   metadata = extract_plan_metadata(plan)
+   # Extract metadata directly from SQLMesh models
+   metadata = extract_model_metadata(sqlmesh_resource, models)
    ```
 
 2. **Asset Definition Building**
+
    ```python
-   # Build Dagster assets from SQLMesh metadata
-   assets = create_asset_specs_from_metadata(metadata)
+   # Build Dagster assets from SQLMesh model metadata
+   assets = create_asset_specs_from_models(models, metadata)
    ```
 
-3. **Materialization Orchestration**
+3. **Combined Plan/Run Orchestration**
+
    ```python
-   # Execute materialization when needed
-   results = context.run(models=selected_models)
+   # Execute plan validation + run materialization
+   plan = materialize_assets(sqlmesh_resource, selected_models)
    ```
 
 4. **Audit Result Reporting**
@@ -161,6 +154,7 @@ graph TD
 #### ❌ **What We DON'T Do**
 
 1. **Environment Management**
+
    ```bash
    # NOT our responsibility
    sqlmesh plan --environment prod
@@ -168,6 +162,7 @@ graph TD
    ```
 
 2. **Breaking Change Validation**
+
    ```bash
    # NOT our responsibility
    sqlmesh plan --validate-only
@@ -175,6 +170,7 @@ graph TD
    ```
 
 3. **Plan Approval Workflow**
+
    ```bash
    # NOT our responsibility
    sqlmesh plan --auto-apply
@@ -188,43 +184,53 @@ graph TD
    sqlmesh promote --environment prod
    ```
 
-## Why Plan Metadata is Valid for Run
+## Why Combined Plan/Run Works
 
-### SQLMesh Plan Consistency
+### SQLMesh Plan Validation
 
-The metadata extracted from `sqlmesh plan` is **identical** to what would be used in `sqlmesh run`:
+The plan is used for **validation only**, not for metadata extraction:
 
 ```python
-# Plan phase - extract metadata
-plan = context.plan(models=["model_a", "model_b"])
-plan_metadata = {
-    "model_a": {"version": "v1.2.3", "partitions": {...}},
-    "model_b": {"version": "v1.2.4", "partitions": {...}}
-}
+# Plan phase - validate execution (doesn't apply changes)
+plan = context.plan(
+    select_models=model_names,
+    auto_apply=False,  # Never apply the plan
+    no_prompts=True
+)
 
-# Run phase - same metadata structure
-run = context.run(models=["model_a", "model_b"])
-run_metadata = {
-    "model_a": {"version": "v1.2.3", "partitions": {...}},  # ← Identical
-    "model_b": {"version": "v1.2.4", "partitions": {...}}   # ← Identical
-}
+# Run phase - execute the validated plan
+context.run(
+    environment=environment,
+    select_models=model_names,
+    execution_time=datetime.datetime.now(),
+)
+```
+
+### Metadata Source
+
+Metadata comes directly from SQLMesh models, not from the plan:
+
+```python
+# Extract metadata from models directly
+for model in models:
+    asset_key = translator.get_asset_key(model)
+    code_version = str(getattr(model, "data_hash", ""))
+    dependencies = translator.get_model_deps_with_external(context, model)
+    tags = translator.get_tags(context, model)
 ```
 
 ### Validation Strategy
 
 ```python
-def validate_plan_run_consistency(plan_metadata, run_metadata):
-    """Ensure plan and run metadata are consistent."""
-    
-    for model_name in plan_metadata:
-        plan_version = plan_metadata[model_name]["version"]
-        run_version = run_metadata[model_name]["version"]
-        
-        if plan_version != run_version:
-            raise InconsistencyError(
-                f"Plan and run versions differ for {model_name}: "
-                f"plan={plan_version}, run={run_version}"
-            )
+def validate_execution_plan(plan, models):
+    """Validate that plan is safe to execute."""
+
+    if not plan:
+        raise ValidationError("No plan generated")
+
+    # Plan validation ensures safe execution
+    # Metadata comes from models, not plan
+    return True
 ```
 
 ## Production Scenarios
@@ -235,15 +241,15 @@ def validate_plan_run_consistency(plan_metadata, run_metadata):
 # .github/workflows/sqlmesh.yml
 - name: SQLMesh Plan
   run: sqlmesh plan --environment prod
-  
+
 - name: SQLMesh Apply (if approved)
   run: sqlmesh apply --environment prod
-  
+
 - name: Dagster Materialization
   run: dagster asset materialize --select "sqlmesh_*"
 ```
 
-**Our module's role**: Only materialize data, report audit results
+**Our module's role**: Execute validated materialization, report audit results
 
 ### Scenario 2: Development Workflow
 
@@ -256,7 +262,7 @@ sqlmesh apply --environment dev
 dagster asset materialize --select "stg_customers"
 ```
 
-**Our module's role**: Extract metadata, materialize on demand
+**Our module's role**: Extract metadata from models, execute validated materialization
 
 ### Scenario 3: Breaking Changes
 
@@ -269,7 +275,7 @@ sqlmesh plan --breaking-changes
 dagster asset materialize --select "marts_*"
 ```
 
-**Our module's role**: No involvement in breaking change validation
+**Our module's role**: Execute materialization for validated changes only
 
 ## Consequences
 
@@ -277,7 +283,7 @@ dagster asset materialize --select "marts_*"
 
 - ✅ **Clear boundaries** - No confusion about responsibilities
 - ✅ **Leverage SQLMesh expertise** - Use native workflow management
-- ✅ **Consistent metadata** - Plan and run metadata are identical
+- ✅ **Efficient execution** - Plan validation + run execution in one operation
 - ✅ **Production ready** - Works with existing SQLMesh CI/CD
 - ✅ **Audit integration** - SQLMesh audits become Dagster checks
 - ✅ **Performance optimization** - Only materialize when needed
@@ -285,8 +291,8 @@ dagster asset materialize --select "marts_*"
 ### Negative
 
 - ⚠️ **Dependency on SQLMesh CLI** - Requires proper SQLMesh setup
-- ⚠️ **Metadata extraction complexity** - Need to parse SQLMesh plans
-- ⚠️ **Version consistency** - Must ensure plan/run metadata match
+- ⚠️ **Model metadata extraction** - Need to extract from SQLMesh models
+- ⚠️ **Plan validation dependency** - Must ensure plan is valid before run
 - ⚠️ **Error handling** - Handle SQLMesh plan/run failures gracefully
 
 ## Edge Cases
@@ -295,33 +301,36 @@ dagster asset materialize --select "marts_*"
 
 ```python
 try:
-    plan = context.plan(models=selected_models)
+    plan = context.plan(select_models=model_names, auto_apply=False)
 except PlanError as e:
-    # Handle gracefully - maybe use cached metadata
-    logger.warning(f"Plan generation failed: {e}")
-    return fallback_metadata()
+    # Handle gracefully - plan validation failed
+    logger.warning(f"Plan validation failed: {e}")
+    raise DagsterExecutionError(f"SQLMesh plan validation failed: {e}")
 ```
 
 ### Run Execution Fails
 
 ```python
 try:
-    results = context.run(models=selected_models)
+    context.run(environment=environment, select_models=model_names)
 except RunError as e:
     # Report failure to Dagster
     raise DagsterExecutionError(f"SQLMesh run failed: {e}")
 ```
 
-### Metadata Inconsistency
+### Model Metadata Extraction Fails
 
 ```python
-# Validate plan/run consistency
-if plan_metadata != run_metadata:
-    raise InconsistencyError("Plan and run metadata differ")
+try:
+    metadata = extract_model_metadata(sqlmesh_resource, models)
+except Exception as e:
+    # Handle gracefully - metadata extraction failed
+    logger.warning(f"Model metadata extraction failed: {e}")
+    return fallback_metadata()
 ```
 
 ## Related Decisions
 
 - [ADR-0002: Shared SQLMesh Execution](./0002-shared-sqlmesh-execution.md)
 - [ADR-0003: Asset Check Integration](./0003-asset-check-integration.md)
-- [ADR-0007: Code Version and Data Version Mapping](./0007-code-version-data-version-mapping.md) 
+- [ADR-0007: Code Version and Data Version Mapping](./0007-code-version-data-version-mapping.md)
