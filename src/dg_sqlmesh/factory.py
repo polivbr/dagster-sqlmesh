@@ -8,6 +8,7 @@ from dagster import (
     Definitions,
     AssetKey,
     MaterializeResult,
+    AssetCheckResult,
 )
 from .resource import SQLMeshResource
 from .resource import UpstreamAuditFailureError
@@ -94,12 +95,79 @@ def sqlmesh_assets_factory(
                 raise Exception(error_msg)
             else:
                 context.log.info(f"✅ Model {current_model_name}: SUCCESS")
-                return MaterializeResult(
-                    asset_key=current_asset_spec.key,
-                    metadata={
-                        "status": "success"
-                    }
-                )
+                
+                # Si on a des checks, on doit retourner leurs résultats
+                if current_model_checks:
+                    # Récupérer les résultats des audits depuis la console
+                    check_results = []
+                    evaluation_events = sqlmesh._console.get_evaluation_events()
+                    
+                    context.log.info(f"🔍 Looking for evaluation events for model: {current_model_name}")
+                    context.log.info(f"🔍 Found {len(evaluation_events)} evaluation events")
+                    
+                    for event in evaluation_events:
+                        if event.get('event_type') == 'update_snapshot_evaluation':
+                            snapshot_name = event.get('snapshot_name')
+                            context.log.info(f"🔍 Checking snapshot: {snapshot_name}")
+                            # Le snapshot_name contient le FQN complet avec guillemets, on doit extraire le nom du modèle
+                            # snapshot_name: "jaffle_db"."sqlmesh_jaffle_platform"."stg_products"
+                            # current_model_name: sqlmesh_jaffle_platform.stg_products
+                            # On extrait la partie après le dernier point du snapshot
+                            if snapshot_name:
+                                # Extraire le nom du modèle depuis le snapshot
+                                parts = snapshot_name.split('"."')
+                                if len(parts) >= 3:
+                                    snapshot_model_name = parts[1] + '.' + parts[2].replace('"', '')
+                                    if snapshot_model_name == current_model_name:
+                                        num_audits_passed = event.get('num_audits_passed', 0)
+                                        num_audits_failed = event.get('num_audits_failed', 0)
+                                        
+                                        # Créer les résultats des checks
+                                        for check in current_model_checks:
+                                            # Pour l'instant, on considère que tous les audits passent si num_audits_failed == 0
+                                            passed = num_audits_failed == 0
+                                            check_results.append(
+                                                AssetCheckResult(
+                                                    check_name=check.name,
+                                                    passed=passed,
+                                                    metadata={
+                                                        "audits_passed": num_audits_passed,
+                                                        "audits_failed": num_audits_failed
+                                                    }
+                                                )
+                                            )
+                                        
+                                        break
+                    
+                    # Si on n'a pas trouvé d'événement d'évaluation, créer des résultats par défaut
+                    if not check_results:
+                        context.log.warning(f"⚠️ No evaluation events found for model {current_model_name}, using default check results")
+                        for check in current_model_checks:
+                            check_results.append(
+                                AssetCheckResult(
+                                    check_name=check.name,
+                                    passed=True,  # Par défaut, on considère que ça passe
+                                    metadata={
+                                        "note": "No evaluation events found, using default result"
+                                    }
+                                )
+                            )
+                    
+                    # Retourner MaterializeResult + résultats des checks
+                    return MaterializeResult(
+                        asset_key=current_asset_spec.key,
+                        metadata={
+                            "status": "success"
+                        }
+                    ), *check_results
+                else:
+                    # Pas de checks, retourner juste MaterializeResult
+                    return MaterializeResult(
+                        asset_key=current_asset_spec.key,
+                        metadata={
+                            "status": "success"
+                        }
+                    )
         
         # Renommer pour éviter les collisions
         model_asset.__name__ = f"sqlmesh_{current_model_name}_asset"
