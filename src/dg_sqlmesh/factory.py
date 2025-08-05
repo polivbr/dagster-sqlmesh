@@ -1,17 +1,15 @@
 from dagster import (
     asset,
     AssetExecutionContext,
-    RetryPolicy,
     schedule,
     define_asset_job,
     RunRequest,
     Definitions,
-    AssetKey,
     MaterializeResult,
     AssetCheckResult,
+    ConfigurableResource,
 )
 from .resource import SQLMeshResource
-from .resource import UpstreamAuditFailureError
 from .sqlmesh_asset_utils import (
     get_asset_kinds,
     create_asset_specs,
@@ -26,12 +24,35 @@ import datetime
 from .translator import SQLMeshTranslator
 from typing import Optional, Dict, List, Any
 
+class SQLMeshResultsResource(ConfigurableResource):
+    """Resource pour partager les résultats SQLMesh entre les assets d'un même run."""
+    
+    def __init__(self):
+        super().__init__()
+        self._results = {}
+    
+    def store_results(self, run_id: str, results: Dict[str, Any]) -> None:
+        """Stocke les résultats SQLMesh pour un run donné."""
+        self._results[run_id] = results
+    
+    def get_results(self, run_id: str) -> Optional[Dict[str, Any]]:
+        """Récupère les résultats SQLMesh pour un run donné."""
+        return self._results.get(run_id)
+    
+    def has_results(self, run_id: str) -> bool:
+        """Vérifie si des résultats existent pour un run donné."""
+        return run_id in self._results
+    
+    def clear_results(self, run_id: str) -> None:
+        """Efface les résultats pour un run donné."""
+        if run_id in self._results:
+            del self._results[run_id]
+
 def sqlmesh_assets_factory(
     *,
     sqlmesh_resource: SQLMeshResource,
     group_name: str = "sqlmesh",
     op_tags: Optional[Dict[str, Any]] = None,
-    retry_policy: Optional[RetryPolicy] = None,
     owners: Optional[List[str]] = None,
 ):
     """
@@ -45,7 +66,7 @@ def sqlmesh_assets_factory(
     except Exception as e:
         raise ValueError(f"Failed to create SQLMesh assets: {e}") from e
 
-    # Créer les assets individuels directement (sans orchestrateur pour le build)
+    # Créer les assets individuels avec exécution SQLMesh partagée
     assets = []
     
     def create_model_asset(current_model_name, current_asset_spec, current_model_checks):
@@ -58,36 +79,88 @@ def sqlmesh_assets_factory(
             deps=current_asset_spec.deps,
             check_specs=current_model_checks,
             op_tags=op_tags,
-            retry_policy=retry_policy,
         )
-        def model_asset(context: AssetExecutionContext, sqlmesh: SQLMeshResource):
+        def model_asset(context: AssetExecutionContext, sqlmesh: SQLMeshResource, sqlmesh_results: SQLMeshResultsResource):
             context.log.info(f"🔄 Processing SQLMesh model: {current_model_name}")
             
-            # Materialiser directement ce modèle
-            models_to_materialize = get_models_to_materialize(
-                [current_asset_spec.key],
-                sqlmesh.get_models,
-                sqlmesh.translator,
-            )
+            # Vérifier si on a déjà exécuté SQLMesh dans ce run
+            run_id = context.run_id
             
-            if not models_to_materialize:
-                raise Exception(f"No models found for asset {current_asset_spec.key}")
+            # Récupérer ou créer les résultats SQLMesh partagés
+            if not sqlmesh_results.has_results(run_id):
+                context.log.info(f"🚀 First asset in run, launching SQLMesh execution for all selected assets")
+                
+                # Obtenir tous les assets sélectionnés dans ce run
+                selected_asset_keys = context.selected_asset_keys
+                context.log.info(f"🔍 Selected assets in this run: {selected_asset_keys}")
+                
+                # Lancer une seule exécution SQLMesh pour tous les assets sélectionnés
+                models_to_materialize = get_models_to_materialize(
+                    selected_asset_keys,
+                    sqlmesh.get_models,
+                    sqlmesh.translator,
+                )
+                
+                if not models_to_materialize:
+                    raise Exception(f"No models found for selected assets: {selected_asset_keys}")
+                
+                context.log.info(f"🔍 Materializing {len(models_to_materialize)} models: {[m.name for m in models_to_materialize]}")
+                
+                # Exécution SQLMesh unique
+                plan = sqlmesh.materialize_assets_threaded(models_to_materialize, context=context)
+                
+                # Capturer tous les résultats
+                failed_check_results = sqlmesh._process_failed_models_events()
+                skipped_models_events = sqlmesh._console.get_skipped_models_events()
+                evaluation_events = sqlmesh._console.get_evaluation_events()
+                
+                # Stocker les résultats dans le resource partagé
+                results = {
+                    "failed_check_results": failed_check_results,
+                    "skipped_models_events": skipped_models_events,
+                    "evaluation_events": evaluation_events,
+                    "plan": plan
+                }
+                
+                sqlmesh_results.store_results(run_id, results)
+                context.log.info(f"💾 Stored SQLMesh results for run {run_id}")
+                
+            else:
+                context.log.info(f"📋 Using existing SQLMesh results from run {run_id}")
             
-            # Lancer la materialization
-            plan = sqlmesh.materialize_assets_threaded(models_to_materialize, context=context)
+            # Récupérer les résultats pour ce run
+            results = sqlmesh_results.get_results(run_id)
+            failed_check_results = results["failed_check_results"]
+            skipped_models_events = results["skipped_models_events"]
+            evaluation_events = results["evaluation_events"]
             
-            # Vérifier le succès via la console
-            failed_models_events = sqlmesh._console.get_failed_models_events()
+            # Vérifier le statut de notre modèle spécifique
             model_failed = False
             
-            for event in failed_models_events:
-                for error in event.get('errors', []):
-                    failed_model_name = sqlmesh._extract_model_info(error)[0]
-                    if failed_model_name == current_model_name:
-                        model_failed = True
-                        break
-                if model_failed:
+            # Vérifier les échecs directs
+            for check_result in failed_check_results:
+                if check_result.asset_key == current_asset_spec.key:
+                    model_failed = True
+                    context.log.error(f"❌ Model {current_model_name} failed: {check_result.metadata.get('audit_message', 'Unknown error')}")
                     break
+            
+            # Vérifier les skips à cause d'échecs upstream
+            if not model_failed:
+                for event in skipped_models_events:
+                    skipped_snapshots = event.get('snapshot_names', set())
+                    context.log.info(f"🔍 Skipped snapshots: {skipped_snapshots}")
+                    
+                    for snapshot_name in skipped_snapshots:
+                        if snapshot_name:
+                            parts = snapshot_name.split('"."')
+                            if len(parts) >= 3:
+                                skipped_model_name = parts[1] + '.' + parts[2].replace('"', '')
+                                if skipped_model_name == current_model_name:
+                                    model_failed = True
+                                    context.log.error(f"❌ Model {current_model_name} was skipped due to upstream failures")
+                                    break
+                    if model_failed:
+                        break
             
             if model_failed:
                 error_msg = f"Model {current_model_name} failed during materialization"
@@ -98,9 +171,7 @@ def sqlmesh_assets_factory(
                 
                 # Si on a des checks, on doit retourner leurs résultats
                 if current_model_checks:
-                    # Récupérer les résultats des audits depuis la console
                     check_results = []
-                    evaluation_events = sqlmesh._console.get_evaluation_events()
                     
                     context.log.info(f"🔍 Looking for evaluation events for model: {current_model_name}")
                     context.log.info(f"🔍 Found {len(evaluation_events)} evaluation events")
@@ -109,12 +180,8 @@ def sqlmesh_assets_factory(
                         if event.get('event_type') == 'update_snapshot_evaluation':
                             snapshot_name = event.get('snapshot_name')
                             context.log.info(f"🔍 Checking snapshot: {snapshot_name}")
-                            # Le snapshot_name contient le FQN complet avec guillemets, on doit extraire le nom du modèle
-                            # snapshot_name: "jaffle_db"."sqlmesh_jaffle_platform"."stg_products"
-                            # current_model_name: sqlmesh_jaffle_platform.stg_products
-                            # On extrait la partie après le dernier point du snapshot
+                            
                             if snapshot_name:
-                                # Extraire le nom du modèle depuis le snapshot
                                 parts = snapshot_name.split('"."')
                                 if len(parts) >= 3:
                                     snapshot_model_name = parts[1] + '.' + parts[2].replace('"', '')
@@ -122,9 +189,7 @@ def sqlmesh_assets_factory(
                                         num_audits_passed = event.get('num_audits_passed', 0)
                                         num_audits_failed = event.get('num_audits_failed', 0)
                                         
-                                        # Créer les résultats des checks
                                         for check in current_model_checks:
-                                            # Pour l'instant, on considère que tous les audits passent si num_audits_failed == 0
                                             passed = num_audits_failed == 0
                                             check_results.append(
                                                 AssetCheckResult(
@@ -136,24 +201,21 @@ def sqlmesh_assets_factory(
                                                     }
                                                 )
                                             )
-                                        
                                         break
                     
-                    # Si on n'a pas trouvé d'événement d'évaluation, créer des résultats par défaut
                     if not check_results:
                         context.log.warning(f"⚠️ No evaluation events found for model {current_model_name}, using default check results")
                         for check in current_model_checks:
                             check_results.append(
                                 AssetCheckResult(
                                     check_name=check.name,
-                                    passed=True,  # Par défaut, on considère que ça passe
+                                    passed=True,
                                     metadata={
                                         "note": "No evaluation events found, using default result"
                                     }
                                 )
                             )
                     
-                    # Retourner MaterializeResult + résultats des checks
                     return MaterializeResult(
                         asset_key=current_asset_spec.key,
                         metadata={
@@ -161,7 +223,6 @@ def sqlmesh_assets_factory(
                         }
                     ), *check_results
                 else:
-                    # Pas de checks, retourner juste MaterializeResult
                     return MaterializeResult(
                         asset_key=current_asset_spec.key,
                         metadata={
@@ -252,12 +313,10 @@ def sqlmesh_definitions_factory(
     gateway: str = "postgres",
     environment: str = "prod",
     concurrency_limit: int = 1,
-    ignore_cron: bool = False,
     translator: Optional[SQLMeshTranslator] = None,
     name: str = "sqlmesh_assets",
     group_name: str = "sqlmesh",
     op_tags: Optional[Dict[str, Any]] = None,
-    retry_policy: Optional[RetryPolicy] = None,
     owners: Optional[List[str]] = None,
     schedule_name: str = "sqlmesh_adaptive_schedule",
 ):
@@ -268,12 +327,10 @@ def sqlmesh_definitions_factory(
         project_dir: SQLMesh project directory
         gateway: SQLMesh gateway (postgres, duckdb, etc.)
         concurrency_limit: Concurrency limit
-        ignore_cron: Ignore crons (for tests)
         translator: Custom translator for asset keys
         name: Multi-asset name
         group_name: Default group for assets
         op_tags: Operation tags
-        retry_policy: Retry policy
         owners: Asset owners
         schedule_name: Adaptive schedule name
     """
@@ -293,8 +350,10 @@ def sqlmesh_definitions_factory(
         environment=environment,
         translator=translator,
         concurrency_limit=concurrency_limit,
-        ignore_cron=ignore_cron
     )
+    
+    # Create SQLMesh results resource for sharing between assets
+    sqlmesh_results_resource = SQLMeshResultsResource()
     
     # Validate external dependencies
     try:
@@ -310,7 +369,6 @@ def sqlmesh_definitions_factory(
         sqlmesh_resource=sqlmesh_resource,
         group_name=group_name,
         op_tags=op_tags,
-        retry_policy=retry_policy,
         owners=owners,
     )
     
@@ -327,5 +385,6 @@ def sqlmesh_definitions_factory(
         schedules=[sqlmesh_adaptive_schedule],
         resources={
             "sqlmesh": sqlmesh_resource,
+            "sqlmesh_results": sqlmesh_results_resource,
         },
     ) 

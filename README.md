@@ -68,7 +68,6 @@ defs = sqlmesh_definitions_factory(
     gateway="postgres",
     translator=SlingToSqlmeshTranslator(),
     concurrency_limit=1,
-    ignore_cron=True,  # only for testing purposes
     name="sqlmesh_multi_asset",
     group_name="sqlmesh",
     op_tags={"team": "data", "env": "prod"},

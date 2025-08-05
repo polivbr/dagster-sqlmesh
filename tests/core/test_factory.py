@@ -120,7 +120,6 @@ class TestSQLMeshDefinitionsFactory:
             project_dir="tests/sqlmesh_project",
             gateway="duckdb",
             environment="dev",
-            ignore_cron=True  # For testing
         )
         
         assert isinstance(defs, Definitions)
@@ -136,7 +135,6 @@ class TestSQLMeshDefinitionsFactory:
             gateway="duckdb",
             environment="dev",
             concurrency_limit=4,
-            ignore_cron=True,
             name="custom_assets",
             group_name="custom_group",
             op_tags={"custom": "true"},
@@ -165,7 +163,6 @@ class TestSQLMeshDefinitionsFactory:
             gateway="duckdb",
             environment="dev",
             translator=CustomTranslator(),
-            ignore_cron=True
         )
         
         assert isinstance(defs, Definitions)
@@ -182,7 +179,6 @@ class TestSQLMeshDefinitionsFactory:
                 gateway="duckdb",
                 environment="dev",
                 concurrency_limit=0,
-                ignore_cron=True
             )
 
     def test_sqlmesh_definitions_factory_invalid_project_dir(self) -> None:
@@ -192,7 +188,6 @@ class TestSQLMeshDefinitionsFactory:
                 project_dir="nonexistent_project",
                 gateway="duckdb",
                 environment="dev",
-                ignore_cron=True
             )
 
 
@@ -260,7 +255,6 @@ class TestFactoryIntegration:
             project_dir="tests/sqlmesh_project",
             gateway="duckdb",
             environment="dev",
-            ignore_cron=True
         )
         
         # Test that definitions can be loaded

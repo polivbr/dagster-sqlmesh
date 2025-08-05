@@ -290,6 +290,7 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
         self.evaluation_events: list[dict[str, t.Any]] = []
         self.log_events: list[dict[str, t.Any]] = []
         self.failed_models_events: list[dict[str, t.Any]] = []
+        self.skipped_models_events: list[dict[str, t.Any]] = []
         self._logger = kwargs.get('log_override') or logging.getLogger(__name__)
         self.model_batch_counts: dict[str, int] = {}
         self.add_handler(self._event_handler)
@@ -343,6 +344,9 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
             self._logger.debug(f"🔍 LOG STATUS UPDATE RECEIVED: {event.message}")
             self._handle_log_status_update(event)
         
+        # Capture skipped models
+        elif isinstance(event, LogSkippedModels):
+            self._handle_log_skipped_models(event)
 
 
     def _handle_log_status_update(self, event: LogStatusUpdate) -> None:
@@ -438,6 +442,15 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
         }
         self.log_events.append(success_info)
 
+    def _handle_log_skipped_models(self, event: LogSkippedModels) -> None:
+        """Captures skipped models"""
+        skipped_models_info = {
+            'event_type': 'log_skipped_models',
+            'snapshot_names': event.snapshot_names,  # Store skipped snapshot names
+            'timestamp': t.cast(float, t.Any),
+        }
+        self.skipped_models_events.append(skipped_models_info)
+
     def get_audit_results(self) -> list[dict[str, t.Any]]:
         """Returns all captured audit results"""
         return self.audit_results
@@ -445,6 +458,10 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
     def get_failed_models_events(self) -> list[dict[str, t.Any]]:
         """Returns all failed models events for the resource to process"""
         return self.failed_models_events
+
+    def get_skipped_models_events(self) -> list[dict[str, t.Any]]:
+        """Returns all skipped models events"""
+        return self.skipped_models_events
 
     def get_evaluation_events(self) -> list[dict[str, t.Any]]:
         """Returns all evaluation events"""
@@ -462,6 +479,7 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
             'plan_events': self.plan_events,
             'log_events': self.log_events,
             'failed_models_events': self.failed_models_events,
+            'skipped_models_events': self.skipped_models_events,
         }
 
     def clear_events(self) -> None:
@@ -471,6 +489,7 @@ class SQLMeshEventCaptureConsole(IntrospectingConsole):
         self.plan_events.clear()
         self.evaluation_events.clear()
         self.log_events.clear()
-        self.failed_models_events.clear() 
+        self.failed_models_events.clear()
+        self.skipped_models_events.clear() 
 
  

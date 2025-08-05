@@ -33,7 +33,6 @@ def example_custom_resource_with_error_handling():
         gateway="duckdb",
         environment="dev",
         concurrency_limit=2,
-        ignore_cron=True
     )
     
     # Create assets
@@ -112,7 +111,6 @@ def example_complete_definitions_with_error_handling():
         gateway="duckdb",
         environment="dev",
         concurrency_limit=1,  # Conservative for error handling
-        ignore_cron=True
     )
     
     # Create assets with error handling
@@ -148,7 +146,6 @@ def example_all_in_one_with_error_handling():
         retry_policy=RetryPolicy(max_retries=2),
         owners=["data-team"],
         concurrency_limit=1,
-        ignore_cron=True
     )
     
     return defs

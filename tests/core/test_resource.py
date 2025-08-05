@@ -69,18 +69,6 @@ class TestSQLMeshResourceCreation:
         # This test is skipped as the validation is not implemented
         pass
 
-    def test_sqlmesh_resource_ignore_cron(self) -> None:
-        """Test SQLMeshResource ignore_cron configuration."""
-        resource = SQLMeshResource(
-            project_dir="tests/sqlmesh_project",
-            ignore_cron=True
-        )
-        assert resource.ignore_cron is True
-        
-        # Test default
-        resource = SQLMeshResource(project_dir="tests/sqlmesh_project")
-        assert resource.ignore_cron is False
-
     def test_sqlmesh_resource_translator(self) -> None:
         """Test SQLMeshResource translator configuration."""
         from dg_sqlmesh import SQLMeshTranslator

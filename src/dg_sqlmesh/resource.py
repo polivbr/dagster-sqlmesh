@@ -88,7 +88,6 @@ class SQLMeshResource(ConfigurableResource):
     gateway: str = "postgres"
     environment: str = "prod"
     concurrency_limit: int = 1
-    ignore_cron: bool = False
     
     # Private attribute for Dagster logger (not subject to Pydantic immutability)
     _logger: Any = PrivateAttr(default=None)
@@ -235,7 +234,6 @@ class SQLMeshResource(ConfigurableResource):
             )
             self.context.run(
                 environment=self.environment,
-                ignore_cron=self.ignore_cron,
                 select_models=model_names,
                 execution_time=datetime.datetime.now(),
             )
@@ -278,14 +276,37 @@ class SQLMeshResource(ConfigurableResource):
         Extract model name, model object, and asset key from error.
         Returns (model_name, model, asset_key)
         """
-        model_name = error.node[0] if hasattr(error, 'node') and error.node else 'unknown'
+        model_name = 'unknown'
         model = None
         asset_key = None
         
         try:
-            model = self.context.get_model(model_name)
-            if model:
-                asset_key = self.translator.get_asset_key(model)
+            # Handle different error types
+            if hasattr(error, 'node') and error.node:
+                # Standard SQLMesh error with node attribute
+                model_name = error.node[0] if isinstance(error.node, (list, tuple)) else str(error.node)
+            elif hasattr(error, '__str__'):
+                # Try to extract from error message (e.g., NodeExecutionFailedError)
+                error_str = str(error)
+                # Look for pattern like "Execution failed for node ('"db"."schema"."model"', ...)"
+                import re
+                match = re.search(r'"([^"]+)"\."([^"]+)"\."([^"]+)"', error_str)
+                if match:
+                    db, schema, model = match.groups()
+                    model_name = f"{schema}.{model}"
+                else:
+                    # Fallback: try to extract any quoted model name
+                    match = re.search(r'"([^"]+\.[^"]+)"', error_str)
+                    if match:
+                        model_name = match.group(1)
+            else:
+                model_name = str(error)
+            
+            # Try to get model and asset key
+            if model_name != 'unknown':
+                model = self.context.get_model(model_name)
+                if model:
+                    asset_key = self.translator.get_asset_key(model)
         except Exception as e:
             if self._logger:
                 self._logger.warning(f"⚠️ Error converting model name to asset key: {e}")
