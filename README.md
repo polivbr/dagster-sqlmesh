@@ -6,6 +6,7 @@ This module provides a complete integration between SQLMesh and Dagster, allowin
 
 ### 🎯 **SQLMesh Model to Dagster Asset Conversion**
 
+- **Individual asset control** : Each SQLMesh model becomes a separate Dagster asset with granular success/failure control
 - **Automatic materialization** : SQLMesh models are automatically converted to Dagster assets
 - **External assets support** : SQLMesh sources (external assets) are mapped to Dagster AssetKeys
 - **Automatic dependencies** : Dependencies between models are preserved in Dagster
@@ -21,9 +22,10 @@ This module provides a complete integration between SQLMesh and Dagster, allowin
 ### ✅ **SQLMesh Audits to Asset Checks Conversion**
 
 - **Automatic audits** : SQLMesh audits become Dagster AssetCheckSpec
-- **AssetCheckResult** : Automatic emission of audit results
+- **AssetCheckResult** : Automatic emission of audit results with proper output handling
 - **Audit metadata** : SQL query, arguments, dialect, blocking status
 - **Non-blocking** : Dagster checks are non-blocking (SQLMesh handles blocking)
+- **Fallback handling** : Graceful handling when no evaluation events are found
 
 ### ⏰ **Adaptive Scheduling**
 
@@ -242,6 +244,23 @@ sqlmesh_resource.context.run(
 
 ## Architecture
 
+### **Individual Asset Pattern**
+
+Each SQLMesh model becomes a separate Dagster asset that:
+
+- **Materializes independently** : Each asset calls `sqlmesh.materialize_assets_threaded()` for its specific model
+- **Controls success/failure** : Each asset can succeed or fail individually based on SQLMesh execution results
+- **Handles dependencies** : Uses `translator.get_model_deps_with_external()` for proper dependency mapping
+- **Manages checks** : Each asset handles its own audit results with `AssetCheckResult` outputs
+
+### **Benefits of Individual Assets**
+
+- **Granular control** : Each asset can succeed or fail independently in the Dagster UI
+- **Clear visibility** : See exactly which models are running, succeeded, or failed
+- **Individual retries** : Failed assets can be retried without affecting others
+- **Better monitoring** : Track performance and issues per model
+- **Flexible scheduling** : Different assets can have different schedules if needed
+
 ### **SQLMeshResource**
 
 - Manages SQLMesh context and caching
@@ -307,50 +326,48 @@ When determining asset properties, the translator follows this priority:
 
 ## Plan + Run Architecture
 
-### **Why Plan Metadata is Valid for Run**
+### **Individual Asset Materialization**
 
-The module uses a **plan + run** approach where:
+Each Dagster asset materializes its specific SQLMesh model using:
 
-1. **Plan Generation** : `context.plan()` generates a plan with metadata
-2. **Run Execution** : `context.run()` executes using the same logical plan
-
-This works because both operations use:
-
-- **Same snapshots** : Retrieved from the same environment
-- **Same intervals** : Calculated using identical logic
-- **Same scheduler** : Same instance for execution
-
-The plan metadata (missing intervals, model dependencies) is therefore valid for the run execution, making this approach both efficient and reliable.
+1. **Model Selection** : `get_models_to_materialize()` selects the specific model for the asset
+2. **Materialization** : `sqlmesh.materialize_assets_threaded()` executes the model
+3. **Result Handling** : Console events determine success/failure and audit results
 
 ### **Implementation Details**
 
 ```python
-# In materialize_assets()
-def materialize_assets(self, models, context=None):
-    try:
-        plan = self.context.plan(  # ← Generate plan for metadata
-            select_models=model_names,
-            auto_apply=False,      # ← Don't apply the plan
-            no_prompts=True
-        )
-        self.context.run(          # ← Execute using same logical plan
-            environment=self.environment,
-            ignore_cron=self.ignore_cron,
-            select_models=model_names,
-            execution_time=datetime.datetime.now(),
-        )
-        return plan
+# In each individual asset
+def model_asset(context: AssetExecutionContext, sqlmesh: SQLMeshResource):
+    # Materialize this specific model
+    models_to_materialize = get_models_to_materialize(
+        [current_asset_spec.key],
+        sqlmesh.get_models,
+        sqlmesh.translator,
+    )
+
+    # Execute materialization
+    plan = sqlmesh.materialize_assets_threaded(models_to_materialize, context=context)
+
+    # Check results via console events
+    failed_models_events = sqlmesh._console.get_failed_models_events()
+    evaluation_events = sqlmesh._console.get_evaluation_events()
+
+    # Return MaterializeResult + AssetCheckResult for audits
+    return MaterializeResult(...), *check_results
 ```
 
-This approach ensures that the metadata extracted from the plan (missing intervals, model dependencies) is valid for the run execution, avoiding duplication of planning logic.
+This approach provides granular control while maintaining all SQLMesh integration features.
 
 ## Performance
 
+- **Individual execution** : Each asset runs its own SQLMesh materialization (may result in multiple `sqlmesh run` calls)
 - **Strict singleton** : Only one active SQLMesh instance
 - **Caching** : Contexts, models and translators are cached
 - **Multithreading** : Uses AnyIO to avoid Dagster blocking
 - **Lazy loading** : Resources are loaded on demand
 - **Early validation** : External dependencies validation before execution
+- **Optimized execution** : SQLMesh automatically skips models that don't need materialization
 
 ## Development Workflow
 
@@ -440,6 +457,7 @@ This separation ensures:
 
 ## Limitations
 
+- **Multiple SQLMesh runs** : Each asset triggers its own `sqlmesh run` (may impact performance with many assets)
 - **No Dagster → SQLMesh backfill** : Partitions managed only by SQLMesh itself (run a materialization to backfill)
 - **Breaking changes** : Handled outside the module (SQLMesh CLI or CI/CD)
 - **Environment management** : SQLMesh CLI or CI/CD
