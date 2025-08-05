@@ -1,20 +1,26 @@
 from dagster import (
-    multi_asset,
+    asset,
     AssetExecutionContext,
     RetryPolicy,
     schedule,
     define_asset_job,
     RunRequest,
     Definitions,
+    AssetKey,
+    MaterializeResult,
 )
 from .resource import SQLMeshResource
 from .resource import UpstreamAuditFailureError
 from .sqlmesh_asset_utils import (
     get_asset_kinds,
-    create_asset_specs_and_checks,
+    create_asset_specs,
+    create_asset_checks,
     get_extra_keys,
     validate_external_dependencies,
+    get_models_to_materialize,
 )
+from .sqlmesh_asset_check_utils import create_asset_checks_from_model
+from sqlmesh.core.model.definition import ExternalModel
 import datetime
 from .translator import SQLMeshTranslator
 from typing import Optional, Dict, List, Any
@@ -22,7 +28,6 @@ from typing import Optional, Dict, List, Any
 def sqlmesh_assets_factory(
     *,
     sqlmesh_resource: SQLMeshResource,
-    name: str = "sqlmesh_assets",
     group_name: str = "sqlmesh",
     op_tags: Optional[Dict[str, Any]] = None,
     retry_policy: Optional[RetryPolicy] = None,
@@ -30,52 +35,103 @@ def sqlmesh_assets_factory(
 ):
     """
     Factory to create SQLMesh Dagster assets.
-    
-    Args:
-        sqlmesh_resource: Configured SQLMesh resource
-        name: Multi-asset name
-        group_name: Default group for assets
-        op_tags: Operation tags
-        retry_policy: Retry policy
-        owners: Asset owners
     """
     try:
         extra_keys = get_extra_keys()
         kinds = get_asset_kinds(sqlmesh_resource)
-
-        # Create AssetSpec and AssetCheckSpec in a single pass (more efficient)
-        specs, asset_checks = create_asset_specs_and_checks(sqlmesh_resource, extra_keys, kinds, owners, group_name)
+        specs = create_asset_specs(sqlmesh_resource, extra_keys, kinds, owners, group_name)
+        asset_checks = create_asset_checks(sqlmesh_resource)
     except Exception as e:
         raise ValueError(f"Failed to create SQLMesh assets: {e}") from e
 
-    @multi_asset(
-        name=name,
-        specs=specs,
-        check_specs=asset_checks,
-        op_tags=op_tags,
-        retry_policy=retry_policy,
-        can_subset=True
-    )
-    def _sqlmesh_assets(context: AssetExecutionContext, sqlmesh: SQLMeshResource):
-        context.log.info("🚀 Starting SQLMesh materialization")
+    # Créer les assets individuels directement (sans orchestrateur pour le build)
+    assets = []
+    
+    def create_model_asset(current_model_name, current_asset_spec, current_model_checks):
+        @asset(
+            key=current_asset_spec.key,
+            description=f"SQLMesh model: {current_model_name}",
+            group_name=current_asset_spec.group_name,
+            metadata=current_asset_spec.metadata,
+            tags=current_asset_spec.tags,
+            deps=current_asset_spec.deps,
+            check_specs=current_model_checks,
+            op_tags=op_tags,
+            retry_policy=retry_policy,
+        )
+        def model_asset(context: AssetExecutionContext, sqlmesh: SQLMeshResource):
+            context.log.info(f"🔄 Processing SQLMesh model: {current_model_name}")
+            
+            # Materialiser directement ce modèle
+            models_to_materialize = get_models_to_materialize(
+                [current_asset_spec.key],
+                sqlmesh.get_models,
+                sqlmesh.translator,
+            )
+            
+            if not models_to_materialize:
+                raise Exception(f"No models found for asset {current_asset_spec.key}")
+            
+            # Lancer la materialization
+            plan = sqlmesh.materialize_assets_threaded(models_to_materialize, context=context)
+            
+            # Vérifier le succès via la console
+            failed_models_events = sqlmesh._console.get_failed_models_events()
+            model_failed = False
+            
+            for event in failed_models_events:
+                for error in event.get('errors', []):
+                    failed_model_name = sqlmesh._extract_model_info(error)[0]
+                    if failed_model_name == current_model_name:
+                        model_failed = True
+                        break
+                if model_failed:
+                    break
+            
+            if model_failed:
+                error_msg = f"Model {current_model_name} failed during materialization"
+                context.log.error(f"❌ {error_msg}")
+                raise Exception(error_msg)
+            else:
+                context.log.info(f"✅ Model {current_model_name}: SUCCESS")
+                return MaterializeResult(
+                    asset_key=current_asset_spec.key,
+                    metadata={
+                        "status": "success"
+                    }
+                )
         
-        # Log assets to be materialized (the actually selected ones)
-        selected_asset_keys = context.selected_asset_keys
-        context.log.info(f"📦 Assets to materialize: {len(selected_asset_keys)} assets")
-        for i, asset_key in enumerate(selected_asset_keys, 1):
-            context.log.info(f"   {i}. 🎯 {asset_key}")
+        # Renommer pour éviter les collisions
+        model_asset.__name__ = f"sqlmesh_{current_model_name}_asset"
+        return model_asset
+    
+    # Utiliser les utilitaires existants
+    models = sqlmesh_resource.get_models()
+    
+    # Créer les assets pour chaque modèle qui a un AssetSpec
+    for model in models:
+        # Ignorer les modèles externes
+        if isinstance(model, ExternalModel):
+            continue
+            
+        # Utiliser le translator pour obtenir l'AssetKey
+        asset_key = sqlmesh_resource.translator.get_asset_key(model)
         
-        try:
-            yield from sqlmesh.materialize_all_assets(context)
-            context.log.info("✅ SQLMesh materialization completed")
-        except UpstreamAuditFailureError as e:
-            # Handle upstream audit failures gracefully - don't re-raise
-            context.log.warning(f"⏭️ {e}")
-        except Exception as e:
-            context.log.error(f"❌ SQLMesh materialization failed: {e}")
-            raise
-
-    return _sqlmesh_assets
+        # Chercher le bon AssetSpec dans la liste
+        asset_spec = None
+        for spec in specs:
+            if spec.key == asset_key:
+                asset_spec = spec
+                break
+        
+        if asset_spec is None:
+            continue  # Skip si pas de spec trouvé
+            
+        # Utiliser l'utilitaire existant pour créer les checks
+        model_checks = create_asset_checks_from_model(model, asset_key)
+        assets.append(create_model_asset(model.name, asset_spec, model_checks))
+    
+    return assets
 
 
 def sqlmesh_adaptive_schedule_factory(
@@ -94,11 +150,17 @@ def sqlmesh_adaptive_schedule_factory(
     # Get recommended schedule based on SQLMesh crons
     recommended_schedule = sqlmesh_resource.get_recommended_schedule()
     
-    # Automatically create SQLMesh job with multi_asset (for AssetCheckResult)
+    # Create SQLMesh assets (list of individual assets)
     sqlmesh_assets = sqlmesh_assets_factory(sqlmesh_resource=sqlmesh_resource)
+    
+    # Check if we have assets
+    if not sqlmesh_assets:
+        raise ValueError("No SQLMesh assets created - check if models exist")
+    
+    # Create job with all assets (no selection needed since we have individual assets)
     sqlmesh_job = define_asset_job(
         name="sqlmesh_job",
-        selection=[sqlmesh_assets],
+        selection=sqlmesh_assets,  # Pass the list of assets directly
     )
     
     @schedule(
@@ -178,7 +240,6 @@ def sqlmesh_definitions_factory(
     # Create SQLMesh assets
     sqlmesh_assets = sqlmesh_assets_factory(
         sqlmesh_resource=sqlmesh_resource,
-        name=name,
         group_name=group_name,
         op_tags=op_tags,
         retry_policy=retry_policy,
@@ -193,7 +254,7 @@ def sqlmesh_definitions_factory(
     
     # Return complete Definitions
     return Definitions(
-        assets=[sqlmesh_assets],
+        assets=sqlmesh_assets,
         jobs=[sqlmesh_job],
         schedules=[sqlmesh_adaptive_schedule],
         resources={
