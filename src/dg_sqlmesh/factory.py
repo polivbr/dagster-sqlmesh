@@ -74,8 +74,8 @@ def sqlmesh_assets_factory(
             # Force no retries to prevent infinite loops with SQLMesh audit failures
             tags={
                 **(current_asset_spec.tags or {}),
-                "dagster/max_retries": 0,
-                "dagster/retry_on_asset_or_op_failure": False
+                "dagster/max_retries": "0",
+                "dagster/retry_on_asset_or_op_failure": "false"
             },
         )
         def model_asset(context: AssetExecutionContext, sqlmesh: SQLMeshResource, sqlmesh_results: SQLMeshResultsResource):
@@ -373,8 +373,8 @@ def sqlmesh_adaptive_schedule_factory(
         name="sqlmesh_job",
         selection=sqlmesh_assets,  # Pass the list of assets directly
         tags={
-            "dagster/max_retries": 0,
-            "dagster/retry_on_asset_or_op_failure": False
+            "dagster/max_retries": "0",
+            "dagster/retry_on_asset_or_op_failure": "false"
         }
     )
     
