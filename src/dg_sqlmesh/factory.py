@@ -383,6 +383,7 @@ def sqlmesh_definitions_factory(
     op_tags: Optional[Dict[str, Any]] = None,
     owners: Optional[List[str]] = None,
     schedule_name: str = "sqlmesh_adaptive_schedule",
+    enable_schedule: bool = False,  # ← NOUVEAU : Désactiver le schedule par défaut
 ):
     """
     All-in-one factory to create a complete SQLMesh integration with Dagster.
@@ -397,6 +398,7 @@ def sqlmesh_definitions_factory(
         op_tags: Operation tags
         owners: Asset owners
         schedule_name: Adaptive schedule name
+        enable_schedule: Whether to enable the adaptive schedule (default: False)
     """
     
     # Parameter validation
@@ -436,17 +438,23 @@ def sqlmesh_definitions_factory(
         owners=owners,
     )
     
-    # Create adaptive schedule and job
-    sqlmesh_adaptive_schedule, sqlmesh_job, _ = sqlmesh_adaptive_schedule_factory(
-        sqlmesh_resource=sqlmesh_resource,
-        name=schedule_name
-    )
+    # Create adaptive schedule and job (only if enabled)
+    schedules = []
+    jobs = []
+    
+    if enable_schedule:
+        sqlmesh_adaptive_schedule, sqlmesh_job, _ = sqlmesh_adaptive_schedule_factory(
+            sqlmesh_resource=sqlmesh_resource,
+            name=schedule_name
+        )
+        schedules.append(sqlmesh_adaptive_schedule)
+        jobs.append(sqlmesh_job)
     
     # Return complete Definitions
     return Definitions(
         assets=sqlmesh_assets,
-        jobs=[sqlmesh_job],
-        schedules=[sqlmesh_adaptive_schedule],
+        jobs=jobs,
+        schedules=schedules,
         resources={
             "sqlmesh": sqlmesh_resource,
             "sqlmesh_results": sqlmesh_results_resource,
