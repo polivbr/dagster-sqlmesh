@@ -1,9 +1,52 @@
 from dagster import AssetSpec, AssetCheckSpec
 from sqlmesh.core.model.definition import ExternalModel
 from sqlmesh.utils.date import now
-from typing import Any
+from typing import Any, Optional, List
 from datetime import datetime
-from .sqlmesh_asset_check_utils import create_all_asset_checks
+from .sqlmesh_asset_check_utils import create_all_asset_checks, create_asset_checks_from_model
+
+def get_downstream_models(
+    context,
+    model,
+    selected_models: Optional[List[str]] = None,
+) -> List[Any]:
+    """
+    Get downstream models for a single model, optionally filtered by selected models.
+    
+    Args:
+        context: SQLMesh Context object
+        model: SQLMesh model object
+        selected_models: Optional list of model names to filter downstream models.
+                        If None, returns all downstream models.
+    
+    Returns:
+        List of downstream models
+    """
+    # Get all downstream model names
+    downstream_names = context.dag.downstream(model.fqn)
+    
+    # Filter by selected_models if provided
+    if selected_models is not None:
+        downstream_names = [
+            name for name in downstream_names 
+            if name in selected_models
+        ]
+    
+    # Convert names to Model objects
+    downstream_models = []
+    for downstream_name in downstream_names:
+        try:
+            downstream_model = context.get_model(downstream_name)
+            downstream_models.append(downstream_model)
+        except Exception as e:
+            # Use context logger if available, otherwise print
+            if hasattr(context, 'logger') and context.logger:
+                context.logger.warning(f"Could not load downstream model '{downstream_name}': {e}")
+            else:
+                print(f"Warning: Could not load downstream model '{downstream_name}': {e}")
+    
+    return downstream_models
+
 
 def get_models_to_materialize(selected_asset_keys, get_models_func, translator):
     """
@@ -398,6 +441,62 @@ def create_all_asset_specs(
         )
         specs.append(spec)
     return specs
+
+
+def create_asset_specs_and_checks(
+    sqlmesh_resource,
+    extra_keys,
+    kinds,
+    owners,
+    group_name
+) -> tuple[list[AssetSpec], list[AssetCheckSpec]]:
+    """
+    Creates all AssetSpec and AssetCheckSpec for all SQLMesh models in a single pass.
+    This is more efficient than separate functions as it avoids multiple loops over models.
+    
+    Args:
+        sqlmesh_resource: SQLMeshResource
+        extra_keys: Additional keys for metadata
+        kinds: Asset kinds
+        owners: Asset owners
+        group_name: Default group name
+    
+    Returns:
+        Tuple of (AssetSpec list, AssetCheckSpec list)
+    """
+    models = [model for model in sqlmesh_resource.get_models() if not isinstance(model, ExternalModel)]
+    translator = sqlmesh_resource.translator
+    context = sqlmesh_resource.context
+    
+    specs = []
+    checks = []
+    
+    for model in models:
+        # Extract common model information once
+        asset_key = translator.get_asset_key(model)
+        code_version = str(getattr(model, "data_hash", "")) if hasattr(model, "data_hash") and getattr(model, "data_hash") else None
+        metadata = get_asset_metadata(translator, model, code_version, extra_keys, owners)
+        tags = get_asset_tags(translator, context, model)
+        deps = translator.get_model_deps_with_external(context, model)
+        final_group_name = translator.get_group_name_with_fallback(context, model, group_name)
+        
+        # Create AssetSpec
+        spec = AssetSpec(
+            key=asset_key,
+            deps=deps,
+            code_version=code_version,
+            metadata=metadata,
+            kinds=kinds,
+            tags=tags,
+            group_name=final_group_name,
+        )
+        specs.append(spec)
+        
+        # Create AssetCheckSpec for each audit
+        model_checks = create_asset_checks_from_model(model, asset_key)
+        checks.extend(model_checks)
+    
+    return specs, checks
 
 
 def create_asset_specs(

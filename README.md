@@ -305,6 +305,45 @@ When determining asset properties, the translator follows this priority:
 - Captures audit results for AssetCheckResult
 - Handles metadata serialization
 
+## Plan + Run Architecture
+
+### **Why Plan Metadata is Valid for Run**
+
+The module uses a **plan + run** approach where:
+
+1. **Plan Generation** : `context.plan()` generates a plan with metadata
+2. **Run Execution** : `context.run()` executes using the same logical plan
+
+This works because both operations use:
+
+- **Same snapshots** : Retrieved from the same environment
+- **Same intervals** : Calculated using identical logic
+- **Same scheduler** : Same instance for execution
+
+The plan metadata (missing intervals, model dependencies) is therefore valid for the run execution, making this approach both efficient and reliable.
+
+### **Implementation Details**
+
+```python
+# In materialize_assets()
+def materialize_assets(self, models, context=None):
+    try:
+        plan = self.context.plan(  # ← Generate plan for metadata
+            select_models=model_names,
+            auto_apply=False,      # ← Don't apply the plan
+            no_prompts=True
+        )
+        self.context.run(          # ← Execute using same logical plan
+            environment=self.environment,
+            ignore_cron=self.ignore_cron,
+            select_models=model_names,
+            execution_time=datetime.datetime.now(),
+        )
+        return plan
+```
+
+This approach ensures that the metadata extracted from the plan (missing intervals, model dependencies) is valid for the run execution, avoiding duplication of planning logic.
+
 ## Performance
 
 - **Strict singleton** : Only one active SQLMesh instance
@@ -340,12 +379,10 @@ sqlmesh run dev
 
 ```bash
 # Promote changes to production
-sqlmesh plan prod
-sqlmesh apply prod
+sqlmesh plan prod # ->manual operation to validate the plan (apply it)
 
 # Or use CI/CD pipeline
 # - sqlmesh plan prod
-# - sqlmesh apply prod
 ```
 
 #### **3. Dagster Orchestration**

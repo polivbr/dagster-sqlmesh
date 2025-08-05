@@ -8,11 +8,11 @@ from dagster import (
     Definitions,
 )
 from .resource import SQLMeshResource
+from .resource import UpstreamAuditFailureError
 from .sqlmesh_asset_utils import (
     get_asset_kinds,
+    create_asset_specs_and_checks,
     get_extra_keys,
-    create_asset_specs,
-    create_asset_checks,
     validate_external_dependencies,
 )
 import datetime
@@ -43,9 +43,8 @@ def sqlmesh_assets_factory(
         extra_keys = get_extra_keys()
         kinds = get_asset_kinds(sqlmesh_resource)
 
-        # Create AssetSpec and AssetCheckSpec
-        specs = create_asset_specs(sqlmesh_resource, extra_keys, kinds, owners, group_name)
-        asset_checks = create_asset_checks(sqlmesh_resource)
+        # Create AssetSpec and AssetCheckSpec in a single pass (more efficient)
+        specs, asset_checks = create_asset_specs_and_checks(sqlmesh_resource, extra_keys, kinds, owners, group_name)
     except Exception as e:
         raise ValueError(f"Failed to create SQLMesh assets: {e}") from e
 
@@ -69,6 +68,9 @@ def sqlmesh_assets_factory(
         try:
             yield from sqlmesh.materialize_all_assets(context)
             context.log.info("✅ SQLMesh materialization completed")
+        except UpstreamAuditFailureError as e:
+            # Handle upstream audit failures gracefully - don't re-raise
+            context.log.warning(f"⏭️ {e}")
         except Exception as e:
             context.log.error(f"❌ SQLMesh materialization failed: {e}")
             raise

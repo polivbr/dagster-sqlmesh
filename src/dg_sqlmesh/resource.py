@@ -5,11 +5,16 @@ import datetime
 from typing import Any
 from pydantic import PrivateAttr
 from dagster import (
-    ConfigurableResource, 
-    MaterializeResult, 
-    DataVersion, 
+    multi_asset,
+    AssetExecutionContext,
+    AssetKey,
     AssetCheckResult,
-    InitResourceContext
+    AssetCheckSpec,
+    MaterializeResult,
+    DataVersion,
+    MetadataValue,
+    ConfigurableResource,
+    InitResourceContext,
 )
 from sqlmesh import Context
 from sqlmesh.core.console import set_console
@@ -20,6 +25,7 @@ from .sqlmesh_asset_utils import (
     format_partition_metadata,
     get_model_partitions_from_plan,
     analyze_sqlmesh_crons_using_api,
+    get_model_from_asset_key,
 )
 from .sqlmesh_asset_check_utils import safe_extract_audit_query
 from .sqlmesh_event_console import SQLMeshEventCaptureConsole
@@ -36,6 +42,14 @@ from sqlmesh.utils.errors import (
     SignalEvalError,
 )
 import json
+
+
+class UpstreamAuditFailureError(Exception):
+    """
+    Custom exception for upstream audit failures that should be handled gracefully.
+    This exception should not trigger retries or be re-raised by the factory.
+    """
+    pass
 
 def convert_unix_timestamp_to_readable(timestamp):
     """
@@ -381,6 +395,60 @@ class SQLMeshResource(ConfigurableResource):
         
         return asset_check_results
 
+    def _get_failed_blocking_checks(self, asset_check_results: list[AssetCheckResult]) -> dict[AssetKey, list[AssetCheckResult]]:
+        """
+        Extract failed checks that are blocking from AssetCheckResult list.
+        
+        Args:
+            asset_check_results: List of all AssetCheckResult
+            
+        Returns:
+            Dict mapping AssetKey to list of failed blocking checks
+        """
+        failed_blocking = {}
+        for check_result in asset_check_results:
+            if not check_result.passed:
+                # Check if this audit is blocking from metadata
+                metadata = check_result.metadata
+                audit_blocking = metadata.get("audit_blocking", True)  # Default to blocking
+                if audit_blocking:
+                    asset_key = check_result.asset_key
+                    if asset_key not in failed_blocking:
+                        failed_blocking[asset_key] = []
+                    failed_blocking[asset_key].append(check_result)
+        return failed_blocking
+
+    def _get_affected_downstream_assets(self, failed_asset_keys: list[AssetKey]) -> set[AssetKey]:
+        """
+        Get all downstream assets that should be blocked due to upstream failures.
+        
+        Args:
+            failed_asset_keys: List of AssetKeys that failed
+            
+        Returns:
+            Set of AssetKeys that should be blocked
+        """
+        affected_assets = set()
+        
+        for failed_asset_key in failed_asset_keys:
+            # Get SQLMesh model from asset key
+            failed_model = get_model_from_asset_key(self.context, self.translator, failed_asset_key)
+            if failed_model:
+                # Get downstream models using our new utility
+                from .sqlmesh_asset_utils import get_downstream_models
+                downstream_models = get_downstream_models(
+                    context=self.context,
+                    model=failed_model,
+                    selected_models=None  # All downstream
+                )
+                
+                # Convert to AssetKeys
+                for downstream_model in downstream_models:
+                    downstream_asset_key = self.translator.get_asset_key(downstream_model)
+                    affected_assets.add(downstream_asset_key)
+        
+        return affected_assets
+
     def materialize_all_assets(self, context):
         """
         Materializes all selected assets and yields results.
@@ -408,30 +476,7 @@ class SQLMeshResource(ConfigurableResource):
             self.context, self.translator, selected_asset_keys
         )
 
-        # Create MaterializeResult with plan info
-        for asset_key in ordered_asset_keys:
-            snapshot = assetkey_to_snapshot.get(asset_key)
-            if snapshot:
-                snapshot_version = getattr(snapshot, "version", None)
-                model_partitions = get_model_partitions_from_plan(plan, self.translator, asset_key, snapshot)
-                # Prepare base metadata
-                metadata = {
-                    "dagster-sqlmesh/snapshot_version": snapshot_version,
-                    "dagster-sqlmesh/snapshot_timestamp": convert_unix_timestamp_to_readable(getattr(snapshot, "created_ts", None)) if snapshot else None,
-                    "dagster-sqlmesh/model_name": asset_key.path[-1] if asset_key.path else None,
-                }
-                
-                # Add partition metadata if model is partitioned
-                if model_partitions and model_partitions.get("is_partitioned", False):
-                    metadata["dagster-sqlmesh/partitions"] = format_partition_metadata(model_partitions)
-                
-                yield MaterializeResult(
-                    asset_key=asset_key,
-                    metadata=metadata,
-                    data_version=DataVersion(str(snapshot_version)) if snapshot_version else None
-                )
-        
-        # Emit AssetCheckResult for successful audits
+        # Process all audit results (successful and failed)
         successful_audit_results = []
         audit_results = self._console.get_audit_results()
         for audit_result in audit_results:
@@ -458,16 +503,66 @@ class SQLMeshResource(ConfigurableResource):
                 }
             ))
         
-        # Emit AssetCheckResult for failed models/audits
+        # Process failed models/audits
         failed_models_results = self._process_failed_models_events()
         
         # Combine and deduplicate all AssetCheckResult events
         all_asset_check_results = successful_audit_results + failed_models_results
         deduplicated_results = self._deduplicate_asset_check_results(all_asset_check_results)
         
-        # Yield all deduplicated AssetCheckResult events
+        # Get failed blocking checks and affected downstream assets
+        failed_blocking_checks = self._get_failed_blocking_checks(deduplicated_results)
+        failed_asset_keys = list(failed_blocking_checks.keys())
+        affected_downstream = self._get_affected_downstream_assets(failed_asset_keys)
+        
+        # Group AssetCheckResult by asset_key for MaterializeResult
+        asset_check_results_by_key = {}
         for asset_check_result in deduplicated_results:
-            yield asset_check_result
+            asset_key = asset_check_result.asset_key
+            if asset_key not in asset_check_results_by_key:
+                asset_check_results_by_key[asset_key] = []
+            asset_check_results_by_key[asset_key].append(asset_check_result)
+        
+        # Create MaterializeResult (skip affected downstream assets)
+        for asset_key in ordered_asset_keys:
+            if asset_key in affected_downstream:
+                # Skip affected downstream assets - don't yield MaterializeResult
+                if self._logger:
+                    self._logger.warning(
+                        f"⏭️ Skipping materialization of {asset_key} due to upstream failures: "
+                        f"{[str(key) for key in failed_asset_keys]}"
+                    )
+                # Raise custom exception that will be handled gracefully by factory
+                raise UpstreamAuditFailureError(
+                    f"Asset {asset_key} skipped due to upstream audit failures: "
+                    f"{[str(key) for key in failed_asset_keys]}"
+                )
+            else:
+                # Normal MaterializeResult for unaffected assets
+                snapshot = assetkey_to_snapshot.get(asset_key)
+                if snapshot:
+                    snapshot_version = getattr(snapshot, "version", None)
+                    model_partitions = get_model_partitions_from_plan(plan, self.translator, asset_key, snapshot)
+                    # Prepare base metadata
+                    metadata = {
+                        "dagster-sqlmesh/snapshot_version": snapshot_version,
+                        "dagster-sqlmesh/snapshot_timestamp": convert_unix_timestamp_to_readable(getattr(snapshot, "created_ts", None)) if snapshot else None,
+                        "dagster-sqlmesh/model_name": asset_key.path[-1] if asset_key.path else None,
+                    }
+                    
+                    # Add partition metadata if model is partitioned
+                    if model_partitions and model_partitions.get("is_partitioned", False):
+                        metadata["dagster-sqlmesh/partitions"] = format_partition_metadata(model_partitions)
+                    
+                    # Get check results for this asset
+                    check_results = asset_check_results_by_key.get(asset_key, [])
+                    
+                    yield MaterializeResult(
+                        asset_key=asset_key,
+                        metadata=metadata,
+                        data_version=DataVersion(str(snapshot_version)) if snapshot_version else None,
+                        check_results=check_results
+                    )
         
         # Clean console events after emitting all AssetCheckResult
         self._console.clear_events()
