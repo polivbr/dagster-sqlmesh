@@ -9,39 +9,40 @@ This file demonstrates advanced features including:
 """
 
 from dagster import (
-    Definitions,
-    MaterializeResult,
-    AssetCheckResult,
     multi_asset,
     AssetExecutionContext,
-    RetryPolicy,
+    MaterializeResult,
+    AssetCheckResult,
+    Definitions,
+    ConfigurableResource,
+    # Removed RetryPolicy
 )
 from dg_sqlmesh import (
-    SQLMeshResource,
     sqlmesh_assets_factory,
     sqlmesh_definitions_factory,
+    SQLMeshResource
 )
 
 
 # Example 1: Custom resource with error handling
 def example_custom_resource_with_error_handling():
-    """Example showing how to use SQLMeshResource with custom error handling."""
+    """Example showing custom resource configuration with error handling."""
     
-    # Create custom resource
+    # Create resource with custom configuration
     sqlmesh_resource = SQLMeshResource(
         project_dir="tests/sqlmesh_project",
         gateway="duckdb",
         environment="dev",
-        concurrency_limit=2,
+        concurrency_limit=1,  # Conservative for error handling
     )
     
-    # Create assets
+    # Create assets with error handling
     assets = sqlmesh_assets_factory(
         sqlmesh_resource=sqlmesh_resource,
         name="custom_sqlmesh_assets",
         group_name="custom_group",
         op_tags={"team": "data", "domain": "analytics"},
-        retry_policy=RetryPolicy(max_retries=3),
+        # Removed: retry_policy=RetryPolicy(max_retries=3),
         owners=["data-team", "analytics"]
     )
     
@@ -119,7 +120,7 @@ def example_complete_definitions_with_error_handling():
         name="error_handling_assets",
         group_name="error_handling",
         op_tags={"team": "data", "error_handling": "enabled"},
-        retry_policy=RetryPolicy(max_retries=2),
+        # Removed: retry_policy=RetryPolicy(max_retries=2),
         owners=["data-team"]
     )
     
@@ -143,7 +144,7 @@ def example_all_in_one_with_error_handling():
         name="error_handling_definitions",
         group_name="error_handling",
         op_tags={"team": "data", "error_handling": "enabled"},
-        retry_policy=RetryPolicy(max_retries=2),
+        # Removed: retry_policy=RetryPolicy(max_retries=2),
         owners=["data-team"],
         concurrency_limit=1,
     )
