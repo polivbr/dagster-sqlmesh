@@ -21,6 +21,7 @@ Architecture Decision Records are documents that capture important architectural
 | [ADR-0004](./0004-retry-policy-management.md)          | Retry Policy Management for SQLMesh Integration | Accepted | 2025-08-05 |
 | [ADR-0005](./0005-custom-sqlmesh-console.md)           | Custom SQLMesh Console for Event Capture        | Accepted | 2025-08-05 |
 | [ADR-0006](./0006-sqlmesh-dagster-tag-convention.md)   | SQLMesh to Dagster Tag Convention               | Accepted | 2025-08-05 |
+| [ADR-0007](./0007-code-version-data-version-mapping.md) | Code Version and Data Version Mapping           | Accepted | 2025-08-05 |
 
 ## Key Architectural Patterns
 
@@ -43,6 +44,10 @@ Custom SQLMesh console captures execution events and converts them to Dagster co
 ### 5. Tag-Based Property Mapping
 
 `dagster:property_name:value` convention allows SQLMesh models to override Dagster asset properties via tags.
+
+### 6. Version Mapping Strategy
+
+SQLMesh `data_hash` maps to Dagster `code_version`, SQLMesh snapshot version maps to Dagster `data_version` for accurate sync status.
 
 ## Current Limitations
 
