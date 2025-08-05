@@ -61,19 +61,6 @@ class TestSQLMeshAssetsFactory:
             metadata = asset.metadata
             assert "owners" in metadata
             assert metadata["owners"] == owners
-    
-    def test_sqlmesh_assets_factory_with_retry_policy(self, sqlmesh_resource: SQLMeshResource) -> None:
-        """Test asset factory with retry policy."""
-        # Removed: retry_policy = RetryPolicy(max_retries=3)
-        
-        assets = sqlmesh_assets_factory(
-            sqlmesh_resource=sqlmesh_resource,
-            # Removed: retry_policy=retry_policy
-        )
-        
-        # Check that the retry policy is applied to the op
-        # Removed: assert assets.op.retry_policy == retry_policy
-        assert len(assets) > 0  # Just check that assets are created
 
 
 class TestSQLMeshDefinitionsFactory:
@@ -137,21 +124,6 @@ class TestSQLMeshDefinitionsFactory:
             metadata = asset.metadata
             assert "owners" in metadata
             assert metadata["owners"] == owners
-    
-    def test_sqlmesh_definitions_factory_with_retry_policy(self) -> None:
-        """Test definitions factory with retry policy."""
-        # Removed: retry_policy = RetryPolicy(max_retries=2)
-        
-        defs = sqlmesh_definitions_factory(
-            project_dir="tests/sqlmesh_project",
-            gateway="duckdb",
-            # Removed: retry_policy=retry_policy
-        )
-        
-        # Check that the retry policy is applied to assets
-        # Removed: assert sqlmesh_assets.op.retry_policy == RetryPolicy(max_retries=2)
-        assert defs is not None
-        assert len(defs.assets) > 0
 
 
 class TestSQLMeshAdaptiveScheduleFactory:
