@@ -69,4 +69,4 @@ def model2_asset():
 ## Related Decisions
 
 - [ADR-0002: Shared SQLMesh Execution](./0002-shared-sqlmesh-execution.md)
-- [ADR-0003: Asset Check Integration](./0003-asset-check-integration.md) 
+- [ADR-0003: Asset Check Integration](./0003-asset-check-integration.md)

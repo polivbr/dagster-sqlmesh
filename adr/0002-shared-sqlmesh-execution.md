@@ -7,6 +7,7 @@
 ## Context
 
 With individual assets, each asset could potentially trigger its own SQLMesh execution. This would:
+
 1. **Bypass SQLMesh's natural dependency management** (skipping downstream models on upstream failure)
 2. **Create multiple SQLMesh runs** for the same logical operation
 3. **Lose SQLMesh's atomic execution benefits**
@@ -38,11 +39,11 @@ With individual assets, each asset could potentially trigger its own SQLMesh exe
 ```python
 class SQLMeshResultsResource(ConfigurableResource):
     """Resource pour partager les résultats SQLMesh entre les assets d'un même run."""
-    
+
     def store_results(self, run_id: str, results: Dict[str, Any]) -> None:
         """Stocke les résultats SQLMesh pour un run donné."""
         self._results[run_id] = results
-    
+
     def get_results(self, run_id: str) -> Optional[Dict[str, Any]]:
         """Récupère les résultats SQLMesh pour un run donné."""
         return self._results.get(run_id)
@@ -58,7 +59,7 @@ def model_asset(context: AssetExecutionContext, sqlmesh: SQLMeshResource, sqlmes
         selected_asset_keys = context.selected_asset_keys
         models_to_materialize = get_models_to_materialize(selected_asset_keys, ...)
         plan = sqlmesh.materialize_assets_threaded(models_to_materialize)
-        
+
         # Store results for other assets in this run
         results = {
             "failed_check_results": sqlmesh._process_failed_models_events(),
@@ -78,18 +79,18 @@ graph TD
     A[Dagster Run] --> B[Asset 1]
     A --> C[Asset 2]
     A --> D[Asset 3]
-    
+
     B --> E{First Asset?}
     E -->|Yes| F[Execute SQLMesh]
     E -->|No| G[Use Shared Results]
-    
+
     F --> H[SQLMeshResultsResource]
     G --> H
-    
+
     H --> I[Asset 1 Results]
     H --> J[Asset 2 Results]
     H --> K[Asset 3 Results]
-    
+
     style F fill:#e1f5fe
     style H fill:#f3e5f5
 ```
@@ -113,4 +114,4 @@ graph TD
 ## Related Decisions
 
 - [ADR-0001: Individual Assets vs Multi-Asset Pattern](./0001-individual-assets-vs-multi-asset.md)
-- [ADR-0003: Asset Check Integration](./0003-asset-check-integration.md) 
+- [ADR-0003: Asset Check Integration](./0003-asset-check-integration.md)
