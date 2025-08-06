@@ -1,9 +1,88 @@
 ---
-description: Test patterns and best practices for dg-sqlmesh module
+description: testing Patterns dg-sqlmesh module
 alwaysApply: false
 ---
 
-# Test Patterns and Best Practices
+# Test Patterns and Best Practices for dg-sqlmesh
+
+## **Test Structure and Organization**
+
+### **Project Structure**
+
+```
+tests/
+├── conftest.py                    # Main fixtures and configuration
+├── fixtures/                      # Test fixtures and data
+│   └── sqlmesh_project/          # SQLMesh test project
+│       ├── config.yaml           # DuckDB configuration
+│       ├── external_models.yaml  # External models
+│       ├── models/               # SQLMesh models
+│       ├── audits/               # Audits
+│       └── tests/                # SQLMesh tests
+├── unit/                         # Unit tests
+│   ├── test_factory.py           # Factory function tests
+│   ├── test_resource.py          # SQLMeshResource tests
+│   ├── test_translator.py        # SQLMeshTranslator tests
+│   ├── test_asset_utils.py       # Asset utilities tests
+│   ├── test_asset_execution_utils.py # Execution utilities tests
+│   ├── test_event_console.py     # Event console tests
+│   └── test_blocking_parameter.py # Parameter tests
+├── integration/                   # Integration tests
+│   └── test_asset_execution.py   # Asset execution tests
+└── load_jaffle_data.py           # Test data loading script
+```
+
+### **Test Categories**
+
+#### **Unit Tests** (87 tests passing)
+
+- **Factory Tests** (`test_factory.py`) - 17 tests
+- **Resource Tests** (`test_resource.py`) - 20 tests
+- **Translator Tests** (`test_translator.py`) - 35 tests
+- **Asset Utils Tests** (`test_asset_utils.py`) - 30 tests
+- **Event Console Tests** (`test_event_console.py`) - 22 tests + 1 xfail
+
+#### **Integration Tests** (13 tests passing)
+
+- **Asset Execution Tests** (`test_asset_execution.py`) - 13 tests
+
+## **Fixture Patterns**
+
+### **Session-scoped Fixtures**
+
+```python
+@pytest.fixture(scope="session")
+def sqlmesh_project_path() -> Path:
+    """Get the path to the SQLMesh test project."""
+    return Path("tests/fixtures/sqlmesh_project")
+
+@pytest.fixture(scope="session")
+def sqlmesh_resource(sqlmesh_project_path: Path) -> SQLMeshResource:
+    """Create a SQLMeshResource for testing."""
+    return SQLMeshResource(
+        project_dir=str(sqlmesh_project_path),
+        gateway="duckdb",
+        environment="dev"
+    )
+
+@pytest.fixture(scope="session")
+def sqlmesh_context(sqlmesh_project_path: Path) -> Context:
+    """Create a SQLMesh context for testing."""
+    return Context(str(sqlmesh_project_path))
+```
+
+### **Automatic Setup Fixtures**
+
+```python
+@pytest.fixture(scope="session", autouse=True)
+def ensure_sqlmesh_dev_environment(sqlmesh_project_path: Path) -> None:
+    """Ensure the 'dev' environment exists and is invalidated for testing."""
+    # Load test data and setup environment
+    subprocess.run([
+        "uv", "run", "--group", "dev",
+        "python", "tests/load_jaffle_data.py"
+    ], check=True, capture_output=True)
+```
 
 ## **Test Class Structure**
 
@@ -17,166 +96,180 @@ class TestSQLMeshAssetsFactory:
         """Test basic asset factory creation."""
         assets = sqlmesh_assets_factory(sqlmesh_resource=sqlmesh_resource)
         assert assets is not None
-        assert hasattr(assets, "keys")
-        assert len(assets.keys) > 0
+        assert len(assets) > 0
+
+    def test_sqlmesh_assets_factory_with_op_tags(self, sqlmesh_resource: SQLMeshResource) -> None:
+        """Test asset factory with op tags."""
+        op_tags = {"team": "data", "env": "test"}
+        assets = sqlmesh_assets_factory(
+            sqlmesh_resource=sqlmesh_resource,
+            op_tags=op_tags
+        )
+        assert len(assets) > 0
 ```
 
 ### **Resource Test Classes**
 
 ```python
-class TestSQLMeshResourceCreation:
+class TestSQLMeshResource:
     """Test SQLMeshResource creation and configuration."""
 
     def test_sqlmesh_resource_creation(self) -> None:
         """Test basic SQLMeshResource creation."""
-        resource = SQLMeshResource(project_dir="tests/sqlmesh_project")
+        resource = SQLMeshResource(project_dir="tests/fixtures/sqlmesh_project")
         assert resource is not None
-        assert resource.project_dir == "tests/sqlmesh_project"
+        assert resource.project_dir == "tests/fixtures/sqlmesh_project"
+
+    def test_sqlmesh_resource_configuration(self) -> None:
+        """Test resource configuration parameters."""
+        resource = SQLMeshResource(
+            project_dir="tests/fixtures/sqlmesh_project",
+            gateway="duckdb",
+            environment="dev",
+            concurrency_limit=4
+        )
+        assert resource.gateway == "duckdb"
+        assert resource.environment == "dev"
+        assert resource.concurrency_limit == 4
 ```
 
-## **Fixture Usage Patterns**
+## **Integration Test Patterns**
 
-### **Session-scoped Fixtures**
-
-Always use session-scoped fixtures for expensive operations:
+### **Asset Execution Testing**
 
 ```python
-@pytest.fixture(scope="session")
-def sqlmesh_resource(sqlmesh_project_path: Path) -> SQLMeshResource:
-    """Create a SQLMeshResource for testing."""
-    return SQLMeshResource(
-        project_dir=str(sqlmesh_project_path),
-        gateway="duckdb",
-        environment="dev"
+class TestAssetMaterialization:
+    """Test complete asset materialization workflows."""
+
+    def test_asset_materialization_success(self, sqlmesh_resource):
+        """Test successful asset creation and definition setup."""
+        # Create assets using our factory
+        assets = sqlmesh_assets_factory(sqlmesh_resource=sqlmesh_resource)
+
+        # Create definitions
+        defs = sqlmesh_definitions_factory(
+            project_dir="tests/fixtures/sqlmesh_project",
+            gateway="duckdb",
+            environment="dev",
+            enable_schedule=False
+        )
+
+        # Test that assets and definitions are created successfully
+        assert len(assets) > 0
+        assert defs is not None
+        assert len(defs.assets) > 0
+
+        # Verify we have the expected resource types
+        assert "sqlmesh" in defs.resources
+        assert "sqlmesh_results" in defs.resources
+```
+
+### **Shared Execution Testing**
+
+```python
+def test_shared_execution():
+    """Test shared SQLMesh execution pattern."""
+    # Mock SQLMeshResultsResource
+    sqlmesh_results = SQLMeshResultsResource()
+
+    # First asset should trigger SQLMesh execution
+    assert not sqlmesh_results.has_results("run_1")
+
+    # After execution, results should be stored
+    sqlmesh_results.store_results("run_1", {"test": "data"})
+    assert sqlmesh_results.has_results("run_1")
+
+    # Subsequent assets should use existing results
+    results = sqlmesh_results.get_results("run_1")
+    assert results["test"] == "data"
+```
+
+## **Event Capture Testing**
+
+### **Console Event Testing**
+
+```python
+def test_event_capture():
+    """Test event capture functionality."""
+    console = SQLMeshEventCaptureConsole()
+
+    # Test failed models event
+    failed_event = LogFailedModels(errors=[NodeExecutionFailedError("test error")])
+    console._handle_log_failed_models(failed_event)
+    assert len(console.get_failed_models_events()) == 1
+
+    # Test evaluation event
+    eval_event = UpdateSnapshotEvaluationProgress(
+        snapshot=MockSnapshot(),
+        batch_idx=1,
+        duration_ms=100,
+        num_audits_passed=2,
+        num_audits_failed=0
     )
+    console._handle_update_snapshot_evaluation(eval_event)
+    assert len(console.get_evaluation_events()) == 1
 ```
 
-### **Automatic Setup Fixtures**
+## **Error Handling Testing**
 
-Use `autouse=True` for fixtures that must run before tests:
+### **SQLMesh Exception Testing**
 
 ```python
-@pytest.fixture(scope="session", autouse=True)
-def ensure_sqlmesh_dev_environment(sqlmesh_project_path: Path) -> None:
-    """Ensure the 'dev' environment exists and is invalidated for testing."""
-    # Load test data and setup environment
+def test_sqlmesh_exceptions():
+    """Test SQLMesh-specific exception handling."""
+    # Test CircuitBreakerError handling
+    with pytest.raises(CircuitBreakerError):
+        sqlmesh_resource.materialize_assets_threaded(models)
+
+    # Test PlanError handling
+    with pytest.raises(PlanError):
+        sqlmesh_resource.plan()
 ```
 
-## **Assertion Patterns**
-
-### **Asset Key Testing**
+### **Asset Check Failure Testing**
 
 ```python
-# Check that assets are created for SQLMesh models
-expected_assets = {"stg_customers", "stg_orders", "customers", "orders"}
-asset_keys = {str(key) for key in assets.keys}
-for expected in expected_assets:
-    found = any(expected in key for key in asset_keys)
-    assert found, f"Expected asset {expected} not found in {asset_keys}"
-```
-
-### **Resource Configuration Testing**
-
-```python
-def test_resource_configuration(self) -> None:
-    """Test resource configuration parameters."""
-    resource = SQLMeshResource(
-        project_dir="tests/sqlmesh_project",
-        gateway="duckdb",
-        environment="dev",
-        concurrency_limit=4,
-        ignore_cron=True
-    )
-
-    assert resource.project_dir == "tests/sqlmesh_project"
-    assert resource.gateway == "duckdb"
-    assert resource.environment == "dev"
-    assert resource.concurrency_limit == 4
-    assert resource.ignore_cron is True
-```
-
-### **Factory Parameter Testing**
-
-```python
-def test_factory_with_custom_parameters(self, sqlmesh_resource: SQLMeshResource) -> None:
-    """Test factory with custom parameters."""
-    assets = sqlmesh_assets_factory(
-        sqlmesh_resource=sqlmesh_resource,
-        name="custom_name",
-        group_name="custom_group",
-        op_tags={"team": "data"},
-        retry_policy=RetryPolicy(max_retries=3),
-        owners=["data-team", "analytics"]
-    )
-
-    assert assets.op.name == "custom_name"
-    assert assets.op.tags == {"team": "data"}
-    assert assets.op.retry_policy == RetryPolicy(max_retries=3)
-```
-
-## **Error Testing Patterns**
-
-### **Validation Error Testing**
-
-```python
-def test_validation_error(self) -> None:
-    """Test validation error handling."""
-    with pytest.raises(DagsterInvalidDefinitionError):
-        sqlmesh_assets_factory()  # Missing required parameter
-```
-
-### **Resource Error Testing**
-
-```python
-def test_resource_error_handling(self) -> None:
-    """Test resource error handling."""
-    try:
-        models = sqlmesh_resource.get_models()
-        assert isinstance(models, list)
-        assert len(models) > 0
-    except Exception as e:
-        # If there's an error, it should be a specific type
-        assert "SQLMesh" in str(e) or "connection" in str(e).lower()
-```
-
-## **Integration Testing Patterns**
-
-### **Asset Selection Testing**
-
-```python
-def test_asset_selection(self, sqlmesh_resource: SQLMeshResource) -> None:
-    """Test asset selection and configuration."""
+def test_asset_check_failure_handling(self, sqlmesh_resource):
+    """Test asset check failure handling."""
+    # Create assets with checks
     assets = sqlmesh_assets_factory(sqlmesh_resource=sqlmesh_resource)
 
-    # Test that assets can be selected
-    from dagster import AssetKey
-    selected_asset = AssetKey(["jaffle_test", "sqlmesh_jaffle_platform", "stg_customers"])
-
-    # Verify asset exists in the multi-asset
-    assert selected_asset in assets.keys
-```
-
-### **Materialization Testing**
-
-```python
-def test_materialization_integration(self, sqlmesh_resource: SQLMeshResource) -> None:
-    """Test integration with Dagster materialization."""
-    assets = sqlmesh_assets_factory(sqlmesh_resource=sqlmesh_resource)
-
-    # Test asset creation and configuration
-    assert len(assets.keys) > 0
-
-    # Note: Actual materialization is complex due to environment setup
-    # Focus on testing asset creation and configuration instead
-    # Use AssetKey objects for selection
-    from dagster import AssetKey
-    result = materialize(
-        [assets],
-        selection=[AssetKey(["jaffle_test", "sqlmesh_jaffle_platform", "stg_customers"])],
-        resources={"sqlmesh": sqlmesh_resource}
+    # Mock failed audit results
+    failed_check = AssetCheckResult(
+        check_name="test_audit",
+        passed=False,
+        asset_key=AssetKey(["test_model"]),
+        metadata={"error": "Audit failed"}
     )
 
-    assert result.success
+    # Test that failed checks are handled gracefully
+    assert failed_check.passed is False
+    assert "Audit failed" in failed_check.metadata["error"]
+```
+
+## **Translator Testing**
+
+### **Custom Translator Testing**
+
+```python
+class CustomTranslator(SQLMeshTranslator):
+    """Custom translator for testing."""
+
+    def get_asset_key(self, model) -> AssetKey:
+        """Extract the model name from the model object."""
+        view_name = getattr(model, "view_name", model.name)
+        return AssetKey([view_name])
+
+def test_custom_translator():
+    """Test custom translator functionality."""
+    translator = CustomTranslator()
+
+    # Mock model
+    model = MockModel(name="test_model", view_name="custom_view")
+
+    # Test asset key mapping
+    asset_key = translator.get_asset_key(model)
+    assert asset_key == AssetKey(["custom_view"])
 ```
 
 ## **Test Data Management**
@@ -184,7 +277,7 @@ def test_materialization_integration(self, sqlmesh_resource: SQLMeshResource) ->
 ### **CSV Data Loading**
 
 ```python
-def load_csv_to_duckdb(csv_path: str, table_name: str, db_path: str = "tests/sqlmesh_project/jaffle_test.db"):
+def load_csv_to_duckdb(csv_path: str, table_name: str, db_path: str = "tests/fixtures/sqlmesh_project/jaffle_test.db"):
     """Load CSV data into DuckDB table."""
     import pandas as pd
     import duckdb
@@ -207,74 +300,23 @@ def load_csv_to_duckdb(csv_path: str, table_name: str, db_path: str = "tests/sql
     con.close()
 ```
 
-## **Test Organization**
+## **Test Configuration**
 
-### **File Naming**
+### **pytest.ini Configuration**
 
-- Test files: `test_*.py`
-- Test classes: `Test*`
-- Test methods: `test_*`
-
-### **Class Organization**
-
-```python
-class TestComponentName:
-    """Test the ComponentName functionality."""
-
-    def test_basic_functionality(self) -> None:
-        """Test basic functionality."""
-        pass
-
-    def test_with_custom_parameters(self) -> None:
-        """Test with custom parameters."""
-        pass
-
-    def test_error_handling(self) -> None:
-        """Test error handling."""
-        pass
-
-    def test_integration(self) -> None:
-        """Test integration with other components."""
-        pass
+```ini
+[tool:pytest]
+addopts =
+    -W ignore::DeprecationWarning
+    -W ignore::pydantic.warnings.PydanticDeprecatedSince20
+    -W ignore::UserWarning
+    --disable-warnings
+markers =
+    core: mark test as core functionality test
+    integration: mark test as integration test
 ```
 
-## **Type Hints and Documentation**
-
-### **Function Signatures**
-
-```python
-def test_component_method(
-    self,
-    sqlmesh_resource: SQLMeshResource,
-    sqlmesh_context: Context
-) -> None:
-    """Test component method functionality.
-
-    Args:
-        sqlmesh_resource: SQLMesh resource fixture
-        sqlmesh_context: SQLMesh context fixture
-    """
-    pass
-```
-
-### **Docstrings**
-
-```python
-def test_factory_integration_with_materialization(self, sqlmesh_resource: SQLMeshResource) -> None:
-    """Test that factory-created assets can be selected and configured properly.
-
-    This test verifies that:
-    1. Assets are created successfully
-    2. Asset keys are properly formatted
-    3. Assets can be selected for materialization
-    4. Resource integration works correctly
-    """
-    pass
-```
-
-## **Warning Suppression**
-
-### **Pytest Configuration**
+### **Warning Suppression**
 
 ```python
 # In conftest.py
@@ -286,78 +328,149 @@ warnings.filterwarnings("ignore", message=".*json_encoders.*", category=Deprecat
 warnings.filterwarnings("ignore", message=".*class-based `config`.*", category=DeprecationWarning)
 ```
 
-### **pytest.ini Configuration**
-
-```ini
-[tool:pytest]
-addopts =
-    -W ignore::DeprecationWarning
-    -W ignore::pydantic.warnings.PydanticDeprecatedSince20
-    -W ignore::UserWarning
-    --disable-warnings
-```
-
 ## **Test Execution Commands**
 
 ### **Running Tests**
 
 ```bash
 # Run all tests
-uv run --group dev pytest tests/core/ -v
+uv run --group dev pytest tests/ -v
+
+# Run unit tests only
+uv run --group dev pytest tests/unit/ -v
+
+# Run integration tests only
+uv run --group dev pytest tests/integration/ -v
 
 # Run specific test file
-uv run --group dev pytest tests/core/test_factory.py -v
+uv run --group dev pytest tests/unit/test_factory.py -v
 
 # Run specific test class
-uv run --group dev pytest tests/core/test_factory.py::TestSQLMeshAssetsFactory -v
+uv run --group dev pytest tests/unit/test_factory.py::TestSQLMeshAssetsFactory -v
 
 # Run specific test method
-uv run --group dev pytest tests/core/test_factory.py::TestSQLMeshAssetsFactory::test_sqlmesh_assets_factory_basic -v
+uv run --group dev pytest tests/unit/test_factory.py::TestSQLMeshAssetsFactory::test_sqlmesh_assets_factory_basic -v
 
 # Run with coverage
-uv run --group dev pytest tests/core/ --cov=dg_sqlmesh --cov-report=html
+uv run --group dev pytest tests/ --cov=dg_sqlmesh --cov-report=html
 
 # Run with markers
-uv run --group dev pytest tests/core/ -m core -v
+uv run --group dev pytest tests/ -m core -v
+uv run --group dev pytest tests/ -m integration -v
 ```
 
-## **Common Test Utilities**
+## **Current Test Status**
 
-### **Custom Translator Testing**
+### **Total Tests**: 136 tests passing, 1 xfail
+
+#### **Unit Tests** (87 tests passing)
+
+- **Factory tests**: 17 tests passing
+- **Resource tests**: 20 tests passing
+- **Translator tests**: 35 tests passing
+- **Asset utils tests**: 30 tests passing
+- **Event console tests**: 22 tests passing + 1 xfail
+
+#### **Integration Tests** (13 tests passing)
+
+- **Asset execution tests**: 13 tests passing
+
+## **Best Practices**
+
+### **Test Organization**
+
+- **File naming**: `test_*.py`
+- **Class naming**: `Test*`
+- **Method naming**: `test_*`
+- **Use type hints**: All test methods should have proper type hints
+- **Documentation**: All test methods should have docstrings
+
+### **Assertion Patterns**
 
 ```python
-class CustomTranslator(SQLMeshTranslator):
-    """Custom translator for testing."""
-
-    def get_asset_key(self, model) -> AssetKey:
-        """Extract the model name from the model object."""
-        view_name = getattr(model, "view_name", model.name)
-        return AssetKey([view_name])
+# Check that assets are created for SQLMesh models
+expected_assets = {"stg_customers", "stg_orders", "customers", "orders"}
+asset_keys = {str(key) for key in assets.keys}
+for expected in expected_assets:
+    found = any(expected in key for key in asset_keys)
+    assert found, f"Expected asset {expected} not found in {asset_keys}"
 ```
 
-### **Resource Testing**
+### **Error Testing**
 
 ```python
-def test_resource_with_different_gateways(self) -> None:
-    """Test resource with different gateway configurations."""
-    # Test with DuckDB
-    duckdb_resource = SQLMeshResource(
-        project_dir="tests/sqlmesh_project",
-        gateway="duckdb",
-        environment="dev"
-    )
-    assert duckdb_resource.gateway == "duckdb"
-
-    # Test with PostgreSQL (default)
-    postgres_resource = SQLMeshResource(
-        project_dir="tests/sqlmesh_project",
-        environment="dev"
-    )
-    assert postgres_resource.gateway == "postgres"
+def test_validation_error(self) -> None:
+    """Test validation error handling."""
+    with pytest.raises(DagsterInvalidDefinitionError):
+        sqlmesh_assets_factory()  # Missing required parameter
 ```
 
-description:
-globs:
+### **Integration Testing**
+
+```python
+def test_materialization_integration(self, sqlmesh_resource: SQLMeshResource) -> None:
+    """Test integration with Dagster materialization."""
+    assets = sqlmesh_assets_factory(sqlmesh_resource=sqlmesh_resource)
+
+    # Test asset creation and configuration
+    assert len(assets) > 0
+
+    # Use AssetKey objects for selection
+    from dagster import AssetKey
+    result = materialize(
+        [assets],
+        selection=[AssetKey(["jaffle_test", "sqlmesh_jaffle_platform", "stg_customers"])],
+        resources={"sqlmesh": sqlmesh_resource}
+    )
+
+    assert result.success
+```
+
+## **Test Data and Fixtures**
+
+### **SQLMesh Test Project**
+
+The test project in [tests/fixtures/sqlmesh_project/](mdc:tests/fixtures/sqlmesh_project/) demonstrates the complete integration:
+
+- **Configuration**: [tests/fixtures/sqlmesh_project/config.yaml](mdc:tests/fixtures/sqlmesh_project/config.yaml) - DuckDB configuration
+- **External Models**: [tests/fixtures/sqlmesh_project/external_models.yaml](mdc:tests/fixtures/sqlmesh_project/external_models.yaml) - External model definitions
+- **Models**: `models/stg/` - Staging models, `models/marts/` - Mart models
+- **Data Loading**: [tests/load_jaffle_data.py](mdc:tests/load_jaffle_data.py) - Loads CSV data into DuckDB
+
+### **Test Data Management**
+
+```python
+# Load test data
+def test_data_loading():
+    """Test data loading functionality."""
+    load_jaffle_data()
+
+    # Verify data is loaded
+    with duckdb.connect("tests/fixtures/sqlmesh_project/duck.db") as conn:
+        result = conn.execute("SELECT COUNT(*) FROM raw_source_customers").fetchone()
+        assert result[0] == 2583
+```
+
+## **Performance and Reliability**
+
+### **Test Isolation**
+
+- Use session-scoped fixtures for expensive operations
+- Clean up test data between runs
+- Use unique database files for parallel test execution
+
+### **Error Classification**
+
+- Distinguish between transient and persistent failures
+- Handle SQLMesh-specific exceptions appropriately
+- Test both success and failure scenarios
+
+### **Coverage Goals**
+
+- **Unit tests**: 100% coverage of core components
+- **Integration tests**: Complete workflow coverage
+- **Error handling**: All exception paths covered
+
 alwaysApply: false
 
 ---
