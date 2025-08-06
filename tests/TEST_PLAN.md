@@ -9,25 +9,27 @@ Implement comprehensive test coverage for dg-sqlmesh by following patterns from 
 ```
 tests/
 ├── conftest.py                    # Main fixtures and configuration
-├── sqlmesh_project/               # Our SQLMesh test project (existing)
-│   ├── config.yaml               # DuckDB configuration
-│   ├── external_models.yaml      # External models
-│   ├── models/                   # SQLMesh models
-│   ├── audits/                   # Audits
-│   └── tests/                    # SQLMesh tests
-├── core/                         # Core component tests
+├── fixtures/                      # Test fixtures and data
+│   ├── jaffle-data/              # Test data files
+│   └── sqlmesh_project/          # SQLMesh test project
+│       ├── config.yaml           # DuckDB configuration
+│       ├── external_models.yaml  # External models
+│       ├── models/               # SQLMesh models
+│       ├── audits/               # Audits
+│       └── tests/                # SQLMesh tests
+├── unit/                         # Unit tests
 │   ├── test_factory.py           # Factory function tests
 │   ├── test_resource.py          # SQLMeshResource tests
 │   ├── test_translator.py        # SQLMeshTranslator tests
 │   ├── test_asset_utils.py       # Asset utilities tests
-│   └── test_event_console.py     # Event console tests
+│   ├── test_asset_execution_utils.py # Execution utilities tests
+│   ├── test_event_console.py     # Event console tests
+│   └── test_blocking_parameter.py # Parameter tests
 ├── integration/                   # Integration tests
 │   ├── test_asset_execution.py   # Asset execution tests
-│   ├── test_schedules.py         # Schedule tests
-│   └── test_definitions.py       # Complete definitions tests
-└── utils/                        # Test utilities
-    ├── test_data_loader.py       # Test data loading
-    └── test_helpers.py           # Helper functions
+│   ├── test_schedules.py         # Schedule tests (future)
+│   └── test_definitions.py       # Complete definitions tests (future)
+└── load_jaffle_data.py           # Test data loading script
 ```
 
 ## 🚀 **Implementation Plan**

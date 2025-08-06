@@ -50,7 +50,7 @@ def setup_duckdb_dbfile_path_fixture() -> None:
     import uuid
     unique_id = str(uuid.uuid4())[:8]
     sqlmesh_duckdb_db_file_name = f"test_{unique_id}_jaffle"
-    sqlmesh_duckdb_dbfile_path = f"tests/sqlmesh_project/{sqlmesh_duckdb_db_file_name}.db"
+    sqlmesh_duckdb_dbfile_path = f"tests/fixtures/sqlmesh_project/{sqlmesh_duckdb_db_file_name}.db"
 
     os.environ["SQLMESH_PYTEST_XDIST_DUCKDB_DBFILE_NAME"] = sqlmesh_duckdb_db_file_name
     os.environ["SQLMESH_PYTEST_XDIST_DUCKDB_DBFILE_PATH"] = sqlmesh_duckdb_dbfile_path
@@ -137,7 +137,7 @@ def _create_sqlmesh_context(
 @pytest.fixture(name="sqlmesh_project_path", scope="session")
 def sqlmesh_project_path_fixture() -> Path:
     """Get the path to the SQLMesh test project."""
-    return Path("tests/sqlmesh_project")
+    return Path("tests/fixtures/sqlmesh_project")
 
 
 @pytest.fixture(name="sqlmesh_context", scope="session")

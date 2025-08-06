@@ -44,7 +44,7 @@ class TestAssetMaterialization:
         
         # Create definitions
         defs = sqlmesh_definitions_factory(
-            project_dir="tests/sqlmesh_project",
+            project_dir="tests/fixtures/sqlmesh_project",
             gateway="duckdb",
             environment="dev",
             enable_schedule=False
@@ -66,7 +66,7 @@ class TestAssetMaterialization:
         )
         
         defs = sqlmesh_definitions_factory(
-            project_dir="tests/sqlmesh_project",
+            project_dir="tests/fixtures/sqlmesh_project",
             gateway="duckdb",
             environment="dev",
             enable_schedule=False
@@ -87,7 +87,7 @@ class TestAssetMaterialization:
         )
         
         defs = sqlmesh_definitions_factory(
-            project_dir="tests/sqlmesh_project",
+            project_dir="tests/fixtures/sqlmesh_project",
             gateway="duckdb",
             environment="dev",
             enable_schedule=False
@@ -112,7 +112,7 @@ class TestAssetDependencies:
         )
         
         defs = sqlmesh_definitions_factory(
-            project_dir="tests/sqlmesh_project",
+            project_dir="tests/fixtures/sqlmesh_project",
             gateway="duckdb",
             environment="dev",
             enable_schedule=False
@@ -133,7 +133,7 @@ class TestAssetDependencies:
         )
         
         defs = sqlmesh_definitions_factory(
-            project_dir="tests/sqlmesh_project",
+            project_dir="tests/fixtures/sqlmesh_project",
             gateway="duckdb",
             environment="dev",
             enable_schedule=False
@@ -237,7 +237,7 @@ class TestAssetExecutionErrors:
         )
         
         defs = sqlmesh_definitions_factory(
-            project_dir="tests/sqlmesh_project",
+            project_dir="tests/fixtures/sqlmesh_project",
             gateway="duckdb",
             environment="dev",
             enable_schedule=False
@@ -287,7 +287,7 @@ class TestAssetExecutionIntegration:
         """Test complete SQLMesh workflow setup with Dagster integration."""
         # Create complete definitions
         defs = sqlmesh_definitions_factory(
-            project_dir="tests/sqlmesh_project",
+            project_dir="tests/fixtures/sqlmesh_project",
             gateway="duckdb",
             environment="dev",
             enable_schedule=False
@@ -338,7 +338,7 @@ class TestAssetExecutionIntegration:
         
         # Test definitions creation
         defs = sqlmesh_definitions_factory(
-            project_dir="tests/sqlmesh_project",
+            project_dir="tests/fixtures/sqlmesh_project",
             gateway="duckdb",
             environment="dev",
             enable_schedule=False
@@ -352,7 +352,7 @@ class TestAssetExecutionIntegration:
 def sqlmesh_resource():
     """Create a SQLMesh resource for testing."""
     return SQLMeshResource(
-        project_dir="tests/sqlmesh_project",
+        project_dir="tests/fixtures/sqlmesh_project",
         gateway="duckdb",
         environment="dev"
     ) 

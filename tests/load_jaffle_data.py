@@ -9,7 +9,7 @@ import duckdb
 import pandas as pd
 from pathlib import Path
 
-def load_csv_to_duckdb(csv_path: str, table_name: str, db_path: str = "tests/sqlmesh_project/jaffle_test.db"):
+def load_csv_to_duckdb(csv_path: str, table_name: str, db_path: str = "tests/fixtures/sqlmesh_project/jaffle_test.db"):
     """
     Load a CSV file into a DuckDB table.
     
@@ -46,17 +46,17 @@ def main():
     
     # Define the mapping of CSV files to table names
     csv_to_table_mapping = {
-        "tests/jaffle-data/raw_source_customers.csv": "raw_source_customers",
-        "tests/jaffle-data/raw_source_products.csv": "raw_source_products", 
-        "tests/jaffle-data/raw_source_orders.csv": "raw_source_orders",
-        "tests/jaffle-data/raw_source_items.csv": "raw_source_items",
-        "tests/jaffle-data/raw_source_stores.csv": "raw_source_stores",
-        "tests/jaffle-data/raw_source_supplies.csv": "raw_source_supplies",
-        "tests/jaffle-data/raw_source_tweets.csv": "raw_source_tweets",
+        "tests/fixtures/raw_source_customers.csv": "raw_source_customers",
+        "tests/fixtures/raw_source_products.csv": "raw_source_products", 
+        "tests/fixtures/raw_source_orders.csv": "raw_source_orders",
+        "tests/fixtures/raw_source_items.csv": "raw_source_items",
+        "tests/fixtures/raw_source_stores.csv": "raw_source_stores",
+        "tests/fixtures/raw_source_supplies.csv": "raw_source_supplies",
+        "tests/fixtures/raw_source_tweets.csv": "raw_source_tweets",
     }
     
     # Database path - use the same name as in SQLMesh config
-    db_path = "tests/sqlmesh_project/jaffle_test.db"
+    db_path = "tests/fixtures/sqlmesh_project/jaffle_test.db"
     
     # Remove existing database file if it exists
     if os.path.exists(db_path):

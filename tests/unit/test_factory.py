@@ -64,7 +64,7 @@ class TestSQLMeshDefinitionsFactory:
     def test_sqlmesh_definitions_factory_basic(self) -> None:
         """Test basic definitions factory functionality."""
         defs = sqlmesh_definitions_factory(
-            project_dir="tests/sqlmesh_project",
+            project_dir="tests/fixtures/sqlmesh_project",
             gateway="duckdb",
             name="test_defs"
         )
@@ -81,7 +81,7 @@ class TestSQLMeshDefinitionsFactory:
                 return AssetKey(["custom", model.name])
         
         defs = sqlmesh_definitions_factory(
-            project_dir="tests/sqlmesh_project",
+            project_dir="tests/fixtures/sqlmesh_project",
             gateway="duckdb",
             translator=CustomTranslator()
         )
@@ -95,7 +95,7 @@ class TestSQLMeshDefinitionsFactory:
         op_tags = {"team": "data", "env": "test"}
         
         defs = sqlmesh_definitions_factory(
-            project_dir="tests/sqlmesh_project",
+            project_dir="tests/fixtures/sqlmesh_project",
             gateway="duckdb",
             op_tags=op_tags
         )
@@ -108,7 +108,7 @@ class TestSQLMeshDefinitionsFactory:
         owners = ["data-team", "analytics"]
         
         defs = sqlmesh_definitions_factory(
-            project_dir="tests/sqlmesh_project",
+            project_dir="tests/fixtures/sqlmesh_project",
             gateway="duckdb",
             owners=owners
         )
@@ -181,7 +181,7 @@ class TestFactoryIntegration:
     def test_definitions_factory_integration(self) -> None:
         """Test complete definitions factory integration."""
         defs = sqlmesh_definitions_factory(
-            project_dir="tests/sqlmesh_project",
+            project_dir="tests/fixtures/sqlmesh_project",
             gateway="duckdb",
             environment="dev",
         )

@@ -17,18 +17,18 @@ class TestSQLMeshResourceCreation:
 
     def test_sqlmesh_resource_creation(self) -> None:
         """Test basic SQLMeshResource creation."""
-        resource = SQLMeshResource(project_dir="tests/sqlmesh_project")
+        resource = SQLMeshResource(project_dir="tests/fixtures/sqlmesh_project")
 
         assert resource is not None
-        assert resource.project_dir == "tests/sqlmesh_project"
+        assert resource.project_dir == "tests/fixtures/sqlmesh_project"
         assert resource.gateway == "postgres"  # Default is postgres
         assert resource.concurrency_limit == 1
 
     def test_sqlmesh_resource_project_dir(self) -> None:
         """Test SQLMeshResource project directory configuration."""
         # Test with string path
-        resource = SQLMeshResource(project_dir="tests/sqlmesh_project")
-        assert resource.project_dir == "tests/sqlmesh_project"
+        resource = SQLMeshResource(project_dir="tests/fixtures/sqlmesh_project")
+        assert resource.project_dir == "tests/fixtures/sqlmesh_project"
         
         # Test with Path object - SQLMeshResource expects string, not Path
         # This test is skipped as Path objects are not supported
@@ -41,14 +41,14 @@ class TestSQLMeshResourceCreation:
     def test_sqlmesh_resource_gateway(self) -> None:
         """Test SQLMeshResource gateway configuration."""
         resource = SQLMeshResource(
-            project_dir="tests/sqlmesh_project",
+            project_dir="tests/fixtures/sqlmesh_project",
             gateway="duckdb"
         )
         assert resource.gateway == "duckdb"
         
         # Test with different gateway
         resource = SQLMeshResource(
-            project_dir="tests/sqlmesh_project",
+            project_dir="tests/fixtures/sqlmesh_project",
             gateway="postgres"
         )
         assert resource.gateway == "postgres"
@@ -56,13 +56,13 @@ class TestSQLMeshResourceCreation:
     def test_sqlmesh_resource_concurrency(self) -> None:
         """Test SQLMeshResource concurrency limit configuration."""
         resource = SQLMeshResource(
-            project_dir="tests/sqlmesh_project",
+            project_dir="tests/fixtures/sqlmesh_project",
             concurrency_limit=4
         )
         assert resource.concurrency_limit == 4
         
         # Test default
-        resource = SQLMeshResource(project_dir="tests/sqlmesh_project")
+        resource = SQLMeshResource(project_dir="tests/fixtures/sqlmesh_project")
         assert resource.concurrency_limit == 1
         
         # Test minimum value - concurrency_limit is not validated in the current implementation
@@ -75,7 +75,7 @@ class TestSQLMeshResourceCreation:
         
         translator = SQLMeshTranslator()
         resource = SQLMeshResource(
-            project_dir="tests/sqlmesh_project",
+            project_dir="tests/fixtures/sqlmesh_project",
             translator=translator
         )
         assert resource.translator is translator
@@ -420,7 +420,7 @@ class TestSQLMeshResourceIntegration:
         """Test SQLMeshResource with different gateway configurations."""
         # Test DuckDB gateway
         duckdb_resource = SQLMeshResource(
-            project_dir="tests/sqlmesh_project",
+            project_dir="tests/fixtures/sqlmesh_project",
             gateway="duckdb"
         )
         assert duckdb_resource.gateway == "duckdb"
@@ -432,12 +432,12 @@ class TestSQLMeshResourceIntegration:
     def test_sqlmesh_resource_environment_variables(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test SQLMeshResource with environment variables."""
         # Test with custom environment variables
-        monkeypatch.setenv("SQLMESH_PROJECT_DIR", "tests/sqlmesh_project")
+        monkeypatch.setenv("SQLMESH_PROJECT_DIR", "tests/fixtures/sqlmesh_project")
         monkeypatch.setenv("SQLMESH_GATEWAY", "duckdb")
         
         # SQLMeshResource requires project_dir to be provided explicitly
-        resource = SQLMeshResource(project_dir="tests/sqlmesh_project", gateway="duckdb")
-        assert resource.project_dir == "tests/sqlmesh_project"
+        resource = SQLMeshResource(project_dir="tests/fixtures/sqlmesh_project", gateway="duckdb")
+        assert resource.project_dir == "tests/fixtures/sqlmesh_project"
         assert resource.gateway == "duckdb"
 
 
