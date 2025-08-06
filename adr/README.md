@@ -13,16 +13,19 @@ Architecture Decision Records are documents that capture important architectural
 
 ## ADR Index
 
-| ADR                                                     | Title                                            | Status   | Date       |
-| ------------------------------------------------------- | ------------------------------------------------ | -------- | ---------- |
-| [ADR-0001](./0001-individual-assets-vs-multi-asset.md)  | Individual Assets vs Multi-Asset Pattern         | Accepted | 2025-08-05 |
-| [ADR-0002](./0002-shared-sqlmesh-execution.md)          | Shared SQLMesh Execution per Dagster Run         | Accepted | 2025-08-05 |
-| [ADR-0003](./0003-asset-check-integration.md)           | Asset Check Integration for SQLMesh Audits       | Accepted | 2025-08-05 |
-| [ADR-0004](./0004-retry-policy-management.md)           | Retry Policy Management for SQLMesh Integration  | Accepted | 2025-08-05 |
-| [ADR-0005](./0005-custom-sqlmesh-console.md)            | Custom SQLMesh Console for Event Capture         | Accepted | 2025-08-05 |
-| [ADR-0006](./0006-sqlmesh-dagster-tag-convention.md)    | SQLMesh to Dagster Tag Convention                | Accepted | 2025-08-05 |
-| [ADR-0007](./0007-code-version-data-version-mapping.md) | Code Version and Data Version Mapping            | Accepted | 2025-08-05 |
-| [ADR-0008](./0008-sqlmesh-plan-run-flow.md)             | SQLMesh Plan/Run Flow and Separation of Concerns | Accepted | 2025-08-05 |
+| ADR                                                      | Title                                            | Status   | Date       |
+| -------------------------------------------------------- | ------------------------------------------------ | -------- | ---------- |
+| [ADR-0001](./0001-individual-assets-vs-multi-asset.md)   | Individual Assets vs Multi-Asset Pattern         | Accepted | 2025-08-05 |
+| [ADR-0002](./0002-shared-sqlmesh-execution.md)           | Shared SQLMesh Execution per Dagster Run         | Accepted | 2025-08-05 |
+| [ADR-0003](./0003-asset-check-integration.md)            | Asset Check Integration for SQLMesh Audits       | Accepted | 2025-08-05 |
+| [ADR-0004](./0004-retry-policy-management.md)            | Retry Policy Management for SQLMesh Integration  | Accepted | 2025-08-05 |
+| [ADR-0005](./0005-custom-sqlmesh-console.md)             | Custom SQLMesh Console for Event Capture         | Accepted | 2025-08-05 |
+| [ADR-0006](./0006-sqlmesh-dagster-tag-convention.md)     | SQLMesh to Dagster Tag Convention                | Accepted | 2025-08-05 |
+| [ADR-0007](./0007-code-version-data-version-mapping.md)  | Code Version and Data Version Mapping            | Accepted | 2025-08-05 |
+| [ADR-0008](./0008-sqlmesh-plan-run-flow.md)              | SQLMesh Plan/Run Flow and Separation of Concerns | Accepted | 2025-08-05 |
+| [ADR-0009](./0009-shared-state-management-pattern.md)    | Shared State Management Pattern                  | Accepted | 2025-01-27 |
+| [ADR-0010](./0010-function-extraction-and-modularity.md) | Function Extraction and Modularity               | Accepted | 2025-01-27 |
+| [ADR-0011](./0011-error-handling-strategy.md)            | Error Handling Strategy                          | Accepted | 2025-01-27 |
 
 ## Key Architectural Patterns
 
@@ -53,6 +56,18 @@ SQLMesh `data_hash` maps to Dagster `code_version`, SQLMesh snapshot version map
 ### 7. Plan/Run Flow and Separation of Concerns
 
 Use SQLMesh `plan` for metadata extraction and `run` for materialization. Our module is a materialization orchestrator, not a workflow manager - we don't handle environments, breaking changes, or plan validation.
+
+### 8. Shared State Management Pattern
+
+`SQLMeshResultsResource` manages shared state between assets in the same run, ensuring single SQLMesh execution per run while maintaining proper isolation between different runs.
+
+### 9. Function Extraction and Modularity
+
+Large functions are broken down into smaller, focused utility functions to improve maintainability, testability, and readability while maintaining external API compatibility.
+
+### 10. Layered Error Handling Strategy
+
+Custom exception classes and error classification system that distinguishes between different error types and handles them appropriately without breaking the entire pipeline.
 
 ## Current Limitations
 
