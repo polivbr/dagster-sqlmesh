@@ -1,5 +1,9 @@
+---
+description: Project overview for dg-sqlmesh module
+alwaysApply: false
+---
 
-# dg-sqlmesh Project Overview (dagster-sqlmesh folder)
+# dg-sqlmesh Project Overview
 
 This is a Python package that provides seamless integration between Dagster and SQLMesh for modern data engineering workflows.
 

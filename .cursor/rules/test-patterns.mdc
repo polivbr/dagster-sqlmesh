@@ -1,8 +1,9 @@
 ---
+description: Test patterns and best practices for dg-sqlmesh module
 alwaysApply: false
 ---
 
-# Test Patterns and Best Practices (dagster-sqlmesh folder)
+# Test Patterns and Best Practices
 
 ## **Test Class Structure**
 

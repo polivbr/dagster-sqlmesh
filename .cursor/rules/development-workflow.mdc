@@ -1,5 +1,9 @@
+---
+description: Development Workflow for dg-sqlmesh module
+alwaysApply: false
+---
 
-# Development Workflow for dg-sqlmesh (dagster-sqlmesh folder)
+# Development Workflow for dg-sqlmesh
 
 ## Make Commands
 

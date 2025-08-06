@@ -1,5 +1,10 @@
 
-# Testing Patterns for dg-sqlmesh (dagster-sqlmesh folder)
+---
+description: testing Patterns for dg-sqlmesh dg-sqlmesh module
+alwaysApply: false
+---
+
+# Testing Patterns for dg-sqlmesh
 
 ## Test Project Structure
 

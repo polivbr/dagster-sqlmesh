@@ -1,5 +1,9 @@
+---
+description: SQLMesh Integration Patterns dg-sqlmesh module
+alwaysApply: false
+---
 
-# SQLMesh Integration Patterns (dagster-sqlmesh folder)
+# SQLMesh Integration Patterns
 
 ## Core Integration Components
 

@@ -1,5 +1,9 @@
+---
+description:  Code standards for dg-sqlmesh module
+alwaysApply: false
+---
 
-# Code Standards for dg-sqlmesh (dagster-sqlmesh folder)
+# Code Standards for dg-sqlmesh
 
 ## Language Requirements
 

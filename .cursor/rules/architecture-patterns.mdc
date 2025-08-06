@@ -1,4 +1,9 @@
-# Architecture Patterns for dg-sqlmesh (dagster-sqlmesh folder)
+---
+description:  Architecture Patterns for dg-sqlmesh module
+alwaysApply: false
+---
+
+# Architecture Patterns for dg-sqlmesh
 
 ## Individual Asset Pattern
 

@@ -1,4 +1,8 @@
-# Test Commands for dg-sqlmesh (dagster-sqlmesh folder)
+---
+description: Test commands for dg-sqlmesh module
+alwaysApply: false
+---
+# Test Commands for dg-sqlmesh
 
 ## Make Commands
 
