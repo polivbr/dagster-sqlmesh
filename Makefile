@@ -175,9 +175,9 @@ info:
 	@make check-version
 	@echo ""
 	@echo "🔗 PyPI URLs:"
-	@echo "  - Homepage: https://github.com/thomastrividic/dagster-sqlmesh"
-	@echo "  - Repository: https://github.com/thomastrividic/dagster-sqlmesh"
-	@echo "  - Documentation: https://github.com/thomastrividic/dagster-sqlmesh#readme"
+	@echo "  - Homepage: https://github.com/fosk06/dagster-sqlmesh"
+	@echo "  - Repository: https://github.com/fosk06/dagster-sqlmesh"
+	@echo "  - Documentation: https://github.com/fosk06/dagster-sqlmesh#readme"
 
 # Validate package before publishing
 validate: clean build test ruff vulture

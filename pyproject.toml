@@ -1,7 +1,7 @@
 [project]
 name = "dg-sqlmesh"
 requires-python = ">=3.11,<3.13"
-version = "1.0.0"
+version = "1.1.0"
 description = "Seamless integration between Dagster and SQLMesh for modern data engineering workflows"
 readme = "README.md"
 license = "Apache-2.0"
@@ -35,10 +35,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/thomastrividic/dagster-sqlmesh"
-Repository = "https://github.com/thomastrividic/dagster-sqlmesh"
-Documentation = "https://github.com/thomastrividic/dagster-sqlmesh#readme"
-Issues = "https://github.com/thomastrividic/dagster-sqlmesh/issues"
+Homepage = "https://github.com/fosk06/dagster-sqlmesh"
+Repository = "https://github.com/fosk06/dagster-sqlmesh"
+Documentation = "https://github.com/fosk06/dagster-sqlmesh#readme"
+Issues = "https://github.com/fosk06/dagster-sqlmesh/issues"
 
 [dependency-groups]
 dev = [

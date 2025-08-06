@@ -45,9 +45,9 @@ tests/
 - [x] Implement `test_asset_utils.py` (30 tests passing)
 - [x] Implement `test_event_console.py` (22 tests passing, 1 xfail)
 
-### **Phase 3 : Integration Tests** ⏳
+### **Phase 3 : Integration Tests** ✅
 
-- [ ] Implement `test_asset_execution.py`
+- [x] Implement `test_asset_execution.py` (13 tests passing)
 - [ ] Implement `test_schedules.py`
 - [ ] Implement `test_definitions.py`
 
@@ -121,14 +121,23 @@ tests/
 - [x] `test_event_handler_*()` - Event handler tests
 - [x] `test_get_audit_results()` - Audit result retrieval
 
-### **Integration Tests** (`test_asset_execution.py`) ⏳
+### **Integration Tests** (`test_asset_execution.py`) ✅
 
 #### Execution Tests
 
-- [ ] `test_asset_materialization()` - Asset materialization
-- [ ] `test_asset_dependencies()` - Asset dependencies
-- [ ] `test_asset_selection_execution()` - Execution with selection
-- [ ] `test_asset_partitioned_execution()` - Partitioned execution
+- [x] `test_asset_materialization_success()` - Asset creation and definition setup
+- [x] `test_asset_materialization_with_dependencies()` - Asset creation with dependency resolution
+- [x] `test_asset_materialization_with_checks()` - Asset creation with check configuration
+- [x] `test_dependency_execution_order()` - Asset creation with proper dependency order
+- [x] `test_partial_asset_selection()` - Asset creation with selection capabilities
+- [x] `test_complete_sqlmesh_workflow()` - Complete SQLMesh workflow setup
+- [x] `test_sqlmesh_resource_integration()` - SQLMesh resource integration
+- [x] `test_asset_factory_integration()` - Asset factory integration
+- [x] `test_asset_execution_context_integration()` - Asset execution context integration
+- [x] `test_model_status_check_with_context()` - Model status checking with context
+- [x] `test_materialize_result_creation_with_context()` - MaterializeResult creation with context
+- [x] `test_asset_materialization_failure_handling()` - Asset materialization failure handling
+- [x] `test_asset_check_failure_handling()` - Asset check failure handling
 
 ### **Schedule Tests** (`test_schedules.py`) ⏳
 
@@ -205,4 +214,8 @@ def sqlmesh_manifest(sqlmesh_context):
 - Asset utils tests: 30 tests passing
 - Event console tests: 22 tests passing + 1 xfail
 
-**Total Tests**: 124 tests passing, 1 xfail
+**Phase 3** ✅ **Complete** (13 tests)
+
+- Asset execution tests: 13 tests passing
+
+**Total Tests**: 136 tests passing, 1 xfail
