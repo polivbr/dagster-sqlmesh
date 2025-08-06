@@ -1,0 +1,136 @@
+# Publish Workflow for dg-sqlmesh
+
+## Overview
+
+This rule documents the correct workflow for publishing the `dg-sqlmesh` package to PyPI, ensuring all changes are properly committed and synchronized.
+
+## Correct Publish Workflow
+
+### 1. Make Changes
+
+- Update code, documentation, or configuration
+- Test changes locally
+- Ensure all tests pass
+
+### 2. Commit Changes
+
+```bash
+git add .
+git commit -m "descriptive message about changes"
+git push
+```
+
+### 3. Release to PyPI
+
+```bash
+make release-patch    # For patch releases (1.2.0 -> 1.2.1)
+make release-minor    # For minor releases (1.2.0 -> 1.3.0)
+make release-major    # For major releases (1.2.0 -> 2.0.0)
+```
+
+**Important**: The release commands automatically:
+
+- Clean build artifacts
+- Bump version in [pyproject.toml](mdc:pyproject.toml) and [src/dg_sqlmesh/**init**.py](mdc:src/dg_sqlmesh/__init__.py)
+- Build package (source + wheel)
+- Publish to PyPI
+
+### 4. Commit Version Bump
+
+```bash
+git add .
+git commit -m "chore: bump version to X.Y.Z after PyPI release"
+git push
+```
+
+## Available Makefile Commands
+
+### Version Management
+
+- `make bump-patch` - Bump patch version (1.2.0 -> 1.2.1)
+- `make bump-minor` - Bump minor version (1.2.0 -> 1.3.0)
+- `make bump-major` - Bump major version (1.2.0 -> 2.0.0)
+- `make check-version` - Show current version
+
+### Release Commands
+
+- `make release-patch` - Complete patch release workflow
+- `make release-minor` - Complete minor release workflow
+- `make release-major` - Complete major release workflow
+
+### Development Commands
+
+- `make build` - Build package only
+- `make clean` - Clean build artifacts
+- `make publish` - Publish to PyPI only (requires UV_PUBLISH_TOKEN)
+- `make test` - Run tests
+- `make ruff` - Lint code
+- `make format` - Format code
+- `make lint` - Lint and format code
+
+## Common Mistakes to Avoid
+
+### ❌ Wrong Order
+
+```bash
+# DON'T: Make changes, then immediately release
+make release-patch
+git add .
+git commit -m "changes"
+```
+
+### ✅ Correct Order
+
+```bash
+# DO: Commit changes first, then release
+git add .
+git commit -m "changes"
+git push
+make release-patch
+git add .
+git commit -m "chore: bump version to X.Y.Z after PyPI release"
+git push
+```
+
+### ❌ Forgetting Version Commit
+
+The release commands automatically bump version, so you must commit the version changes after publishing.
+
+## Environment Setup
+
+### Required Environment Variables
+
+- `UV_PUBLISH_TOKEN` - PyPI API token for publishing
+- Or `UV_PUBLISH_USERNAME` + `UV_PUBLISH_PASSWORD` for username/password auth
+
+### Configuration
+
+- Store credentials in `.env` file (not committed to git)
+- Or export environment variables directly
+
+## Package Information
+
+- **Name**: dg-sqlmesh
+- **PyPI**: https://pypi.org/project/dg-sqlmesh/
+- **GitHub**: https://github.com/fosk06/dagster-sqlmesh
+- **Documentation**: README.md (exposed on PyPI)
+
+## Quality Checks
+
+Before publishing, run:
+
+```bash
+make validate  # Runs: clean build test ruff vulture
+```
+
+This ensures:
+
+- All tests pass
+- Code is properly linted
+- No dead code detected
+- Package builds successfully
+  description:
+  globs:
+  alwaysApply: false
+
+---
