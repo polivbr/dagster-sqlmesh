@@ -14,6 +14,9 @@ help:
 	@echo "  install-dev   - Install in development mode"
 	@echo "  check-version - Show current version"
 	@echo "  vulture       - Detect dead code with vulture"
+	@echo "  ruff          - Lint code with ruff"
+	@echo "  format        - Format code with ruff"
+	@echo "  lint          - Lint and format code"
 	@echo "  bump-patch    - Bump patch version (0.1.0 -> 0.1.1)"
 	@echo "  bump-minor    - Bump minor version (0.1.0 -> 0.2.0)"
 	@echo "  bump-major    - Bump major version (0.1.0 -> 1.0.0)"
@@ -43,6 +46,22 @@ vulture:
 	@echo "🦅 Detecting dead code with vulture..."
 	@uv run vulture src/dg_sqlmesh/ --min-confidence 50 || true
 	@echo "✅ Vulture analysis completed!"
+
+# Lint code with ruff
+ruff:
+	@echo "🔍 Linting code with ruff..."
+	@uv run ruff check src/dg_sqlmesh/
+	@echo "✅ Ruff linting completed!"
+
+# Format code with ruff
+format:
+	@echo "🎨 Formatting code with ruff..."
+	@uv run ruff format src/dg_sqlmesh/
+	@echo "✅ Code formatting completed!"
+
+# Lint and format code
+lint: ruff format
+	@echo "✅ Linting and formatting completed!"
 
 # Check publish configuration
 check-publish:
@@ -136,6 +155,9 @@ check:
 	@echo "📄 Dependencies:"
 	@uv tree
 	@echo ""
+	@echo "🔍 Code linting:"
+	@make ruff
+	@echo ""
 	@echo "🦅 Dead code analysis:"
 	@make vulture
 	@echo ""
@@ -158,7 +180,7 @@ info:
 	@echo "  - Documentation: https://github.com/thomastrividic/dagster-sqlmesh#readme"
 
 # Validate package before publishing
-validate: clean build test vulture
+validate: clean build test ruff vulture
 	@echo "✅ Package validation completed!"
 
 # Quick publish (build + publish)

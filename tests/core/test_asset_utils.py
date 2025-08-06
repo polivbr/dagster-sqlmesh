@@ -11,8 +11,6 @@ from dg_sqlmesh.sqlmesh_asset_utils import (
     get_model_partitions_from_plan,
     get_model_from_asset_key,
     get_topologically_sorted_asset_keys,
-    has_breaking_changes,
-    has_breaking_changes_with_message,
     get_asset_kinds,
     get_asset_tags,
     get_asset_metadata,
@@ -210,47 +208,7 @@ class TestAssetUtils:
         assert result[0] == AssetKey(["catalog1", "schema1", "view1"])
         assert result[1] == AssetKey(["catalog2", "schema2", "view2"])
 
-    def test_has_breaking_changes_true(self) -> None:
-        """Test breaking changes detection (True)."""
-        # Mock plan with breaking changes
-        plan = Mock()
-        plan.directly_modified = {"model1", "model2"}
-        plan.indirectly_modified = {"model3": ["model4", "model5"]}
-        
-        logger = Mock()
-        
-        result = has_breaking_changes(plan, logger)
-        
-        assert result is True
-        logger.error.assert_called()
-
-    def test_has_breaking_changes_false(self) -> None:
-        """Test breaking changes detection (False)."""
-        # Mock plan without breaking changes
-        plan = Mock()
-        plan.directly_modified = set()
-        plan.indirectly_modified = {}
-        
-        logger = Mock()
-        
-        result = has_breaking_changes(plan, logger)
-        
-        assert result is False
-
-    def test_has_breaking_changes_with_message(self) -> None:
-        """Test breaking changes detection with message."""
-        # Mock plan with breaking changes
-        plan = Mock()
-        plan.directly_modified = {"model1"}
-        plan.indirectly_modified = {"model2": ["model3"]}
-        
-        logger = Mock()
-        
-        has_changes, message = has_breaking_changes_with_message(plan, logger)
-        
-        assert has_changes is True
-        assert "model1" in message
-        assert "model3" in message  # model3 is in indirectly_modified
+    # Tests for has_breaking_changes removed - function no longer exists
 
     def test_get_asset_kinds(self) -> None:
         """Test getting asset kinds."""

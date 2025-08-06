@@ -1,10 +1,15 @@
 import re
 from dataclasses import dataclass
 from dagster import AssetKey
-from dagster._core.definitions.metadata import TableMetadataSet, TableSchema, TableColumn
+from dagster._core.definitions.metadata import (
+    TableMetadataSet,
+    TableSchema,
+    TableColumn,
+)
 import json
 from typing import Optional
 from sqlmesh.core.model.definition import ExternalModel
+
 
 @dataclass
 class SQLMeshTranslator:
@@ -12,13 +17,13 @@ class SQLMeshTranslator:
     Translator to map SQLMesh concepts to Dagster.
     Follows the dagster-dbt pattern with extensible methods.
     """
-    
+
     def normalize_segment(self, segment: str) -> str:
         """Normalizes an AssetKey segment by replacing special characters."""
         if segment is None:
             return "unknown"
-        segment = segment.replace('"', '').replace("'", "")
-        return re.sub(r'[^A-Za-z0-9_]', '_', segment)
+        segment = segment.replace('"', "").replace("'", "")
+        return re.sub(r"[^A-Za-z0-9_]", "_", segment)
 
     def get_asset_key(self, model) -> AssetKey:
         """
@@ -36,7 +41,9 @@ class SQLMeshTranslator:
         Can be overridden for custom mapping.
         """
         # Parse a string like '"catalog"."schema"."view"'
-        parts = [self.normalize_segment(s) for s in re.findall(r'"([^"]+)"', external_fqn)]
+        parts = [
+            self.normalize_segment(s) for s in re.findall(r'"([^"]+)"', external_fqn)
+        ]
         if len(parts) == 3:
             catalog, schema, table = parts
             if catalog == "main" and schema == "external":
@@ -88,30 +95,34 @@ class SQLMeshTranslator:
     def get_table_metadata(self, model) -> TableMetadataSet:
         """Generates table metadata for a model."""
         columns_to_types = getattr(model, "columns_to_types", {})
-        
+
         # Handle case where columns_to_types is None
         if columns_to_types is None:
             columns_to_types = {}
-        
+
         # Get column descriptions
         column_descriptions = getattr(model, "column_descriptions", {})
-        
+
         columns = [
             TableColumn(
                 name=col,
                 type=str(getattr(dtype, "this", dtype)),
-                description=column_descriptions.get(col)  # Use description if available
+                description=column_descriptions.get(
+                    col
+                ),  # Use description if available
             )
             for col, dtype in columns_to_types.items()
         ]
-        
+
         table_schema = TableSchema(columns=columns)
-        table_name = ".".join([
-            getattr(model, "catalog", "default"),
-            getattr(model, "schema_name", "default"),
-            getattr(model, "view_name", "unknown"),
-        ])
-        
+        table_name = ".".join(
+            [
+                getattr(model, "catalog", "default"),
+                getattr(model, "schema_name", "default"),
+                getattr(model, "view_name", "unknown"),
+            ]
+        )
+
         return TableMetadataSet(
             column_schema=table_schema,
             table_name=table_name,
@@ -130,7 +141,9 @@ class SQLMeshTranslator:
         """Splits an FQN into segments (catalog, schema, name)."""
         return [self.normalize_segment(s) for s in fqn.split(".")]
 
-    def get_group_name_with_fallback(self, context, model, factory_group_name: str) -> str:
+    def get_group_name_with_fallback(
+        self, context, model, factory_group_name: str
+    ) -> str:
         """
         Determines group_name with fallback to factory.
         Priority: tag > factory > default fallback
@@ -139,41 +152,45 @@ class SQLMeshTranslator:
         dagster_property = self._get_dagster_property_from_tags(model, "group_name")
         if dagster_property:
             return dagster_property
-        
+
         # If no tag, use factory value
         if factory_group_name:
             return factory_group_name
-        
+
         # Fallback: default logic
-        path = self.get_asset_key_name(getattr(model, "fqn", getattr(model, "view_name", "")))
+        path = self.get_asset_key_name(
+            getattr(model, "fqn", getattr(model, "view_name", ""))
+        )
         return path[-2] if len(path) >= 2 else "default"
 
-    def _get_dagster_property_from_tags(self, model, property_name: str) -> Optional[str]:
+    def _get_dagster_property_from_tags(
+        self, model, property_name: str
+    ) -> Optional[str]:
         """
         Parse SQLMesh tags to extract Dagster properties.
         Convention: "dagster:property_name:value"
         """
         tags = getattr(model, "tags", set())
-        
+
         for tag in tags:
             if tag.startswith("dagster:"):
                 parts = tag.split(":")
                 if len(parts) >= 3 and parts[1] == property_name:
                     return parts[2]
-        
+
         return None
 
     def get_tags(self, context, model) -> dict:
         """Returns model tags as dict."""
         tags = getattr(model, "tags", set())
-        
+
         # Filter Dagster configuration tags
         dagster_tags = {}
         for tag in tags:
             # Ignore tags starting with "dagster:" (internal configuration)
             if not tag.startswith("dagster:"):
                 dagster_tags[tag] = "true"
-        
+
         return dagster_tags
 
     def _get_context_dialect(self, context) -> str:
