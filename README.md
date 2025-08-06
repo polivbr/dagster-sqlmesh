@@ -47,8 +47,8 @@ This module provides a complete integration between SQLMesh and Dagster, allowin
 
 ```python
 from dagster import RetryPolicy, AssetKey, Backoff
-from .decorators import sqlmesh_definitions_factory
-from .translator import SQLMeshTranslator
+from dg_sqlmesh import sqlmesh_definitions_factory
+from dg_sqlmesh import SQLMeshTranslator
 
 class SlingToSqlmeshTranslator(SQLMeshTranslator):
     def get_external_asset_key(self, external_fqn: str) -> AssetKey:
@@ -72,6 +72,7 @@ defs = sqlmesh_definitions_factory(
     group_name="sqlmesh",
     op_tags={"team": "data", "env": "prod"},
     retry_policy=RetryPolicy(max_retries=1, delay=30.0, backoff=Backoff.EXPONENTIAL),
+    enable_schedule=True,  # Enable adaptive scheduling
 )
 ```
 
@@ -79,9 +80,9 @@ defs = sqlmesh_definitions_factory(
 
 ```python
 from dagster import Definitions, RetryPolicy
-from .decorators import sqlmesh_assets_factory, sqlmesh_adaptive_schedule_factory
-from .resource import SQLMeshResource
-from .translator import SQLMeshTranslator
+from dg_sqlmesh import sqlmesh_assets_factory, sqlmesh_adaptive_schedule_factory
+from dg_sqlmesh import SQLMeshResource
+from dg_sqlmesh import SQLMeshTranslator
 
 # SQLMesh resource configuration
 sqlmesh_resource = SQLMeshResource(
@@ -121,7 +122,7 @@ defs = Definitions(
 To map external assets (SQLMesh sources) to your Dagster conventions, you can create a custom translator:
 
 ```python
-from .translator import SQLMeshTranslator
+from dg_sqlmesh import SQLMeshTranslator
 import dagster as dg
 
 class MyCustomTranslator(SQLMeshTranslator):
@@ -398,7 +399,6 @@ sqlmesh run dev
 sqlmesh plan prod # ->manual operation to validate the plan (apply it)
 
 # Or use CI/CD pipeline
-# - sqlmesh plan prod
 ```
 
 #### **3. Dagster Orchestration**
@@ -454,6 +454,18 @@ This separation ensures:
 - ✅ **Reliable orchestration** : Dagster only runs approved models
 - ✅ **CI/CD friendly** : Standard SQLMesh workflow for deployments
 
+## Installation
+
+```bash
+pip install dg-sqlmesh
+```
+
+## Requirements
+
+- Python 3.11+
+- Dagster 1.11.4+
+- SQLMesh 0.206.1+
+
 ## Limitations
 
 - **Multiple SQLMesh runs** : Each asset triggers its own `sqlmesh run` (may impact performance with many assets)
@@ -479,3 +491,16 @@ This separation ensures:
 
 - **Cause** : Too many models loaded
 - **Solution** : Use `concurrency_limit` and caching
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Ensure all tests pass
+6. Submit a pull request
+
+## License
+
+Apache 2.0 License - see LICENSE file for details.
