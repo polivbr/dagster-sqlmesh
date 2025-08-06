@@ -55,6 +55,15 @@ def main():
         "tests/fixtures/raw_source_tweets.csv": "raw_source_tweets",
     }
     
+    # Generate test data if CSV files don't exist
+    import subprocess
+    import os
+    
+    csv_files_exist = all(os.path.exists(csv_path) for csv_path in csv_to_table_mapping.keys())
+    if not csv_files_exist:
+        print("📊 Generating test data files...")
+        subprocess.run(["python", "tests/generate_test_data.py"], check=True)
+    
     # Database path - use the same name as in SQLMesh config
     db_path = "tests/fixtures/sqlmesh_project/jaffle_test.db"
     
