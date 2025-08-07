@@ -35,21 +35,19 @@ Create a `defs.yaml` file in your Dagster project:
 type: dg_sqlmesh.SQLMeshProjectComponent
 
 attributes:
-  project: "{{ project_root }}/sqlmesh_project"
-  gateway: "postgres"
-  environment: "prod"
-  concurrency_limit: 1
-  name: "sqlmesh_assets"
-  group_name: "sqlmesh"
+  sqlmesh_config:
+    project_path: "{{ project_root }}/sqlmesh_project"
+    gateway: "postgres"
+    environment: "prod"
+  concurrency_jobs_limit: 1
+  default_group_name: "sqlmesh"
   op_tags:
     team: "data"
     env: "prod"
-  retry_policy:
-    max_retries: 1
-    delay: 30.0
-    backoff: "exponential"
-  schedule_name: "sqlmesh_adaptive_schedule"
-  enable_schedule: true
+  # schedule_name and enable_schedule are optional with defaults
+  # schedule_name: "sqlmesh_adaptive_schedule"  # default value
+  # enable_schedule: true  # default value (creates schedule but doesn't activate it)
+  external_asset_mapping: "target/main/{node.name}"
 ```
 
 ### 3. Use in Your Dagster Project
@@ -65,48 +63,31 @@ The component will automatically create:
 
 ### Required Parameters
 
-- **project**: Path to your SQLMesh project directory
+- **sqlmesh_config**: SQLMesh configuration including project path, gateway, and environment
 
 ### Optional Parameters
 
-- **gateway**: SQLMesh gateway (default: "postgres")
-- **environment**: SQLMesh environment (default: "prod")
-- **concurrency_limit**: Execution concurrency limit (default: 1)
-- **name**: Name for the assets (default: "sqlmesh_assets")
-- **group_name**: Group name for assets (default: "sqlmesh")
+- **concurrency_jobs_limit**: Execution concurrency limit (default: 1)
+- **default_group_name**: Group name for assets (default: "sqlmesh")
 - **op_tags**: Tags to apply to assets
-- **retry_policy**: Retry policy configuration
-- **schedule_name**: Name for the adaptive schedule
-- **enable_schedule**: Whether to enable scheduling (default: false)
+- **schedule_name**: Name for the adaptive schedule (default: "sqlmesh_adaptive_schedule")
+- **enable_schedule**: Whether to create the schedule (default: true, but doesn't activate it)
+- **external_asset_mapping**: Jinja2 template for mapping external assets
 
-### Retry Policy Configuration
+### SQLMesh Configuration
 
-```yaml
-retry_policy:
-  max_retries: 1
-  delay: 30.0
-  backoff: "exponential" # or "linear"
-```
-
-### Project Configuration
-
-You can specify the project as a simple string or with detailed configuration:
+The `sqlmesh_config` parameter groups all SQLMesh-specific settings:
 
 ```yaml
-# Simple string
-project: "{{ project_root }}/sqlmesh_project"
-
-# Detailed configuration
-project:
-  project_dir: "{{ project_root }}/sqlmesh_project"
+sqlmesh_config:
+  project_path: "{{ project_root }}/sqlmesh_project"
   gateway: "postgres"
   environment: "prod"
-  concurrency_limit: 1
 ```
 
 ## Advanced Usage
 
-### External Asset Key Mapping
+### External Asset Mapping
 
 You can configure how external assets (like Sling assets) are mapped to Dagster asset keys using Jinja2 templates:
 
@@ -114,48 +95,34 @@ You can configure how external assets (like Sling assets) are mapped to Dagster 
 type: dg_sqlmesh.SQLMeshProjectComponent
 
 attributes:
-  project: "{{ project_root }}/sqlmesh_project"
-  external_model_key: "target/main/{{ node.name }}"
+  sqlmesh_config:
+    project_path: "{{ project_root }}/sqlmesh_project"
+  external_asset_mapping: "target/main/{node.name}"
 ```
 
 #### Template Variables
 
 The following variables are available in the Jinja2 template:
 
-- **`{{ node.database }}`**: The database name (e.g., "jaffle_db")
-- **`{{ node.schema }}`**: The schema name (e.g., "main")  
-- **`{{ node.name }}`**: The table/view name (e.g., "raw_source_customers")
-- **`{{ node.fqn }}`**: The full qualified name
+- **`{node.database}`**: The database name (e.g., "jaffle_db")
+- **`{node.schema}`**: The schema name (e.g., "main")
+- **`{node.name}`**: The table/view name (e.g., "raw_source_customers")
+- **`{node.fqn}`**: The full qualified name
 
 #### Examples
 
 ```yaml
 # Map to Sling format: target/main/table_name
-external_model_key: "target/main/{{ node.name }}"
+external_asset_mapping: "target/main/{node.name}"
 
 # Keep original structure but prefix with "sling"
-external_model_key: "sling/{{ node.database }}/{{ node.schema }}/{{ node.name }}"
+external_asset_mapping: "sling/{node.database}/{node.schema}/{node.name}"
 
 # Use only the table name
-external_model_key: "{{ node.name }}"
+external_asset_mapping: "{node.name}"
 
 # Custom mapping for specific database
-external_model_key: "{% if node.database == 'jaffle_db' %}target/main/{{ node.name }}{% else %}{{ node.database }}/{{ node.schema }}/{{ node.name }}{% endif %}"
-```
-
-### Custom Translation Functions
-
-You can provide custom translation functions for asset keys, groups, and tags:
-
-```yaml
-components:
-  sqlmesh_project:
-    module: dg_sqlmesh.SQLMeshProjectComponent
-    config:
-      project: "{{ project_root }}/sqlmesh_project"
-      translation:
-        fn: "my_translation_module.custom_translation_fn"
-        # This function will receive the base value and model data
+external_asset_mapping: "{node.database}/{node.schema}/{node.name}"
 ```
 
 ### Multiple SQLMesh Projects
@@ -167,17 +134,19 @@ You can configure multiple SQLMesh projects in the same Dagster instance:
 type: dg_sqlmesh.SQLMeshProjectComponent
 
 attributes:
-  project: "{{ project_root }}/staging_sqlmesh_project"
-  environment: "staging"
-  group_name: "staging_sqlmesh"
+  sqlmesh_config:
+    project_path: "{{ project_root }}/staging_sqlmesh_project"
+    environment: "staging"
+  default_group_name: "staging_sqlmesh"
 
 # defs_prod.yaml
 type: dg_sqlmesh.SQLMeshProjectComponent
 
 attributes:
-  project: "{{ project_root }}/production_sqlmesh_project"
-  environment: "prod"
-  group_name: "production_sqlmesh"
+  sqlmesh_config:
+    project_path: "{{ project_root }}/production_sqlmesh_project"
+    environment: "prod"
+  default_group_name: "production_sqlmesh"
 ```
 
 ## SQLMesh Project Structure
@@ -249,13 +218,13 @@ defs = sqlmesh_definitions_factory(
 ### After (YAML)
 
 ```yaml
-components:
-  sqlmesh_project:
-    module: dg_sqlmesh.SQLMeshProjectComponent
-    config:
-      project: "{{ project_root }}/sqlmesh_project"
-      gateway: "postgres"
-      enable_schedule: true
+type: dg_sqlmesh.SQLMeshProjectComponent
+
+attributes:
+  sqlmesh_config:
+    project_path: "{{ project_root }}/sqlmesh_project"
+    gateway: "postgres"
+  enable_schedule: true
 ```
 
 ## Contributing

@@ -229,6 +229,7 @@ def sqlmesh_definitions_factory(
     environment: str = "prod",
     concurrency_limit: int = 1,
     translator: Optional[SQLMeshTranslator] = None,
+    external_asset_mapping: Optional[str] = None,
     name: str = "sqlmesh_assets",
     group_name: str = "sqlmesh",
     op_tags: Optional[Dict[str, Any]] = None,
@@ -243,18 +244,46 @@ def sqlmesh_definitions_factory(
         project_dir: SQLMesh project directory
         gateway: SQLMesh gateway (postgres, duckdb, etc.)
         concurrency_limit: Concurrency limit
-        translator: Custom translator for asset keys
+        translator: Custom translator for asset keys (takes priority over external_asset_mapping)
+        external_asset_mapping: Jinja2 template for mapping external assets to Dagster asset keys
+            Example: "target/main/{node.name}" or "sling/{node.database}/{node.schema}/{node.name}"
+            Variables available: {node.database}, {node.schema}, {node.name}, {node.fqn}
         name: Multi-asset name
         group_name: Default group for assets
         op_tags: Operation tags
         owners: Asset owners
         schedule_name: Adaptive schedule name
         enable_schedule: Whether to enable the adaptive schedule (default: False)
+
+    Note:
+        If both 'translator' and 'external_asset_mapping' are provided, the custom translator
+        will be used and a warning will be issued.
     """
 
     # Parameter validation
     if concurrency_limit < 1:
         raise ValueError("concurrency_limit must be >= 1")
+
+    # Handle translator and external_asset_mapping conflicts
+    if translator is not None and external_asset_mapping is not None:
+        import warnings
+        warnings.warn(
+            "⚠️  CONFLICT DETECTED: Both 'translator' and 'external_asset_mapping' are provided.\n"
+            "   → Using the custom translator (translator parameter)\n"
+            "   → Ignoring external_asset_mapping parameter\n"
+            "   → To use external_asset_mapping, remove the translator parameter\n"
+            "   → To use custom translator, remove the external_asset_mapping parameter\n"
+            "   → Example: sqlmesh_definitions_factory(external_asset_mapping='target/main/{node.name}')",
+            UserWarning,
+            stacklevel=2
+        )
+    elif external_asset_mapping is not None:
+        # Create JinjaSQLMeshTranslator from the template
+        from .components.sqlmesh_project.component import JinjaSQLMeshTranslator
+        translator = JinjaSQLMeshTranslator(external_asset_mapping)
+    elif translator is None:
+        # Use default translator
+        translator = SQLMeshTranslator()
 
     # Robust default values
     op_tags = op_tags or {"sqlmesh": "true"}

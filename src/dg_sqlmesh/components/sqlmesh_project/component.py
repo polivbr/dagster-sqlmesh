@@ -2,28 +2,34 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
-from typing import Annotated, Any, Optional, Union
+from typing import Annotated, Any, Callable, Optional, Union
 
-from dagster import Resolvable, RetryPolicy, Backoff
+from dagster import Resolvable, RetryPolicy, Backoff, AssetKey
 from dagster._core.definitions.definitions_class import Definitions
 from dagster._core.execution.context.asset_execution_context import AssetExecutionContext
 from dagster._utils.cached_method import cached_method
-from dagster.components.component.component import Component
-from dagster.components.core.component_tree import ComponentTree
-from dagster.components.core.context import ComponentLoadContext
-from dagster.components.resolved.core_models import OpSpec, ResolutionContext
-from dagster.components.resolved.model import Resolver
-from dagster.components.scaffold.scaffold import scaffold_with
+from dagster import ComponentTree
+from dagster.components import (
+    Component,
+    ComponentLoadContext,
+    ResolutionContext,
+    Resolver,
+    scaffold_with,
+)
+from dagster.components.resolved.core_models import OpSpec
 from dagster.components.utils.translation import TranslationFn, TranslationFnResolver
 
 from dg_sqlmesh import sqlmesh_definitions_factory, SQLMeshResource, SQLMeshTranslator
+from .scaffolder import SQLMeshProjectComponentScaffolder
 
 
-@dataclass(frozen=True)
-class SQLMeshComponentSettings:
-    """Settings for SQLMesh component configuration."""
+@dataclass
+class SQLMeshConfig(Resolvable):
+    """SQLMesh configuration parameters."""
 
-    enable_code_references: bool = True
+    project_path: str
+    gateway: str = "postgres"
+    environment: str = "prod"
 
 
 @dataclass
@@ -36,14 +42,19 @@ class SQLMeshProjectArgs(Resolvable):
     concurrency_limit: int = 1
 
 
-def resolve_sqlmesh_project(context: ResolutionContext, model) -> str:
+def resolve_sqlmesh_config(context, model) -> SQLMeshConfig:
+    """Resolve SQLMesh configuration from YAML."""
+    return SQLMeshConfig.resolve_from_model(context, model)
+
+
+def resolve_sqlmesh_project(context, model) -> str:
     if isinstance(model, str):
-        return context.resolve_source_relative_path(
+        return str(context.resolve_source_relative_path(
             context.resolve_value(model, as_type=str),
-        )
+        ))
 
     args = SQLMeshProjectArgs.resolve_from_model(context, model)
-    return context.resolve_source_relative_path(args.project_dir)
+    return str(context.resolve_source_relative_path(args.project_dir))
 
 
 @scaffold_with(SQLMeshProjectComponentScaffolder)
@@ -61,19 +72,76 @@ class SQLMeshProjectComponent(Component, Resolvable):
     ### What is SQLMesh?
 
     SQLMesh is a data transformation platform that provides incremental processing,
-    testing, and deployment capabilities for SQL-based data pipelines.
+    testing, and deployment capabilities for SQL-based data pipelines. It offers:
+
+    - **Incremental Processing**: Efficient incremental updates for large datasets
+    - **Testing & Audits**: Built-in data quality checks and validation
+    - **Environment Management**: Support for dev, staging, and production environments
+    - **SQL-First**: Native SQL with powerful macros and templating
+    - **Deployment**: Safe schema changes and breaking change management
+
+    ### Key Features
+
+    - **Individual Asset Control**: Each SQLMesh model becomes a separate Dagster asset
+    - **Automatic Audits**: SQLMesh audits are converted to Dagster asset checks
+    - **External Asset Mapping**: Map external sources (like Sling) to Dagster asset keys
+    - **Adaptive Scheduling**: Automatic schedule creation based on SQLMesh crons
+    - **Metadata Integration**: Complete SQLMesh metadata (tags, descriptions, etc.)
+    - **Custom Translators**: Extensible translator system for custom mappings
+
+    ### Example Usage
+
+    ```yaml
+    # defs.yaml
+    type: dg_sqlmesh.SQLMeshProjectComponent
+    
+    attributes:
+      sqlmesh_config:
+        project_path: "{{ project_root }}/sqlmesh_project"
+        gateway: "postgres"
+        environment: "prod"
+      concurrency_jobs_limit: 1
+      default_group_name: "sqlmesh"
+      op_tags:
+        team: "data"
+        env: "prod"
+      # schedule_name and enable_schedule are optional with defaults
+      # schedule_name: "sqlmesh_adaptive_schedule"  # default value
+      # enable_schedule: true  # default value (creates schedule but doesn't activate it)
+      external_asset_mapping: "target/main/{node.name}"
+    ```
+
+    ### External Asset Mapping
+
+    Use the `external_asset_mapping` parameter to map external SQLMesh sources to Dagster asset keys:
+
+    ```python
+    # Map to dbt-style naming
+    external_asset_mapping: "target/main/{node.name}"
+    # Result: "jaffle_db.main.raw_source_customers" → ["target", "main", "raw_source_customers"]
+
+    # Map to database/schema/table structure  
+    external_asset_mapping: "{node.database}/{node.schema}/{node.name}"
+    # Result: "jaffle_db.main.raw_source_customers" → ["jaffle_db", "main", "raw_source_customers"]
+    ```
+
+    ### Available Template Variables
+
+    - **`{node.database}`**: Database name (e.g., "jaffle_db")
+    - **`{node.schema}`**: Schema name (e.g., "main") 
+    - **`{node.name}`**: Table name (e.g., "raw_source_customers")
+    - **`{node.fqn}`**: Full qualified name (e.g., "jaffle_db.main.raw_source_customers")
     """
 
-    project: Annotated[
-        str,
+    sqlmesh_config: Annotated[
+        SQLMeshConfig,
         Resolver(
-            resolve_sqlmesh_project,
-            model_field_type=Union[str, SQLMeshProjectArgs.model()],
-            description="The path to the SQLMesh project or a mapping defining a SQLMesh project",
+            resolve_sqlmesh_config,
+            model_field_type=SQLMeshConfig.model(),
+            description="SQLMesh configuration including project path, gateway, and environment",
             examples=[
-                "{{ project_root }}/path/to/sqlmesh_project",
                 {
-                    "project_dir": "path/to/sqlmesh_project",
+                    "project_path": "{{ project_root }}/sqlmesh_project",
                     "gateway": "postgres",
                     "environment": "prod",
                 },
@@ -93,143 +161,105 @@ class SQLMeshProjectComponent(Component, Resolvable):
             ],
         ),
     ] = None
-    translation: Annotated[
-        Optional[TranslationFn[Mapping[str, Any]]],
-        TranslationFnResolver(template_vars_for_translation_fn=lambda data: {"model": data}),
-    ] = None
-    external_model_key: Annotated[
+    external_asset_mapping: Annotated[
         Optional[str],
         Resolver.default(
-            description="Jinja2 template for mapping external model FQNs to Dagster asset keys.",
+            description="Jinja2 template for mapping external SQLMesh sources (like Sling objects) to Dagster asset keys. Available variables: {node.database}, {node.schema}, {node.name}, {node.fqn}",
             examples=[
-                "target/main/{{ node.name }}",
-                "{{ node.database }}/{{ node.schema }}/{{ node.name }}",
-                "sling/{{ node.name }}",
+                "target/main/{node.name}",
+                "{node.database}/{node.schema}/{node.name}",
+                "sling/{node.name}",
+                "{node.name}",
             ],
         ),
     ] = None
     gateway: Annotated[
         str,
         Resolver.default(
-            description="The SQLMesh gateway to use for execution.",
-            examples=["postgres", "duckdb"],
+            description="The SQLMesh gateway to use for execution. Common options include postgres, duckdb, snowflake, bigquery, etc.",
+            examples=["postgres", "duckdb", "snowflake", "bigquery"],
         ),
     ] = "postgres"
     environment: Annotated[
         str,
         Resolver.default(
-            description="The SQLMesh environment to use for execution.",
-            examples=["dev", "prod"],
+            description="The SQLMesh environment to use for execution. Common environments include dev, staging, prod.",
+            examples=["dev", "staging", "prod"],
         ),
     ] = "prod"
-    concurrency_limit: Annotated[
+    concurrency_jobs_limit: Annotated[
         int,
         Resolver.default(
-            description="The concurrency limit for SQLMesh execution.",
+            description="The concurrency limit for SQLMesh jobs execution. Higher values allow more parallel model execution.",
+            examples=[1, 2, 4, 8],
         ),
     ] = 1
-    name: Annotated[
+    default_group_name: Annotated[
         str,
         Resolver.default(
-            description="The name for the SQLMesh assets.",
-        ),
-    ] = "sqlmesh_assets"
-    group_name: Annotated[
-        str,
-        Resolver.default(
-            description="The group name for the SQLMesh assets.",
+            description="The default group name for the SQLMesh assets. This determines how assets are organized in the Dagster UI.",
+            examples=["sqlmesh", "data", "analytics", "staging"],
         ),
     ] = "sqlmesh"
     op_tags: Annotated[
         Optional[Mapping[str, Any]],
         Resolver.default(
-            description="Tags to apply to the SQLMesh assets.",
-            examples=[{"team": "data", "env": "prod"}],
+            description="Tags to apply to the SQLMesh assets. These tags help organize and filter assets in the Dagster UI.",
+            examples=[{"team": "data", "env": "prod"}, {"owner": "data-team", "priority": "high"}],
         ),
     ] = None
-    retry_policy: Annotated[
-        Optional[RetryPolicy],
-        Resolver.default(
-            description="Retry policy for the SQLMesh assets.",
-            examples=[
-                {
-                    "max_retries": 1,
-                    "delay": 30.0,
-                    "backoff": "exponential",
-                }
-            ],
-        ),
-    ] = None
+    # Note: RetryPolicy is not model compliant in Dagster Components
+    # retry_policy: Optional[RetryPolicy] = None
     schedule_name: Annotated[
         str,
         Resolver.default(
-            description="The name for the adaptive schedule.",
+            description="The name for the adaptive schedule. This schedule will automatically run SQLMesh models based on their cron configurations.",
+            examples=["sqlmesh_adaptive_schedule", "data_pipeline_schedule", "analytics_schedule"],
         ),
     ] = "sqlmesh_adaptive_schedule"
     enable_schedule: Annotated[
         bool,
         Resolver.default(
-            description="Whether to enable the adaptive schedule based on SQLMesh crons.",
+            description="Whether to create the schedule (does not automatically activate it)",
+            examples=[True, False],
         ),
-    ] = False
-    translation_settings: Annotated[
-        Optional[SQLMeshComponentSettings],
-        Resolver.default(
-            description="Allows enabling or disabling various features for translating SQLMesh models into Dagster assets.",
-            examples=[
-                {
-                    "enable_code_references": True,
-                },
-            ],
-        ),
-    ] = None
+    ] = True
 
     @cached_property
     def translator(self):
-        if self.translation:
-            return ProxySQLMeshTranslator(self.translation)
-        elif self.external_model_key:
-            return JinjaSQLMeshTranslator(self.external_model_key)
+        if self.external_asset_mapping:
+            return JinjaSQLMeshTranslator(self.external_asset_mapping)
         return SQLMeshTranslator()
 
     @cached_property
     def sqlmesh_resource(self):
         return SQLMeshResource(
-            project_dir=self.project,
-            gateway=self.gateway,
-            environment=self.environment,
-            concurrency_limit=self.concurrency_limit,
+            project_dir=self.sqlmesh_config.project_path,
+            gateway=self.sqlmesh_config.gateway,
+            environment=self.sqlmesh_config.environment,
+            concurrency_limit=self.concurrency_jobs_limit,
             translator=self.translator,
         )
 
-    def build_defs(self, context: ComponentLoadContext) -> Definitions:
-        # Create retry policy if specified
-        retry_policy = None
-        if self.retry_policy:
-            retry_policy = RetryPolicy(
-                max_retries=self.retry_policy.max_retries,
-                delay=self.retry_policy.delay,
-                backoff=Backoff.EXPONENTIAL if self.retry_policy.backoff == "exponential" else Backoff.LINEAR,
-            )
-
+    def build_defs(self, context=None) -> Definitions:
         # Create definitions using our factory
+        # Note: retry_policy is not supported by sqlmesh_definitions_factory yet
         defs = sqlmesh_definitions_factory(
-            project_dir=self.project,
-            gateway=self.gateway,
-            environment=self.environment,
-            concurrency_limit=self.concurrency_limit,
+            project_dir=self.sqlmesh_config.project_path,
+            gateway=self.sqlmesh_config.gateway,
+            environment=self.sqlmesh_config.environment,
+            concurrency_limit=self.concurrency_jobs_limit,
             translator=self.translator,
-            name=self.name,
-            group_name=self.group_name,
+            name="sqlmesh_assets",  # Fixed default name
+            group_name=self.default_group_name,
             op_tags=self.op_tags,
-            retry_policy=retry_policy,
             schedule_name=self.schedule_name,
             enable_schedule=self.enable_schedule,
         )
 
         return defs
 
-    def execute(self, context: AssetExecutionContext) -> Iterator:
+    def execute(self, context) -> Iterator:
         # This method is not used in our current architecture
         # as SQLMesh execution is handled by the individual assets
         pass
@@ -244,7 +274,7 @@ class SQLMeshProjectComponent(Component, Resolvable):
 class ProxySQLMeshTranslator(SQLMeshTranslator):
     """Proxy translator that uses a custom translation function."""
 
-    def __init__(self, fn: TranslationFn):
+    def __init__(self, fn: Callable[[AssetKey, Any], AssetKey]):
         self._fn = fn
         super().__init__()
 
@@ -261,11 +291,55 @@ class ProxySQLMeshTranslator(SQLMeshTranslator):
         return self._fn(base_tags, model)
 
 
+class ProxySQLMeshTranslator(SQLMeshTranslator):
+    """Proxy translator that uses a custom translation function."""
+
+    def __init__(self, fn: TranslationFn):
+        self._fn = fn
+        super().__init__()
+
+    def get_external_asset_key(self, external_fqn: str) -> AssetKey:
+        # Parse the FQN to extract database, schema, name
+        import re
+        
+        parts = re.findall(r'"([^"]+)"', external_fqn)
+        if len(parts) == 3:
+            database, schema, name = parts
+        else:
+            # Fallback for unquoted format
+            parts = external_fqn.replace('"', '').split('.')
+            if len(parts) >= 3:
+                database, schema, name = parts[0], parts[1], parts[2]
+            else:
+                # If we can't parse it properly, use the original
+                return super().get_external_asset_key(external_fqn)
+        
+        # Create node data for translation function
+        node_data = {
+            "database": database,
+            "schema": schema,
+            "name": name,
+            "fqn": external_fqn,
+        }
+        
+        # Call the translation function
+        result = self._fn(node_data)
+        
+        # Convert the result to an AssetKey
+        if isinstance(result, str):
+            segments = [seg.strip() for seg in result.split('/') if seg.strip()]
+            return AssetKey(segments)
+        elif isinstance(result, AssetKey):
+            return result
+        else:
+            return super().get_external_asset_key(external_fqn)
+
+
 class JinjaSQLMeshTranslator(SQLMeshTranslator):
     """Translator that uses Jinja2 templates for external asset key mapping."""
 
-    def __init__(self, external_model_key_template: str):
-        self.external_model_key_template = external_model_key_template
+    def __init__(self, external_asset_mapping_template: str):
+        self.external_asset_mapping_template = external_asset_mapping_template
         super().__init__()
 
     def get_external_asset_key(self, external_fqn: str) -> AssetKey:
@@ -304,8 +378,11 @@ class JinjaSQLMeshTranslator(SQLMeshTranslator):
             }
         }
         
+        # Convert {node.name} format to {{ node.name }} for Jinja2
+        template_str = self.external_asset_mapping_template.replace("{node.", "{{ node.").replace("}", "}}")
+        
         # Render the template
-        template = Template(self.external_model_key_template)
+        template = Template(template_str)
         result = template.render(**context)
         
         # Convert the result to an AssetKey

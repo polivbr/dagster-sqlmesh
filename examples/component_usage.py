@@ -14,12 +14,13 @@ def example_programmatic_usage():
     
     # Create the component
     component = SQLMeshProjectComponent(
-        project="sqlmesh_project",
-        gateway="postgres",
-        environment="prod",
-        concurrency_limit=1,
-        name="sqlmesh_assets",
-        group_name="sqlmesh",
+        sqlmesh_config={
+            "project_path": "sqlmesh_project",
+            "gateway": "postgres",
+            "environment": "prod",
+        },
+        concurrency_jobs_limit=1,
+        default_group_name="sqlmesh",
         op_tags={"team": "data", "env": "prod"},
         enable_schedule=True,
     )
@@ -40,22 +41,19 @@ def example_yaml_usage():
     type: dg_sqlmesh.SQLMeshProjectComponent
     
     attributes:
-      project: "{{ project_root }}/sqlmesh_project"
-      gateway: "postgres"
-      environment: "prod"
-      concurrency_limit: 1
-      name: "sqlmesh_assets"
-      group_name: "sqlmesh"
+      sqlmesh_config:
+        project_path: "{{ project_root }}/sqlmesh_project"
+        gateway: "postgres"
+        environment: "prod"
+      concurrency_jobs_limit: 1
+      default_group_name: "sqlmesh"
       op_tags:
         team: "data"
         env: "prod"
-      retry_policy:
-        max_retries: 1
-        delay: 30.0
-        backoff: "exponential"
-      schedule_name: "sqlmesh_adaptive_schedule"
-      enable_schedule: true
-      external_model_key: "target/main/{{ node.name }}"
+      # schedule_name and enable_schedule are optional with defaults
+      # schedule_name: "sqlmesh_adaptive_schedule"  # default value
+      # enable_schedule: true  # default value (creates schedule but doesn't activate it)
+      external_asset_mapping: "target/main/{node.name}"
     ```
     
     Then Dagster will automatically load the component and create the definitions.
@@ -66,17 +64,15 @@ def example_yaml_usage():
 def example_with_retry_policy():
     """Example with retry policy configuration."""
     
-    from dagster import RetryPolicy, Backoff
+    # Note: RetryPolicy is no longer supported in the component
+    # Use the factory function directly if you need retry policy
     
     component = SQLMeshProjectComponent(
-        project="sqlmesh_project",
-        gateway="postgres",
-        environment="prod",
-        retry_policy=RetryPolicy(
-            max_retries=2,
-            delay=10.0,
-            backoff=Backoff.EXPONENTIAL,
-        ),
+        sqlmesh_config={
+            "project_path": "sqlmesh_project",
+            "gateway": "postgres",
+            "environment": "prod",
+        },
         enable_schedule=False,
     )
     
@@ -89,10 +85,12 @@ def example_multiple_projects():
     
     # Staging project
     staging_component = SQLMeshProjectComponent(
-        project="staging_sqlmesh_project",
-        gateway="postgres",
-        environment="staging",
-        group_name="staging_sqlmesh",
+        sqlmesh_config={
+            "project_path": "staging_sqlmesh_project",
+            "gateway": "postgres",
+            "environment": "staging",
+        },
+        default_group_name="staging_sqlmesh",
         enable_schedule=False,
     )
     

@@ -19,7 +19,7 @@ attributes:
     backoff: "exponential"
   schedule_name: "sqlmesh_adaptive_schedule"
   enable_schedule: true
-  external_model_key: "target/main/{{ node.name }}"
+  external_asset_mapping: "target/main/{node.name}"
 # Alternative configuration with more detailed settings
 # type: dg_sqlmesh.SQLMeshProjectComponent
 #

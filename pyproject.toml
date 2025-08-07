@@ -41,6 +41,9 @@ Repository = "https://github.com/fosk06/dagster-sqlmesh"
 Documentation = "https://github.com/fosk06/dagster-sqlmesh#readme"
 Issues = "https://github.com/fosk06/dagster-sqlmesh/issues"
 
+[project.entry-points]
+"dagster_dg_cli.registry_modules" = { "dg_sqlmesh" = "dg_sqlmesh" }
+
 [dependency-groups]
 dev = [
     "dagster-webserver",

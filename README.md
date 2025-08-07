@@ -9,6 +9,7 @@ This module provides a complete integration between SQLMesh and Dagster, allowin
 - **Individual asset control** : Each SQLMesh model becomes a separate Dagster asset with granular success/failure control
 - **Automatic materialization** : SQLMesh models are automatically converted to Dagster assets
 - **External assets support** : SQLMesh sources (external assets) are mapped to Dagster AssetKeys
+- **🆕 Jinja2 template mapping** : Easy external asset mapping with `external_asset_mapping` parameter
 - **Automatic dependencies** : Dependencies between models are preserved in Dagster
 - **Partitioning** : Support for partitioned SQLMesh models (managed by SQLMesh, no integration with Dagster partitions - no Dagster → SQLMesh backfill)
 
@@ -74,7 +75,7 @@ This module provides a complete integration between SQLMesh and Dagster, allowin
 | Dagster → SQLMesh backfill      | 🔄 Planned       | Partition integration                       | Direct Dagster partition control                                |
 | Multi-environment orchestration | ❌ Not supported | Dagster OSS does not support multi-tenancy  | Use separate Dagster clusters per environment                   |
 | **Dagster-Specific Features**   |
-| Dagster Component packaging     | 🔄 Planned       | Standalone Dagster component                | Package as reusable Dagster (yaml DSL) component                |
+| Dagster Component packaging     | ✅ Supported      | Standalone Dagster component                | Package as reusable Dagster (yaml DSL) component                |
 | Custom asset groups             | ✅ Supported     | Automatic group assignment                  | Based on model path and tags                                    |
 | Asset selection & filtering     | ✅ Supported     | Selective materialization                   | Materialize specific models or groups                           |
 | Dagster UI integration          | ✅ Supported     | Individual asset visibility                 | Each model visible as separate asset in UI                      |
@@ -86,6 +87,26 @@ This module provides a complete integration between SQLMesh and Dagster, allowin
 ## Basic Usage
 
 ### **Simple Factory (Recommended)**
+
+```python
+from dagster import RetryPolicy, AssetKey, Backoff
+from dg_sqlmesh import sqlmesh_definitions_factory
+
+# All-in-one factory with external asset mapping!
+defs = sqlmesh_definitions_factory(
+    project_dir="sqlmesh_project",
+    gateway="postgres",
+    external_asset_mapping="target/main/{node.name}",  # 🆕 NEW: Jinja2 template for external assets
+    concurrency_limit=1,
+    name="sqlmesh_multi_asset",
+    group_name="sqlmesh",
+    op_tags={"team": "data", "env": "prod"},
+    retry_policy=RetryPolicy(max_retries=1, delay=30.0, backoff=Backoff.EXPONENTIAL),
+    enable_schedule=True,  # Enable adaptive scheduling
+)
+```
+
+### **Advanced Configuration with Custom Translator**
 
 ```python
 from dagster import RetryPolicy, AssetKey, Backoff
@@ -104,11 +125,12 @@ class SlingToSqlmeshTranslator(SQLMeshTranslator):
             return AssetKey(['target', 'main', table])
         return AssetKey(['external'] + parts[1:])
 
-# All-in-one factory: everything configured in one line!
+# All-in-one factory with custom translator (takes priority over external_asset_mapping)
 defs = sqlmesh_definitions_factory(
     project_dir="sqlmesh_project",
     gateway="postgres",
-    translator=SlingToSqlmeshTranslator(),
+    translator=SlingToSqlmeshTranslator(),  # Custom translator takes priority
+    external_asset_mapping="target/main/{node.name}",  # Ignored when translator is provided
     concurrency_limit=1,
     name="sqlmesh_multi_asset",
     group_name="sqlmesh",
@@ -158,6 +180,82 @@ defs = Definitions(
     },
 )
 ```
+
+## External Asset Mapping
+
+### **🆕 NEW: Jinja2 Template Mapping**
+
+The `external_asset_mapping` parameter allows you to easily map external SQLMesh sources (like Sling objects) to Dagster asset keys using Jinja2 templates:
+
+```python
+from dg_sqlmesh import sqlmesh_definitions_factory
+
+# Simple mapping: external sources → target/main/{table_name}
+defs = sqlmesh_definitions_factory(
+    project_dir="sqlmesh_project",
+    external_asset_mapping="target/main/{node.name}",
+    # ...
+)
+
+# Advanced mapping with database and schema
+defs = sqlmesh_definitions_factory(
+    project_dir="sqlmesh_project",
+    external_asset_mapping="{node.database}/{node.schema}/{node.name}",
+    # ...
+)
+
+# Custom prefix mapping
+defs = sqlmesh_definitions_factory(
+    project_dir="sqlmesh_project",
+    external_asset_mapping="sling/{node.name}",
+    # ...
+)
+```
+
+### **Available Template Variables**
+
+The following variables are available in your Jinja2 template:
+
+- **`{node.database}`** : Database name (e.g., "jaffle_db")
+- **`{node.schema}`** : Schema name (e.g., "main")
+- **`{node.name}`** : Table name (e.g., "raw_source_customers")
+- **`{node.fqn}`** : Full qualified name (e.g., "jaffle_db.main.raw_source_customers")
+
+### **Examples**
+
+```python
+# Map to dbt-style naming
+external_asset_mapping="target/main/{node.name}"
+# Result: "jaffle_db.main.raw_source_customers" → ["target", "main", "raw_source_customers"]
+
+# Map to database/schema/table structure
+external_asset_mapping="{node.database}/{node.schema}/{node.name}"
+# Result: "jaffle_db.main.raw_source_customers" → ["jaffle_db", "main", "raw_source_customers"]
+
+# Map to custom prefix
+external_asset_mapping="sling/{node.name}"
+# Result: "jaffle_db.main.raw_source_customers" → ["sling", "raw_source_customers"]
+
+# Map to simplified structure
+external_asset_mapping="{node.name}"
+# Result: "jaffle_db.main.raw_source_customers" → ["raw_source_customers"]
+```
+
+### **Conflict Resolution**
+
+When both `translator` and `external_asset_mapping` are provided, the custom translator takes priority:
+
+```python
+# Custom translator takes priority
+defs = sqlmesh_definitions_factory(
+    project_dir="sqlmesh_project",
+    translator=MyCustomTranslator(),  # ✅ Used
+    external_asset_mapping="target/main/{node.name}",  # ❌ Ignored
+    # ...
+)
+```
+
+A warning will be issued when both are provided to clarify the behavior.
 
 ## Custom Translator
 
@@ -507,22 +605,19 @@ The module also provides a Dagster component for declarative YAML configuration:
 type: dg_sqlmesh.SQLMeshProjectComponent
 
 attributes:
-  project: "{{ project_root }}/sqlmesh_project"
-  gateway: "postgres"
-  environment: "prod"
-  concurrency_limit: 1
-  name: "sqlmesh_assets"
-  group_name: "sqlmesh"
+  sqlmesh_config:
+    project_path: "{{ project_root }}/sqlmesh_project"
+    gateway: "postgres"
+    environment: "prod"
+  concurrency_jobs_limit: 1
+  default_group_name: "sqlmesh"
   op_tags:
     team: "data"
     env: "prod"
-  retry_policy:
-    max_retries: 1
-    delay: 30.0
-    backoff: "exponential"
-  schedule_name: "sqlmesh_adaptive_schedule"
-  enable_schedule: true
-  external_model_key: "target/main/{{ node.name }}"
+  # schedule_name and enable_schedule are optional with defaults
+  # schedule_name: "sqlmesh_adaptive_schedule"  # default value
+  # enable_schedule: true  # default value (creates schedule but doesn't activate it)
+  external_asset_mapping: "target/main/{node.name}"
 ```
 
 ### **Scaffolding**
@@ -565,6 +660,8 @@ pip install dg-sqlmesh
 - **No Dagster → SQLMesh backfill** : Partitions managed only by SQLMesh itself (run a materialization to backfill)
 - **Breaking changes** : Handled outside the module (SQLMesh CLI or CI/CD)
 - **Environment management** : SQLMesh CLI or CI/CD
+- **External asset mapping** : Only supports basic Jinja2 templates, complex conditionals may not work as expected
+- **Schedule activation** : Schedules are created but not automatically activated (manual activation required)
 
 ## Troubleshooting
 
@@ -579,6 +676,12 @@ pip install dg-sqlmesh
 
 - **Cause** : Translator doesn't handle FQN format
 - **Solution** : Check `get_external_asset_key` method
+
+#### **External asset mapping template errors**
+
+- **Cause** : Invalid Jinja2 template syntax or unsupported variables
+- **Solution** : Use only supported variables: `{node.database}`, `{node.schema}`, `{node.name}`, `{node.fqn}`
+- **Example** : `"target/main/{node.name}"` ✅ vs `"target/main/{{ node.name }}"` ❌
 
 #### **Performance issues**
 
