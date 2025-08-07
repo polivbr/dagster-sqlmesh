@@ -75,7 +75,7 @@ This module provides a complete integration between SQLMesh and Dagster, allowin
 | Dagster → SQLMesh backfill      | 🔄 Planned       | Partition integration                       | Direct Dagster partition control                                |
 | Multi-environment orchestration | ❌ Not supported | Dagster OSS does not support multi-tenancy  | Use separate Dagster clusters per environment                   |
 | **Dagster-Specific Features**   |
-| Dagster Component packaging     | ✅ Supported      | Standalone Dagster component                | Package as reusable Dagster (yaml DSL) component                |
+| Dagster Component packaging     | ✅ Supported     | Standalone Dagster component                | Package as reusable Dagster (yaml DSL) component                |
 | Custom asset groups             | ✅ Supported     | Automatic group assignment                  | Based on model path and tags                                    |
 | Asset selection & filtering     | ✅ Supported     | Selective materialization                   | Materialize specific models or groups                           |
 | Dagster UI integration          | ✅ Supported     | Individual asset visibility                 | Each model visible as separate asset in UI                      |
@@ -154,7 +154,6 @@ sqlmesh_resource = SQLMeshResource(
     gateway="postgres",
     translator=SlingToSqlmeshTranslator(),
     concurrency_limit=1,
-    ignore_cron=True  # only for testing purposes
 )
 
 # SQLMesh assets configuration
@@ -377,7 +376,6 @@ The schedule runs `sqlmesh run` on all models, but SQLMesh automatically manages
 ```python
 # The schedule simply does:
 sqlmesh_resource.context.run(
-    ignore_cron=False,  # SQLMesh respects crons
     execution_time=datetime.datetime.now(),
 )
 ```
@@ -501,7 +499,7 @@ This approach provides granular control while maintaining all SQLMesh integratio
 
 ## Performance
 
-- **Individual execution** : Each asset runs its own SQLMesh materialization (may result in multiple `sqlmesh run` calls)
+- **Shared execution**: A single SQLMesh run is triggered per Dagster run. The first selected asset starts the SQLMesh materialization for all selected models; subsequent assets reuse the captured results via `SQLMeshResultsResource` to determine what was materialized or skipped.
 - **Strict singleton** : Only one active SQLMesh instance
 - **Caching** : Contexts, models and translators are cached
 - **Multithreading** : Uses AnyIO to avoid Dagster blocking
@@ -666,11 +664,6 @@ pip install dg-sqlmesh
 ## Troubleshooting
 
 ### Common Issues
-
-#### **"Invalid cron" errors**
-
-- **Cause** : Cron faster than 5 minutes
-- **Solution** : Use `ignore_cron=True` for testing
 
 #### **External asset mapping errors**
 

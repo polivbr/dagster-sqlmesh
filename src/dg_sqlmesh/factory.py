@@ -19,6 +19,7 @@ from sqlmesh.core.model.definition import ExternalModel
 import datetime
 from .translator import SQLMeshTranslator
 from typing import Optional, Dict, List, Any
+import warnings
 
 # Import des nouvelles fonctions utilitaires
 from .sqlmesh_asset_execution_utils import (
@@ -230,7 +231,6 @@ def sqlmesh_definitions_factory(
     concurrency_limit: int = 1,
     translator: Optional[SQLMeshTranslator] = None,
     external_asset_mapping: Optional[str] = None,
-    name: str = "sqlmesh_assets",
     group_name: str = "sqlmesh",
     op_tags: Optional[Dict[str, Any]] = None,
     owners: Optional[List[str]] = None,
@@ -266,7 +266,6 @@ def sqlmesh_definitions_factory(
 
     # Handle translator and external_asset_mapping conflicts
     if translator is not None and external_asset_mapping is not None:
-        import warnings
         warnings.warn(
             "⚠️  CONFLICT DETECTED: Both 'translator' and 'external_asset_mapping' are provided.\n"
             "   → Using the custom translator (translator parameter)\n"
