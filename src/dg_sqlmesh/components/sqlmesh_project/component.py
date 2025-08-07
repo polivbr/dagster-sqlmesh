@@ -97,6 +97,17 @@ class SQLMeshProjectComponent(Component, Resolvable):
         Optional[TranslationFn[Mapping[str, Any]]],
         TranslationFnResolver(template_vars_for_translation_fn=lambda data: {"model": data}),
     ] = None
+    external_model_key: Annotated[
+        Optional[str],
+        Resolver.default(
+            description="Jinja2 template for mapping external model FQNs to Dagster asset keys.",
+            examples=[
+                "target/main/{{ node.name }}",
+                "{{ node.database }}/{{ node.schema }}/{{ node.name }}",
+                "sling/{{ node.name }}",
+            ],
+        ),
+    ] = None
     gateway: Annotated[
         str,
         Resolver.default(
@@ -177,6 +188,8 @@ class SQLMeshProjectComponent(Component, Resolvable):
     def translator(self):
         if self.translation:
             return ProxySQLMeshTranslator(self.translation)
+        elif self.external_model_key:
+            return JinjaSQLMeshTranslator(self.external_model_key)
         return SQLMeshTranslator()
 
     @cached_property
@@ -246,6 +259,59 @@ class ProxySQLMeshTranslator(SQLMeshTranslator):
     def get_tags(self, context, model):
         base_tags = super().get_tags(context, model)
         return self._fn(base_tags, model)
+
+
+class JinjaSQLMeshTranslator(SQLMeshTranslator):
+    """Translator that uses Jinja2 templates for external asset key mapping."""
+
+    def __init__(self, external_model_key_template: str):
+        self.external_model_key_template = external_model_key_template
+        super().__init__()
+
+    def get_external_asset_key(self, external_fqn: str) -> AssetKey:
+        """
+        Generates an AssetKey for an external asset using Jinja2 template.
+        Template variables available:
+        - node.database: The database name
+        - node.schema: The schema name  
+        - node.name: The table/view name
+        - node.fqn: The full qualified name
+        """
+        import re
+        from jinja2 import Template
+        
+        # Parse the FQN to extract database, schema, name
+        # Handle both quoted and unquoted formats
+        parts = re.findall(r'"([^"]+)"', external_fqn)
+        if len(parts) == 3:
+            database, schema, name = parts
+        else:
+            # Fallback for unquoted format
+            parts = external_fqn.replace('"', '').split('.')
+            if len(parts) >= 3:
+                database, schema, name = parts[0], parts[1], parts[2]
+            else:
+                # If we can't parse it properly, use the original
+                return super().get_external_asset_key(external_fqn)
+        
+        # Create template context
+        context = {
+            "node": {
+                "database": database,
+                "schema": schema,
+                "name": name,
+                "fqn": external_fqn,
+            }
+        }
+        
+        # Render the template
+        template = Template(self.external_model_key_template)
+        result = template.render(**context)
+        
+        # Convert the result to an AssetKey
+        # Split on '/' to create the asset key segments
+        segments = [seg.strip() for seg in result.split('/') if seg.strip()]
+        return AssetKey(segments)
 
 
 def get_projects_from_sqlmesh_component(components: Path) -> list[str]:

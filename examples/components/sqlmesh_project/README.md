@@ -106,6 +106,43 @@ project:
 
 ## Advanced Usage
 
+### External Asset Key Mapping
+
+You can configure how external assets (like Sling assets) are mapped to Dagster asset keys using Jinja2 templates:
+
+```yaml
+type: dg_sqlmesh.SQLMeshProjectComponent
+
+attributes:
+  project: "{{ project_root }}/sqlmesh_project"
+  external_model_key: "target/main/{{ node.name }}"
+```
+
+#### Template Variables
+
+The following variables are available in the Jinja2 template:
+
+- **`{{ node.database }}`**: The database name (e.g., "jaffle_db")
+- **`{{ node.schema }}`**: The schema name (e.g., "main")  
+- **`{{ node.name }}`**: The table/view name (e.g., "raw_source_customers")
+- **`{{ node.fqn }}`**: The full qualified name
+
+#### Examples
+
+```yaml
+# Map to Sling format: target/main/table_name
+external_model_key: "target/main/{{ node.name }}"
+
+# Keep original structure but prefix with "sling"
+external_model_key: "sling/{{ node.database }}/{{ node.schema }}/{{ node.name }}"
+
+# Use only the table name
+external_model_key: "{{ node.name }}"
+
+# Custom mapping for specific database
+external_model_key: "{% if node.database == 'jaffle_db' %}target/main/{{ node.name }}{% else %}{{ node.database }}/{{ node.schema }}/{{ node.name }}{% endif %}"
+```
+
 ### Custom Translation Functions
 
 You can provide custom translation functions for asset keys, groups, and tags:

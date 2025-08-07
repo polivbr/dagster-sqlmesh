@@ -55,6 +55,7 @@ def example_yaml_usage():
         backoff: "exponential"
       schedule_name: "sqlmesh_adaptive_schedule"
       enable_schedule: true
+      external_model_key: "target/main/{{ node.name }}"
     ```
     
     Then Dagster will automatically load the component and create the definitions.

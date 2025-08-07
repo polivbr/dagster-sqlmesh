@@ -4,7 +4,7 @@ Tests for the SQLMesh Dagster component.
 
 import pytest
 from pathlib import Path
-from dagster import Definitions
+from dagster import Definitions, AssetKey
 from dg_sqlmesh import SQLMeshProjectComponent
 
 
@@ -125,6 +125,53 @@ class TestSQLMeshComponent:
         assert resource.project_dir == "tests/sqlmesh_project"
         assert resource.gateway == "duckdb"
         assert resource.environment == "dev"
+
+    def test_component_with_external_model_key(self):
+        """Test component with external model key configuration."""
+        component = SQLMeshProjectComponent(
+            project="tests/sqlmesh_project",
+            gateway="duckdb",
+            environment="dev",
+            external_model_key="target/main/{{ node.name }}",
+            enable_schedule=False,
+        )
+        
+        assert component.external_model_key == "target/main/{{ node.name }}"
+        
+        # Test that the translator is a JinjaSQLMeshTranslator
+        translator = component.translator
+        assert translator is not None
+        from dg_sqlmesh.components.sqlmesh_project.component import JinjaSQLMeshTranslator
+        assert isinstance(translator, JinjaSQLMeshTranslator)
+
+    def test_jinja_translator_external_asset_key(self):
+        """Test the JinjaSQLMeshTranslator external asset key mapping."""
+        from dg_sqlmesh.components.sqlmesh_project.component import JinjaSQLMeshTranslator
+        
+        # Test with quoted FQN
+        translator = JinjaSQLMeshTranslator("target/main/{{ node.name }}")
+        asset_key = translator.get_external_asset_key('"jaffle_db"."main"."raw_source_customers"')
+        assert asset_key == AssetKey(["target", "main", "raw_source_customers"])
+        
+        # Test with unquoted FQN
+        asset_key = translator.get_external_asset_key("jaffle_db.main.raw_source_customers")
+        assert asset_key == AssetKey(["target", "main", "raw_source_customers"])
+        
+        # Test with custom template
+        translator = JinjaSQLMeshTranslator("sling/{{ node.database }}/{{ node.name }}")
+        asset_key = translator.get_external_asset_key('"jaffle_db"."main"."raw_source_customers"')
+        assert asset_key == AssetKey(["sling", "jaffle_db", "raw_source_customers"])
+
+    def test_jinja_translator_fallback(self):
+        """Test the JinjaSQLMeshTranslator fallback behavior."""
+        from dg_sqlmesh.components.sqlmesh_project.component import JinjaSQLMeshTranslator
+        
+        translator = JinjaSQLMeshTranslator("target/main/{{ node.name }}")
+        
+        # Test with malformed FQN - should fallback to parent implementation
+        asset_key = translator.get_external_asset_key("invalid_fqn")
+        # Should return some fallback asset key
+        assert isinstance(asset_key, AssetKey)
 
 
 class TestSQLMeshComponentScaffolder:
