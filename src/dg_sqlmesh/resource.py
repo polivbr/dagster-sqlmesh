@@ -22,6 +22,7 @@ from .sqlmesh_asset_utils import (
     get_model_partitions_from_plan,
     analyze_sqlmesh_crons_using_api,
     get_model_from_asset_key,
+    sanitize_metadata_for_dagster,
 )
 from .sqlmesh_event_console import SQLMeshEventCaptureConsole
 from sqlmesh.utils.errors import (
@@ -353,18 +354,22 @@ class SQLMeshResource(ConfigurableResource):
                     f"❌ AUDIT FAILED for model '{model_name}': {audit_name} - {audit_message}"
                 )
 
+            # Sanitize metadata for Dagster 1.11.4 compatibility
+            metadata = {
+                "sqlmesh_model_name": model_name,
+                "audit_query": audit_sql,
+                "audit_blocking": audit_blocking,
+                "audit_message": audit_message,
+                "audit_args": serialized_args,
+                "error_type": "audit_failure",
+            }
+            sanitized_metadata = sanitize_metadata_for_dagster(metadata)
+            
             return AssetCheckResult(
                 passed=False,  # Failed audit
                 asset_key=asset_key,
                 check_name=audit_name,
-                metadata={
-                    "sqlmesh_model_name": model_name,
-                    "audit_query": audit_sql,
-                    "audit_blocking": audit_blocking,
-                    "audit_message": audit_message,
-                    "audit_args": serialized_args,
-                    "error_type": "audit_failure",
-                },
+                metadata=sanitized_metadata,
             )
         except Exception as audit_e:
             if self._logger:
@@ -385,18 +390,22 @@ class SQLMeshResource(ConfigurableResource):
                 f"❌ MODEL ERROR for model '{model_name}': {error_type} - {message}"
             )
 
+        # Sanitize metadata for Dagster 1.11.4 compatibility
+        metadata = {
+            "sqlmesh_model_name": model_name,
+            "audit_query": "N/A",
+            "audit_blocking": False,
+            "audit_message": message,
+            "audit_args": {},
+            "error_type": error_type,
+        }
+        sanitized_metadata = sanitize_metadata_for_dagster(metadata)
+        
         return AssetCheckResult(
             passed=False,
             asset_key=asset_key,
             check_name="model_execution_error",
-            metadata={
-                "sqlmesh_model_name": model_name,
-                "audit_query": "N/A",
-                "audit_blocking": False,
-                "audit_message": message,
-                "audit_args": {},
-                "error_type": error_type,
-            },
+            metadata=sanitized_metadata,
         )
 
     def _process_failed_models_events(self) -> list[AssetCheckResult]:
@@ -559,21 +568,25 @@ class SQLMeshResource(ConfigurableResource):
             # Serialize audit arguments to JSON-compatible format
             serialized_args = self._serialize_audit_args(audit_details["arguments"])
 
+            # Sanitize metadata for Dagster 1.11.4 compatibility
+            metadata = {
+                "sqlmesh_model_name": audit_result[
+                    "model_name"
+                ],  # ← SQLMesh model name
+                "audit_query": audit_details["sql"],
+                "audit_blocking": audit_details["blocking"],
+                "audit_dialect": getattr(audit_details, "dialect", "unknown"),
+                "audit_args": serialized_args,
+                "error_type": "audit_success",
+            }
+            sanitized_metadata = sanitize_metadata_for_dagster(metadata)
+            
             successful_audit_results.append(
                 AssetCheckResult(
                     passed=passed,
                     asset_key=asset_key,
                     check_name=audit_details["name"],
-                    metadata={
-                        "sqlmesh_model_name": audit_result[
-                            "model_name"
-                        ],  # ← SQLMesh model name
-                        "audit_query": audit_details["sql"],
-                        "audit_blocking": audit_details["blocking"],
-                        "audit_dialect": getattr(audit_details, "dialect", "unknown"),
-                        "audit_args": serialized_args,
-                        "error_type": "audit_success",
-                    },
+                    metadata=sanitized_metadata,
                 )
             )
 
@@ -638,16 +651,19 @@ class SQLMeshResource(ConfigurableResource):
                     if model_partitions and model_partitions.get(
                         "is_partitioned", False
                     ):
-                        metadata["dagster-sqlmesh/partitions"] = (
-                            format_partition_metadata(model_partitions)
-                        )
+                        partition_metadata = format_partition_metadata(model_partitions)
+                        # Ensure partition metadata is compatible with Dagster 1.11.4
+                        metadata["dagster-sqlmesh/partitions"] = partition_metadata
+
+                    # Sanitize metadata for Dagster 1.11.4 compatibility
+                    sanitized_metadata = sanitize_metadata_for_dagster(metadata)
 
                     # Get check results for this asset
                     check_results = asset_check_results_by_key.get(asset_key, [])
 
                     yield MaterializeResult(
                         asset_key=asset_key,
-                        metadata=metadata,
+                        metadata=sanitized_metadata,
                         data_version=DataVersion(str(snapshot_version))
                         if snapshot_version
                         else None,

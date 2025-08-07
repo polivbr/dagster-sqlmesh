@@ -1,11 +1,17 @@
-from dagster import AssetSpec, AssetCheckSpec
-from sqlmesh.core.model.definition import ExternalModel
-from typing import Any, Optional, List
+import json
+import re
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Set
+
+from dagster import AssetKey, AssetSpec, AssetCheckSpec
+from dagster._core.definitions.metadata import TableMetadataSet
+from sqlmesh.core.model.definition import ExternalModel
+
 from .sqlmesh_asset_check_utils import (
     create_all_asset_checks,
     create_asset_checks_from_model,
 )
+from .translator import SQLMeshTranslator
 
 
 def get_downstream_models(
@@ -161,6 +167,65 @@ def get_asset_tags(translator, context, model) -> dict:
     return translator.get_tags(context, model)
 
 
+def sanitize_metadata_for_dagster(metadata: dict) -> dict:
+    """
+    Converts complex metadata objects to simple types compatible with Dagster 1.11.4.
+    
+    This function handles the ObjectMetadataValue issue by ensuring all metadata
+    values are JSON-serializable and don't contain complex objects.
+    """
+    sanitized = {}
+    
+    for key, value in metadata.items():
+        if value is None:
+            sanitized[key] = None
+        elif isinstance(value, (str, int, float, bool)):
+            sanitized[key] = value
+        elif isinstance(value, (list, tuple)):
+            # Recursively sanitize list items
+            sanitized[key] = []
+            for item in value:
+                if isinstance(item, dict):
+                    sanitized[key].append(sanitize_metadata_for_dagster(item))
+                elif isinstance(item, (list, tuple)):
+                    # Handle nested lists
+                    sanitized[key].append(sanitize_metadata_for_dagster({"nested": item})["nested"])
+                else:
+                    # Try to keep simple types, convert complex ones
+                    try:
+                        json.dumps(item)
+                        sanitized[key].append(item)
+                    except (TypeError, ValueError):
+                        sanitized[key].append(str(item))
+        elif isinstance(value, dict):
+            # Recursively sanitize dict values
+            sanitized[key] = sanitize_metadata_for_dagster(value)
+        elif isinstance(value, TableMetadataSet):
+            # Convert TableMetadataSet to simple dict
+            sanitized[key] = {
+                "table_name": value.table_name,
+                "columns": [
+                    {
+                        "name": col.name,
+                        "type": col.type,
+                        "description": col.description
+                    }
+                    for col in value.column_schema.columns
+                ]
+            }
+        else:
+            # Convert any other object to string representation
+            try:
+                # Try JSON serialization first
+                json.dumps(value)
+                sanitized[key] = value
+            except (TypeError, ValueError):
+                # Fallback to string representation
+                sanitized[key] = str(value)
+    
+    return sanitized
+
+
 def get_asset_metadata(translator, model, code_version, extra_keys, owners) -> dict:
     """
     Returns metadata for an asset.
@@ -189,7 +254,8 @@ def get_asset_metadata(translator, model, code_version, extra_keys, owners) -> d
     if owners:
         metadata["owners"] = owners
 
-    return metadata
+    # Sanitize metadata for Dagster 1.11.4 compatibility
+    return sanitize_metadata_for_dagster(metadata)
 
 
 def format_partition_metadata(model_partitions: dict) -> dict:
@@ -200,7 +266,7 @@ def format_partition_metadata(model_partitions: dict) -> dict:
         model_partitions: Dict with raw partition info from SQLMesh
 
     Returns:
-        Dict with formatted metadata
+        Dict with formatted metadata (compatible with Dagster 1.11.4)
     """
     formatted_metadata = {}
 
@@ -232,7 +298,7 @@ def format_partition_metadata(model_partitions: dict) -> dict:
                     }
                 )
 
-        # Use Python object directly (Dagster can handle it)
+        # Ensure we return a simple list of dicts (JSON-serializable)
         formatted_metadata["partition_intervals"] = readable_intervals
 
     # Grain (if present and not empty)

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.3.0] - 2025-01-27
 
 ### Added
+
 - **SQLMesh Dagster Component**: New declarative YAML configuration system
   - `SQLMeshProjectComponent` for easy SQLMesh project integration
   - Support for Jinja2 templating in external asset mapping
@@ -15,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Component discovery and registration with Dagster
 
 ### Enhanced
+
 - **External Asset Mapping**: New `external_asset_mapping` parameter
   - Direct parameter support in `sqlmesh_definitions_factory`
   - Jinja2 templating for flexible asset key mapping
@@ -22,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Comprehensive test coverage for mapping scenarios
 
 ### Improved
+
 - **Component Configuration**: Restructured YAML specification
   - Grouped SQLMesh parameters under `sqlmesh_config`
   - Renamed parameters for clarity (`concurrency_limit` → `concurrency_jobs_limit`)
@@ -29,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed redundant `name` parameter
 
 ### Changed
+
 - **Default Values**: Updated component defaults
   - `schedule_name` defaults to `"sqlmesh_adaptive_schedule"`
   - `enable_schedule` defaults to `True` (creates but doesn't activate)
@@ -36,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `default_group_name` defaults to `"sqlmesh"`
 
 ### Documentation
+
 - **Component Documentation**: Enhanced UI documentation
   - Detailed docstring for `SQLMeshProjectComponent`
   - Comprehensive parameter descriptions and examples
@@ -43,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Migration guide from direct factory usage
 
 ### Testing
+
 - **Test Coverage**: Comprehensive test suite
   - Unit tests for `JinjaSQLMeshTranslator`
   - Integration tests for external asset mapping
@@ -50,11 +56,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Cleaned up obsolete test files
 
 ### Technical
+
 - **Dependencies**: Added `jinja2>=3.0.0` for templating support
 - **Entry Points**: Added Dagster component registry entry point
 - **Code Organization**: Moved dagster-dbt example to `code_example/`
 
 ### Breaking Changes
+
 - **Component API**: Updated parameter names and structure
   - `project` → `sqlmesh_config.project_path`
   - `gateway` → `sqlmesh_config.gateway`
@@ -65,6 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed `retry_policy` (per ADR-0004)
 
 ### Migration Guide
+
 To migrate from direct factory usage to the new component:
 
 ```yaml
@@ -87,6 +96,7 @@ default_group_name: "sqlmesh"
 ## [1.2.2] - 2025-01-20
 
 ### Added
+
 - Initial release of dg-sqlmesh
 - Core SQLMesh integration with Dagster
 - Asset factory functions

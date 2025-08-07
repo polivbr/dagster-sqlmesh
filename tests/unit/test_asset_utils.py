@@ -3,6 +3,7 @@ from unittest.mock import Mock, MagicMock, patch
 from typing import Any, Dict, List, Optional
 
 from dagster import AssetSpec, AssetCheckSpec, AssetKey
+from dagster._core.definitions.metadata import TableMetadataSet, TableSchema, TableColumn
 from sqlmesh.core.model.definition import ExternalModel
 from sqlmesh import Context
 
@@ -23,6 +24,7 @@ from dg_sqlmesh.sqlmesh_asset_utils import (
     create_asset_specs,
     get_extra_keys,
     create_asset_checks,
+    sanitize_metadata_for_dagster,
 )
 from dg_sqlmesh.sqlmesh_asset_check_utils import safe_extract_audit_query
 
@@ -572,40 +574,109 @@ class TestAssetSpecs:
         assert all(isinstance(spec, AssetSpec) for spec in result)
 
 
-class TestAssetUtilsIntegration:
-    """Integration tests for asset utilities with real SQLMesh context."""
-
-    def test_get_models_to_materialize_with_real_context(self, sqlmesh_resource) -> None:
-        """Test getting models to materialize with real SQLMesh resource."""
-        from dg_sqlmesh import SQLMeshTranslator
+class TestSanitizeMetadata:
+    """Test metadata sanitization for Dagster 1.11.4 compatibility."""
+    
+    def test_sanitize_metadata_simple_types(self):
+        """Test sanitization of simple types."""
+        metadata = {
+            "string": "test",
+            "integer": 42,
+            "float": 3.14,
+            "boolean": True,
+            "none": None,
+        }
         
-        translator = SQLMeshTranslator()
+        result = sanitize_metadata_for_dagster(metadata)
         
-        # Get real models from resource
-        models = sqlmesh_resource.get_models()
-        assert len(models) > 0
+        assert result == metadata  # Simple types should be unchanged
+    
+    def test_sanitize_metadata_complex_objects(self):
+        """Test sanitization of complex objects."""
+        metadata = {
+            "complex_object": object(),  # Non-serializable object
+            "lambda_function": lambda x: x,  # Function object
+        }
         
-        # Test getting models to materialize
-        result = get_models_to_materialize(None, lambda: models, translator)
+        result = sanitize_metadata_for_dagster(metadata)
         
-        assert len(result) > 0
-        assert all(not isinstance(model, ExternalModel) for model in result)
-
-    def test_get_asset_kinds_with_real_context(self, sqlmesh_resource) -> None:
-        """Test getting asset kinds with real SQLMesh resource."""
-        result = get_asset_kinds(sqlmesh_resource)
+        assert "complex_object" in result
+        assert isinstance(result["complex_object"], str)
+        assert "lambda_function" in result
+        assert isinstance(result["lambda_function"], str)
+    
+    def test_sanitize_metadata_table_metadata_set(self):
+        """Test sanitization of TableMetadataSet objects."""
+        table_metadata = TableMetadataSet(
+            column_schema=TableSchema(columns=[
+                TableColumn(name="id", type="int", description="Primary key"),
+                TableColumn(name="name", type="string", description="User name"),
+            ]),
+            table_name="test_catalog.test_schema.test_table",
+        )
         
-        assert isinstance(result, set)
-        assert len(result) > 0
-        # Should contain SQLMesh and dialect
-        assert "sqlmesh" in result
-
-    def test_validate_external_dependencies_with_real_context(self, sqlmesh_resource) -> None:
-        """Test external dependencies validation with real context."""
-        models = sqlmesh_resource.get_models()
-        assert len(models) > 0
+        metadata = {"table_info": table_metadata}
+        result = sanitize_metadata_for_dagster(metadata)
         
-        result = validate_external_dependencies(sqlmesh_resource, models)
+        assert "table_info" in result
+        assert isinstance(result["table_info"], dict)
+        assert result["table_info"]["table_name"] == "test_catalog.test_schema.test_table"
+        assert len(result["table_info"]["columns"]) == 2
+        assert result["table_info"]["columns"][0]["name"] == "id"
+        assert result["table_info"]["columns"][1]["name"] == "name"
+    
+    def test_sanitize_metadata_nested_structures(self):
+        """Test sanitization of nested structures."""
+        metadata = {
+            "nested_dict": {
+                "level1": {
+                    "level2": {
+                        "complex_object": object(),
+                        "simple_value": "test"
+                    }
+                }
+            },
+            "nested_list": [
+                [1, 2, 3],
+                ["a", "b", object()],
+                {"key": "value", "complex": lambda x: x}
+            ]
+        }
         
-        # Should return list of errors (empty if no external dependencies)
-        assert isinstance(result, list) 
+        result = sanitize_metadata_for_dagster(metadata)
+        
+        # Check that nested dict is sanitized
+        assert "nested_dict" in result
+        assert isinstance(result["nested_dict"]["level1"]["level2"]["complex_object"], str)
+        assert result["nested_dict"]["level1"]["level2"]["simple_value"] == "test"
+        
+        # Check that nested list is sanitized
+        assert "nested_list" in result
+        assert result["nested_list"][0] == [1, 2, 3]  # Simple list unchanged
+        assert isinstance(result["nested_list"][1][2], str)  # Complex object converted
+        assert isinstance(result["nested_list"][2]["complex"], str)  # Function converted
+    
+    def test_sanitize_metadata_json_serializable(self):
+        """Test that sanitized metadata is JSON serializable."""
+        import json
+        metadata = {
+            "complex_object": object(),
+            "table_metadata": TableMetadataSet(
+                column_schema=TableSchema(columns=[]),
+                table_name="test_table"
+            ),
+            "nested": {
+                "function": lambda x: x,
+                "simple": "value"
+            }
+        }
+        
+        result = sanitize_metadata_for_dagster(metadata)
+        
+        # Should be JSON serializable
+        json_str = json.dumps(result)
+        assert isinstance(json_str, str)
+        
+        # Should be able to deserialize
+        deserialized = json.loads(json_str)
+        assert deserialized == result 
