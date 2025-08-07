@@ -41,6 +41,48 @@ This module provides a complete integration between SQLMesh and Dagster, allowin
 - **Automatic validation** : External dependencies validation
 - **Retry policy** : Centralized retry policy configuration
 
+## SQLMesh Feature Coverage
+
+| SQLMesh Feature                 | Status           | Dagster Integration                         | Notes                                                           |
+| ------------------------------- | ---------------- | ------------------------------------------- | --------------------------------------------------------------- |
+| **Model Types**                 |
+| FULL models                     | ✅ Supported     | Individual assets with full materialization | Complete rebuild on each run                                    |
+| INCREMENTAL models              | ✅ Supported     | Individual assets with incremental logic    | SQLMesh handles incremental logic, no Dagster partition binding |
+| SEED models                     | ✅ Supported     | Individual assets for data loading          | CSV/Parquet file loading                                        |
+| EXTERNAL models                 | ✅ Supported     | External asset mapping                      | Sources from other systems                                      |
+| VIEW models                     | ✅ Supported     | Individual assets as views                  | Virtual tables                                                  |
+| TABLE models                    | ✅ Supported     | Individual assets as tables                 | Materialized tables                                             |
+| **Model Properties**            |
+| Cron scheduling                 | ✅ Supported     | Adaptive schedule creation                  | Automatic cron analysis                                         |
+| Tags                            | ✅ Supported     | Dagster tag mapping                         | `dagster:property:value` convention                             |
+| Audits                          | ✅ Supported     | AssetCheckSpec conversion                   | Automatic audit to check mapping                                |
+| Column descriptions             | ✅ Supported     | Table metadata                              | Rich schema information                                         |
+| Partitioning                    | ✅ Supported     | Metadata extraction                         | SQLMesh-managed partitions                                      |
+| Grain definition                | ✅ Supported     | Metadata extraction                         | Data granularity info                                           |
+| **Execution Features**          |
+| Plan validation                 | ✅ Supported     | Combined plan/run execution                 | Validation before materialization                               |
+| Run execution                   | ✅ Supported     | Materialization orchestration               | Single SQLMesh run per Dagster run                              |
+| Environment management          | ❌ Not supported | External responsibility                     | CLI/CI-CD managed                                               |
+| Breaking changes                | ❌ Not supported | External responsibility                     | CLI/CI-CD managed                                               |
+| **Advanced Features**           |
+| Multi-dialect support           | ✅ Supported     | Dialect metadata                            | PostgreSQL, DuckDB, etc.                                        |
+| Custom macros                   | ✅ Supported     | SQL execution                               | Full SQLMesh macro support                                      |
+| Model dependencies              | ✅ Supported     | Dagster dependency graph                    | Automatic dependency resolution                                 |
+| Audit blocking                  | ✅ Supported     | Non-blocking checks                         | SQLMesh handles blocking logic                                  |
+| **Future Features**             |
+| Non-blocking audits             | 🔄 Planned       | AssetCheckResult for non-blocking audits    | Support for SQLMesh non-blocking audits                         |
+| Dagster → SQLMesh backfill      | 🔄 Planned       | Partition integration                       | Direct Dagster partition control                                |
+| Multi-environment orchestration | ❌ Not supported | Dagster OSS does not support multi-tenancy  | Use separate Dagster clusters per environment                   |
+| **Dagster-Specific Features**   |
+| Dagster Component packaging     | 🔄 Planned       | Standalone Dagster component                | Package as reusable Dagster (yaml DSL) component                |
+| Custom asset groups             | ✅ Supported     | Automatic group assignment                  | Based on model path and tags                                    |
+| Asset selection & filtering     | ✅ Supported     | Selective materialization                   | Materialize specific models or groups                           |
+| Dagster UI integration          | ✅ Supported     | Individual asset visibility                 | Each model visible as separate asset in UI                      |
+| Asset check results             | ✅ Supported     | Audit results as AssetCheckResult           | SQLMesh audits converted to Dagster checks                      |
+| Custom translators              | ✅ Supported     | Extensible translator system                | Custom mapping for external assets and metadata                 |
+| Shared execution optimization   | ✅ Supported     | Single SQLMesh run per Dagster run          | SQLMeshResultsResource for shared state                         |
+| Adaptive scheduling             | ✅ Supported     | Automatic schedule creation                 | Based on SQLMesh cron analysis                                  |
+
 ## Basic Usage
 
 ### **Simple Factory (Recommended)**
