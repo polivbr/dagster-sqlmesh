@@ -1,7 +1,7 @@
 import json
 import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 from dagster import AssetKey, AssetSpec, AssetCheckSpec
 from dagster._core.definitions.metadata import TableMetadataSet
@@ -11,7 +11,6 @@ from .sqlmesh_asset_check_utils import (
     create_all_asset_checks,
     create_asset_checks_from_model,
 )
-from .translator import SQLMeshTranslator
 
 
 def get_downstream_models(

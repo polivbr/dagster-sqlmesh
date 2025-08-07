@@ -39,7 +39,6 @@ def example_custom_resource_with_error_handling():
     # Create assets with error handling
     assets = sqlmesh_assets_factory(
         sqlmesh_resource=sqlmesh_resource,
-        name="custom_sqlmesh_assets",
         group_name="custom_group",
         op_tags={"team": "data", "domain": "analytics"},
         # Removed: retry_policy=RetryPolicy(max_retries=3),
@@ -117,7 +116,6 @@ def example_complete_definitions_with_error_handling():
     # Create assets with error handling
     assets = sqlmesh_assets_factory(
         sqlmesh_resource=sqlmesh_resource,
-        name="error_handling_assets",
         group_name="error_handling",
         op_tags={"team": "data", "error_handling": "enabled"},
         # Removed: retry_policy=RetryPolicy(max_retries=2),
@@ -141,7 +139,6 @@ def example_all_in_one_with_error_handling():
         project_dir="tests/sqlmesh_project",
         gateway="duckdb",
         environment="dev",
-        name="error_handling_definitions",
         group_name="error_handling",
         op_tags={"team": "data", "error_handling": "enabled"},
         # Removed: retry_policy=RetryPolicy(max_retries=2),

@@ -2,22 +2,20 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
-from typing import Annotated, Any, Callable, Optional, Union
+from typing import Annotated, Any, Callable, Optional
 
-from dagster import Resolvable, RetryPolicy, Backoff, AssetKey
+from dagster import Resolvable, AssetKey
 from dagster._core.definitions.definitions_class import Definitions
 from dagster._core.execution.context.asset_execution_context import AssetExecutionContext
 from dagster._utils.cached_method import cached_method
 from dagster import ComponentTree
 from dagster.components import (
     Component,
-    ComponentLoadContext,
-    ResolutionContext,
     Resolver,
     scaffold_with,
 )
 from dagster.components.resolved.core_models import OpSpec
-from dagster.components.utils.translation import TranslationFn, TranslationFnResolver
+from dagster.components.utils.translation import TranslationFn
 
 from dg_sqlmesh import sqlmesh_definitions_factory, SQLMeshResource, SQLMeshTranslator
 from .scaffolder import SQLMeshProjectComponentScaffolder
@@ -250,7 +248,6 @@ class SQLMeshProjectComponent(Component, Resolvable):
             environment=self.sqlmesh_config.environment,
             concurrency_limit=self.concurrency_jobs_limit,
             translator=self.translator,
-            name="sqlmesh_assets",  # Fixed default name
             group_name=self.default_group_name,
             op_tags=self.op_tags,
             schedule_name=self.schedule_name,

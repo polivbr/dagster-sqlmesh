@@ -98,7 +98,6 @@ defs = sqlmesh_definitions_factory(
     gateway="postgres",
     external_asset_mapping="target/main/{node.name}",  # 🆕 NEW: Jinja2 template for external assets
     concurrency_limit=1,
-    name="sqlmesh_multi_asset",
     group_name="sqlmesh",
     op_tags={"team": "data", "env": "prod"},
     retry_policy=RetryPolicy(max_retries=1, delay=30.0, backoff=Backoff.EXPONENTIAL),
@@ -132,7 +131,6 @@ defs = sqlmesh_definitions_factory(
     translator=SlingToSqlmeshTranslator(),  # Custom translator takes priority
     external_asset_mapping="target/main/{node.name}",  # Ignored when translator is provided
     concurrency_limit=1,
-    name="sqlmesh_multi_asset",
     group_name="sqlmesh",
     op_tags={"team": "data", "env": "prod"},
     retry_policy=RetryPolicy(max_retries=1, delay=30.0, backoff=Backoff.EXPONENTIAL),
@@ -159,7 +157,6 @@ sqlmesh_resource = SQLMeshResource(
 # SQLMesh assets configuration
 sqlmesh_assets = sqlmesh_assets_factory(
     sqlmesh_resource=sqlmesh_resource,
-    name="sqlmesh_multi_asset",
     group_name="sqlmesh",
     op_tags={"team": "data", "env": "prod"},
     retry_policy=RetryPolicy(max_retries=1, delay=30.0, backoff=Backoff.EXPONENTIAL),

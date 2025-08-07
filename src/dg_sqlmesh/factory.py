@@ -248,7 +248,6 @@ def sqlmesh_definitions_factory(
         external_asset_mapping: Jinja2 template for mapping external assets to Dagster asset keys
             Example: "target/main/{node.name}" or "sling/{node.database}/{node.schema}/{node.name}"
             Variables available: {node.database}, {node.schema}, {node.name}, {node.fqn}
-        name: Multi-asset name
         group_name: Default group for assets
         op_tags: Operation tags
         owners: Asset owners
