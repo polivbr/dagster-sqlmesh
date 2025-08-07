@@ -496,6 +496,56 @@ This separation ensures:
 - ✅ **Reliable orchestration** : Dagster only runs approved models
 - ✅ **CI/CD friendly** : Standard SQLMesh workflow for deployments
 
+## Dagster Component (YAML Configuration)
+
+The module also provides a Dagster component for declarative YAML configuration:
+
+### **Component Usage**
+
+```yaml
+# defs.yaml
+type: dg_sqlmesh.SQLMeshProjectComponent
+
+attributes:
+  project: "{{ project_root }}/sqlmesh_project"
+  gateway: "postgres"
+  environment: "prod"
+  concurrency_limit: 1
+  name: "sqlmesh_assets"
+  group_name: "sqlmesh"
+  op_tags:
+    team: "data"
+    env: "prod"
+  retry_policy:
+    max_retries: 1
+    delay: 30.0
+    backoff: "exponential"
+  schedule_name: "sqlmesh_adaptive_schedule"
+  enable_schedule: true
+```
+
+### **Scaffolding**
+
+Create a new SQLMesh project with the component:
+
+```bash
+# Create a new SQLMesh project
+dagster scaffold component dg_sqlmesh.SQLMeshProjectComponent --init
+
+# Or scaffold with an existing project
+dagster scaffold component dg_sqlmesh.SQLMeshProjectComponent --project-path path/to/your/sqlmesh_project
+```
+
+### **Component Features**
+
+- **Declarative Configuration**: Configure SQLMesh integration through YAML
+- **Automatic Asset Creation**: SQLMesh models become Dagster assets automatically
+- **Audit Integration**: SQLMesh audits become Dagster asset checks
+- **Adaptive Scheduling**: Automatic schedule creation based on SQLMesh crons
+- **Scaffolding**: Generate new SQLMesh projects with `dagster scaffold`
+
+For more details, see the [component documentation](examples/components/sqlmesh_project/README.md).
+
 ## Installation
 
 ```bash

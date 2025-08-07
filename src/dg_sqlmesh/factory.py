@@ -85,6 +85,7 @@ def sqlmesh_assets_factory(
             # Force no retries to prevent infinite loops with SQLMesh audit failures
             tags={
                 **(current_asset_spec.tags or {}),
+                "sqlmesh": "",  # Tag to identify SQLMesh assets
                 "dagster/max_retries": "0",
                 "dagster/retry_on_asset_or_op_failure": "false",
             },

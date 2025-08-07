@@ -1,0 +1,44 @@
+# Example SQLMesh component configuration
+# This file shows how to configure the SQLMesh component in Dagster
+
+type: dg_sqlmesh.SQLMeshProjectComponent
+
+attributes:
+  project: "{{ project_root }}/sqlmesh_project"
+  gateway: "postgres"
+  environment: "prod"
+  concurrency_limit: 1
+  name: "sqlmesh_assets"
+  group_name: "sqlmesh"
+  op_tags:
+    team: "data"
+    env: "prod"
+  retry_policy:
+    max_retries: 1
+    delay: 30.0
+    backoff: "exponential"
+  schedule_name: "sqlmesh_adaptive_schedule"
+  enable_schedule: true
+# Alternative configuration with more detailed settings
+# type: dg_sqlmesh.SQLMeshProjectComponent
+#
+# attributes:
+#   project:
+#     project_dir: "{{ project_root }}/sqlmesh_project"
+#     gateway: "postgres"
+#     environment: "prod"
+#     concurrency_limit: 1
+#   gateway: "postgres"
+#   environment: "prod"
+#   concurrency_limit: 1
+#   name: "sqlmesh_assets"
+#   group_name: "sqlmesh"
+#   op_tags:
+#     team: "data"
+#     env: "prod"
+#   retry_policy:
+#     max_retries: 1
+#     delay: 30.0
+#     backoff: "exponential"
+#   schedule_name: "sqlmesh_adaptive_schedule"
+#   enable_schedule: true

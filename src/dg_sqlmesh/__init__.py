@@ -17,6 +17,13 @@ from .factory import (
 from .resource import SQLMeshResource
 from .translator import SQLMeshTranslator
 
+# Import component for YAML configuration
+try:
+    from .components.sqlmesh_project import SQLMeshProjectComponent, SQLMeshProjectComponentScaffolder
+    COMPONENT_AVAILABLE = True
+except ImportError:
+    COMPONENT_AVAILABLE = False
+
 __all__ = [
     "__version__",
     "__author__",
@@ -26,3 +33,10 @@ __all__ = [
     "SQLMeshResource",
     "SQLMeshTranslator",
 ]
+
+# Add component exports if available
+if COMPONENT_AVAILABLE:
+    __all__.extend([
+        "SQLMeshProjectComponent",
+        "SQLMeshProjectComponentScaffolder",
+    ])
