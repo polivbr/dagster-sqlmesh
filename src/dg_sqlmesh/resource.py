@@ -22,7 +22,6 @@ from .sqlmesh_asset_utils import (
     get_model_partitions_from_plan,
     analyze_sqlmesh_crons_using_api,
     get_model_from_asset_key,
-    sanitize_metadata_for_dagster,
 )
 from .sqlmesh_event_console import SQLMeshEventCaptureConsole
 from sqlmesh.utils.errors import (
@@ -363,13 +362,11 @@ class SQLMeshResource(ConfigurableResource):
                 "audit_args": serialized_args,
                 "error_type": "audit_failure",
             }
-            sanitized_metadata = sanitize_metadata_for_dagster(metadata)
-            
             return AssetCheckResult(
                 passed=False,  # Failed audit
                 asset_key=asset_key,
                 check_name=audit_name,
-                metadata=sanitized_metadata,
+                metadata=metadata,
             )
         except Exception as audit_e:
             if self._logger:
@@ -399,13 +396,11 @@ class SQLMeshResource(ConfigurableResource):
             "audit_args": {},
             "error_type": error_type,
         }
-        sanitized_metadata = sanitize_metadata_for_dagster(metadata)
-        
         return AssetCheckResult(
             passed=False,
             asset_key=asset_key,
             check_name="model_execution_error",
-            metadata=sanitized_metadata,
+            metadata=metadata,
         )
 
     def _process_failed_models_events(self) -> list[AssetCheckResult]:
@@ -579,14 +574,12 @@ class SQLMeshResource(ConfigurableResource):
                 "audit_args": serialized_args,
                 "error_type": "audit_success",
             }
-            sanitized_metadata = sanitize_metadata_for_dagster(metadata)
-            
             successful_audit_results.append(
                 AssetCheckResult(
                     passed=passed,
                     asset_key=asset_key,
                     check_name=audit_details["name"],
-                    metadata=sanitized_metadata,
+                    metadata=metadata,
                 )
             )
 
@@ -655,15 +648,12 @@ class SQLMeshResource(ConfigurableResource):
                         # Ensure partition metadata is compatible with Dagster 1.11.4
                         metadata["dagster-sqlmesh/partitions"] = partition_metadata
 
-                    # Sanitize metadata for Dagster 1.11.4 compatibility
-                    sanitized_metadata = sanitize_metadata_for_dagster(metadata)
-
                     # Get check results for this asset
                     check_results = asset_check_results_by_key.get(asset_key, [])
 
                     yield MaterializeResult(
                         asset_key=asset_key,
-                        metadata=sanitized_metadata,
+                        metadata=metadata,
                         data_version=DataVersion(str(snapshot_version))
                         if snapshot_version
                         else None,

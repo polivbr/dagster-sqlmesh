@@ -6,7 +6,7 @@ description = "Seamless integration between Dagster and SQLMesh for modern data 
 readme = "README.md"
 license = "Apache-2.0"
 authors = [
-    {name = "Thomas Trividic", email = "thomas.trividic@gmail.com"}
+    {name = "Thomas Trividic", email = "thomastrividic@gmail.com"}
 ]
 keywords = ["dagster", "sqlmesh", "data-engineering", "etl", "data-pipeline"]
 classifiers = [
@@ -20,7 +20,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "dagster==1.11.4",
+    "dagster==1.11.5",
     "pandas>=2.2.1",
     "sqlmesh[web]>=0.206.1",
     "anyio>=4.9.0",

@@ -166,63 +166,7 @@ def get_asset_tags(translator, context, model) -> dict:
     return translator.get_tags(context, model)
 
 
-def sanitize_metadata_for_dagster(metadata: dict) -> dict:
-    """
-    Converts complex metadata objects to simple types compatible with Dagster 1.11.4.
-    
-    This function handles the ObjectMetadataValue issue by ensuring all metadata
-    values are JSON-serializable and don't contain complex objects.
-    """
-    sanitized = {}
-    
-    for key, value in metadata.items():
-        if value is None:
-            sanitized[key] = None
-        elif isinstance(value, (str, int, float, bool)):
-            sanitized[key] = value
-        elif isinstance(value, (list, tuple)):
-            # Recursively sanitize list items
-            sanitized[key] = []
-            for item in value:
-                if isinstance(item, dict):
-                    sanitized[key].append(sanitize_metadata_for_dagster(item))
-                elif isinstance(item, (list, tuple)):
-                    # Handle nested lists
-                    sanitized[key].append(sanitize_metadata_for_dagster({"nested": item})["nested"])
-                else:
-                    # Try to keep simple types, convert complex ones
-                    try:
-                        json.dumps(item)
-                        sanitized[key].append(item)
-                    except (TypeError, ValueError):
-                        sanitized[key].append(str(item))
-        elif isinstance(value, dict):
-            # Recursively sanitize dict values
-            sanitized[key] = sanitize_metadata_for_dagster(value)
-        elif isinstance(value, TableMetadataSet):
-            # Convert TableMetadataSet to simple dict
-            sanitized[key] = {
-                "table_name": value.table_name,
-                "columns": [
-                    {
-                        "name": col.name,
-                        "type": col.type,
-                        "description": col.description
-                    }
-                    for col in value.column_schema.columns
-                ]
-            }
-        else:
-            # Convert any other object to string representation
-            try:
-                # Try JSON serialization first
-                json.dumps(value)
-                sanitized[key] = value
-            except (TypeError, ValueError):
-                # Fallback to string representation
-                sanitized[key] = str(value)
-    
-    return sanitized
+# Note: Dagster now supports richer metadata values; no custom sanitization required.
 
 
 def get_asset_metadata(translator, model, code_version, extra_keys, owners) -> dict:
@@ -253,8 +197,8 @@ def get_asset_metadata(translator, model, code_version, extra_keys, owners) -> d
     if owners:
         metadata["owners"] = owners
 
-    # Sanitize metadata for Dagster 1.11.4 compatibility
-    return sanitize_metadata_for_dagster(metadata)
+    # Return metadata as-is; Dagster handles serialization of supported types
+    return metadata
 
 
 def format_partition_metadata(model_partitions: dict) -> dict:
