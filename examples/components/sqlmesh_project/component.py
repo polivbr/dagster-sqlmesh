@@ -4,7 +4,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Annotated, Any, Optional, Union
 
-from dagster import Resolvable, RetryPolicy, Backoff
+from dagster import Resolvable
 from dagster._core.definitions.definitions_class import Definitions
 from dagster._core.execution.context.asset_execution_context import AssetExecutionContext
 from dagster._utils.cached_method import cached_method
@@ -136,19 +136,6 @@ class SQLMeshProjectComponent(Component, Resolvable):
             examples=[{"team": "data", "env": "prod"}],
         ),
     ] = None
-    retry_policy: Annotated[
-        Optional[RetryPolicy],
-        Resolver.default(
-            description="Retry policy for the SQLMesh assets.",
-            examples=[
-                {
-                    "max_retries": 1,
-                    "delay": 30.0,
-                    "backoff": "exponential",
-                }
-            ],
-        ),
-    ] = None
     schedule_name: Annotated[
         str,
         Resolver.default(
@@ -190,15 +177,6 @@ class SQLMeshProjectComponent(Component, Resolvable):
         )
 
     def build_defs(self, context: ComponentLoadContext) -> Definitions:
-        # Create retry policy if specified
-        retry_policy = None
-        if self.retry_policy:
-            retry_policy = RetryPolicy(
-                max_retries=self.retry_policy.max_retries,
-                delay=self.retry_policy.delay,
-                backoff=Backoff.EXPONENTIAL if self.retry_policy.backoff == "exponential" else Backoff.LINEAR,
-            )
-
         # Create definitions using our factory
         defs = sqlmesh_definitions_factory(
             project_dir=self.project,
@@ -209,7 +187,6 @@ class SQLMeshProjectComponent(Component, Resolvable):
             name=self.name,
             group_name=self.group_name,
             op_tags=self.op_tags,
-            retry_policy=retry_policy,
             schedule_name=self.schedule_name,
             enable_schedule=self.enable_schedule,
         )

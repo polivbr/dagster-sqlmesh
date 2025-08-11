@@ -23,7 +23,6 @@ from dg_sqlmesh.sqlmesh_asset_utils import (
     create_all_asset_specs,
     create_asset_specs,
     get_extra_keys,
-    create_asset_checks,
 )
 from dg_sqlmesh.sqlmesh_asset_check_utils import safe_extract_audit_query
 from dg_sqlmesh.translator import SQLMeshTranslator
@@ -473,23 +472,6 @@ class TestAssetUtils:
         # Should contain common SQLMesh model attributes
         assert "kind" in result
         assert "cron" in result
-
-    def test_create_asset_checks(self) -> None:
-        """Test creating asset checks."""
-        # Mock SQLMesh resource
-        sqlmesh_resource = Mock()
-        model1 = Mock()
-        model1.audits_with_args = []
-        model2 = Mock()
-        model2.audits_with_args = []
-        sqlmesh_resource.get_models.return_value = [model1, model2]
-        sqlmesh_resource.translator = Mock()
-        sqlmesh_resource.translator.get_asset_key.return_value = Mock()
-        
-        result = create_asset_checks(sqlmesh_resource)
-        
-        assert isinstance(result, list)
-        # Should return list of AssetCheckSpec objects
 
 
 class TestAssetSpecs:

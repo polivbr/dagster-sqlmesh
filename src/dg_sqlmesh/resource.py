@@ -388,25 +388,6 @@ class SQLMeshResource(ConfigurableResource):
             metadata=metadata,
         )
 
-    def _process_failed_models_events(self) -> list[AssetCheckResult]:
-        """
-        Process failed models events and convert them to AssetCheckResult.
-        """
-        failed_models_events = []
-        asset_check_results = []
-
-        for event in failed_models_events:
-            errors = event.get("errors", [])
-            for error in errors:
-                try:
-                    model_name, model, asset_key = self._extract_model_info(error)
-                    self._process_single_error(
-                        error, model_name, asset_key, asset_check_results
-                    )
-                except Exception as e:
-                    self._log_failed_error_processing(e)
-        return asset_check_results
-
     def _process_notifier_audit_failures(self) -> list[AssetCheckResult]:
         """
         Convert notifier-captured audit failures into AssetCheckResult.

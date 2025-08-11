@@ -14,13 +14,8 @@ components:
       op_tags:
         team: "data"
         env: "prod"
-      retry_policy:
-        max_retries: 1
-        delay: 30.0
-        backoff: "exponential"
       schedule_name: "sqlmesh_adaptive_schedule"
       enable_schedule: true
-
 # Alternative configuration with more detailed settings
 # components:
 #   sqlmesh_project:
@@ -39,9 +34,5 @@ components:
 #       op_tags:
 #         team: "data"
 #         env: "prod"
-#       retry_policy:
-#         max_retries: 1
-#         delay: 30.0
-#         backoff: "exponential"
 #       schedule_name: "sqlmesh_adaptive_schedule"
 #       enable_schedule: true

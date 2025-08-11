@@ -309,8 +309,6 @@ def handle_audit_failures(
                 passed=False,
                 metadata={
                     "audit_message": audit_message,
-                    "audits_passed": 0,
-                    "audits_failed": len(current_model_checks),
                     "sqlmesh_audit_name": check.name,  # Nom de l'audit SQLMesh
                     "sqlmesh_model": current_model_name,  # Nom du modèle SQLMesh
                     "error_details": f"SQLMesh audit '{check.name}' failed: {audit_message}",
@@ -428,10 +426,6 @@ def handle_successful_execution(
                         audit_name=check.name,
                         logger=getattr(context, "log", None),
                     )
-                    pass_meta.update({
-                        "audits_passed": 1,
-                        "audits_failed": 0,
-                    })
                     check_results.append(
                         AssetCheckResult(
                             check_name=check.name,
@@ -460,7 +454,6 @@ def create_materialize_result(
     current_model_checks: List[Any],
     model_was_skipped: bool,
     model_has_audit_failures: bool,
-    failed_check_results: List[AssetCheckResult],
     non_blocking_audit_warnings: List[Dict],
     notifier_audit_failures: List[Dict],
     affected_downstream_asset_keys: List[AssetKey],
@@ -512,42 +505,50 @@ def create_materialize_result(
                     (f for f in failed_for_model if f.get("audit") == check.name),
                     {},
                 )
+                metadata = build_audit_check_metadata(
+                    context=getattr(context.resources, "sqlmesh").context if hasattr(context, "resources") and hasattr(context.resources, "sqlmesh") else None,  # type: ignore[attr-defined]
+                    model_or_name=current_model_name,
+                    audit_name=check.name,
+                    notifier_record=fail,
+                    logger=getattr(context, "log", None),
+                )
                 check_results.append(
                     AssetCheckResult(
                         check_name=check.name,
                         passed=False,
                         severity=AssetCheckSeverity.ERROR,
-                        metadata={
-                            "audit_message": "Model materialization succeeded but audits failed",
-                            "sqlmesh_audit_name": check.name,
-                            "sqlmesh_model": current_model_name,
-                            "error_details": f"SQLMesh audit '{check.name}' failed",
-                            "audit_blocking": True,
-                            "audit_query": fail.get("sql", "N/A"),
-                            "audit_args": json.dumps(fail.get("args", {}), default=str),
-                        },
+                        metadata=metadata,
                     )
                 )
             elif check.name in non_blocking_names:
+                # Build a synthetic notifier record to guarantee blocking=False in metadata
+                fail_nb = next(
+                    (
+                        f
+                        for f in failed_for_model
+                        if not f.get("blocking") and f.get("audit") == check.name
+                    ),
+                    {},
+                )
+                nb_notifier_record = {
+                    "model": current_model_name,
+                    "audit": check.name,
+                    "blocking": False,
+                    **fail_nb,
+                }
+                metadata = build_audit_check_metadata(
+                    context=getattr(context.resources, "sqlmesh").context if hasattr(context, "resources") and hasattr(context.resources, "sqlmesh") else None,  # type: ignore[attr-defined]
+                    model_or_name=current_model_name,
+                    audit_name=check.name,
+                    notifier_record=nb_notifier_record,
+                    logger=getattr(context, "log", None),
+                )
                 check_results.append(
                     AssetCheckResult(
                         check_name=check.name,
                         passed=False,
                         severity=AssetCheckSeverity.WARN,
-                        metadata={
-                            "audit_message": "Non-blocking audit failed",
-                        },
-                    )
-                )
-            else:
-                check_results.append(
-                    AssetCheckResult(
-                        check_name=check.name,
-                        passed=True,
-                        metadata={
-                            "audits_passed": 1,
-                            "audits_failed": 0,
-                        },
+                        metadata=metadata,
                     )
                 )
 

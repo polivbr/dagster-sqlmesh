@@ -13,10 +13,6 @@ attributes:
   op_tags:
     team: "data"
     env: "prod"
-  retry_policy:
-    max_retries: 1
-    delay: 30.0
-    backoff: "exponential"
   schedule_name: "sqlmesh_adaptive_schedule"
   enable_schedule: true
   external_asset_mapping: "target/main/{node.name}"
@@ -37,9 +33,5 @@ attributes:
 #   op_tags:
 #     team: "data"
 #     env: "prod"
-#   retry_policy:
-#     max_retries: 1
-#     delay: 30.0
-#     backoff: "exponential"
 #   schedule_name: "sqlmesh_adaptive_schedule"
 #   enable_schedule: true

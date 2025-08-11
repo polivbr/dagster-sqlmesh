@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import typing as t
 
-from sqlglot import exp
 from sqlmesh.core.notification_target import (
     BaseNotificationTarget,
     NotificationStatus,
@@ -12,15 +11,8 @@ from sqlmesh.utils.errors import AuditError
 from pydantic import PrivateAttr
 from pydantic import Field
 from .sqlmesh_asset_check_utils import (
-    is_audit_blocking_from_error,
     extract_failed_audit_details,
 )
-
-try:  # SQLMesh exposes Model in sqlmesh.core.model
-    from sqlmesh.core.model import Model  # type: ignore
-except Exception:  # pragma: no cover - defensive import
-    Model = t.Any  # type: ignore
-
 
 class CapturingNotifier(BaseNotificationTarget):
     """

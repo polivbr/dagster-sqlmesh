@@ -540,21 +540,3 @@ def get_extra_keys() -> list[str]:
         "partitioned_by",
         "clustered_by",
     ]
-
-
-def create_asset_checks(sqlmesh_resource) -> list[AssetCheckSpec]:
-    """
-    Creates all AssetCheckSpec for all SQLMesh models.
-
-    Args:
-        sqlmesh_resource: SQLMeshResource
-
-    Returns:
-        List of all AssetCheckSpec
-    """
-    models = [
-        model
-        for model in sqlmesh_resource.get_models()
-        if not isinstance(model, ExternalModel)
-    ]
-    return create_all_asset_checks(models, sqlmesh_resource.translator)

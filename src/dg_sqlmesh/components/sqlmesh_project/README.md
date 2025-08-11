@@ -45,10 +45,6 @@ components:
       op_tags:
         team: "data"
         env: "prod"
-      retry_policy:
-        max_retries: 1
-        delay: 30.0
-        backoff: "exponential"
       schedule_name: "sqlmesh_adaptive_schedule"
       enable_schedule: true
 ```
@@ -56,6 +52,7 @@ components:
 ### 3. Use in Your Dagster Project
 
 The component will automatically create:
+
 - SQLMesh assets from your models
 - Asset checks from your audits
 - Adaptive schedule based on your crons
@@ -75,18 +72,10 @@ The component will automatically create:
 - **name**: Name for the assets (default: "sqlmesh_assets")
 - **group_name**: Group name for assets (default: "sqlmesh")
 - **op_tags**: Tags to apply to assets
-- **retry_policy**: Retry policy configuration
 - **schedule_name**: Name for the adaptive schedule
 - **enable_schedule**: Whether to enable scheduling (default: false)
 
-### Retry Policy Configuration
-
-```yaml
-retry_policy:
-  max_retries: 1
-  delay: 30.0
-  backoff: "exponential"  # or "linear"
-```
+Note: Retries are intentionally disabled via Dagster tags per ADR-0004 (no explicit retry policy in this component).
 
 ### Project Configuration
 
@@ -133,7 +122,7 @@ components:
       project: "{{ project_root }}/staging_sqlmesh_project"
       environment: "staging"
       group_name: "staging_sqlmesh"
-      
+
   production_sqlmesh:
     module: dg_sqlmesh.SQLMeshProjectComponent
     config:
@@ -161,6 +150,7 @@ sqlmesh_project/
 ## Development Workflow
 
 1. **Development**: Use SQLMesh CLI for model development
+
    ```bash
    sqlmesh plan dev
    sqlmesh apply dev
@@ -196,6 +186,7 @@ dagster:
 If you're currently using `sqlmesh_definitions_factory` directly, you can migrate to the component:
 
 ### Before (Python)
+
 ```python
 from dg_sqlmesh import sqlmesh_definitions_factory
 
@@ -207,6 +198,7 @@ defs = sqlmesh_definitions_factory(
 ```
 
 ### After (YAML)
+
 ```yaml
 components:
   sqlmesh_project:
