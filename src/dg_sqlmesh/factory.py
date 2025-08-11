@@ -136,7 +136,7 @@ def sqlmesh_assets_factory(
                 skipped_models_events,
             )
 
-            # Créer le MaterializeResult approprié
+            # Créer le MaterializeResult approprié (API à 9 paramètres)
             return create_materialize_result(
                 context,
                 current_model_name,
@@ -144,7 +144,6 @@ def sqlmesh_assets_factory(
                 current_model_checks,
                 model_was_skipped,
                 model_has_audit_failures,
-                failed_check_results,
                 non_blocking_audit_warnings,
                 notifier_audit_failures,
                 affected_downstream_asset_keys,
