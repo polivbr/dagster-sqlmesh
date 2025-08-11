@@ -116,8 +116,15 @@ def sqlmesh_assets_factory(
                 )
 
             # Récupérer les résultats pour ce run
-            failed_check_results, skipped_models_events, evaluation_events = (
-                process_sqlmesh_results(context, sqlmesh_results, run_id)
+            (
+                failed_check_results,
+                skipped_models_events,
+                non_blocking_audit_warnings,
+                notifier_audit_failures,
+                affected_downstream_asset_keys,
+            ) = process_sqlmesh_results(context, sqlmesh_results, run_id)
+            context.log.info(
+                f"🔎 Retrieved results: failed={len(failed_check_results)}, skipped={len(skipped_models_events)}, nb_warn={len(non_blocking_audit_warnings)}, notifier_failures={len(notifier_audit_failures)}"
             )
 
             # Vérifier le statut de notre modèle spécifique
@@ -138,7 +145,9 @@ def sqlmesh_assets_factory(
                 model_was_skipped,
                 model_has_audit_failures,
                 failed_check_results,
-                evaluation_events,
+                non_blocking_audit_warnings,
+                notifier_audit_failures,
+                affected_downstream_asset_keys,
             )
 
         # Renommer pour éviter les collisions
