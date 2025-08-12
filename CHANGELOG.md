@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2025-08-12
+
+### Added
+
+- SQLMesh notifier integration with custom in-memory target `CapturingNotifier`
+  - Structured capture of audit failures (blocking and non-blocking)
+  - Run/apply lifecycle events (start/end/failure)
+- ADR-0013: SQLMesh notifier adoption and rationale
+
+### Changed
+
+- Asset check metadata standardized via `build_audit_check_metadata(...)` for pass/fail
+- Downstream short-circuiting when upstream blocking audits fail to reduce run time
+
+### Removed
+
+- Legacy custom console and all related event-processing code
+- YAML `retry_policy` exposure in examples and component specs (kept disabled per ADR-0004)
+
+### Documentation
+
+- Updated component docs and examples to remove retry policy and reference ADR-0004
+- Added notifier notes and usage details
+
 ## [1.3.0] - 2025-01-27
 
 ### Added
