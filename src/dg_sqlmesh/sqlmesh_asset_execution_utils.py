@@ -77,10 +77,10 @@ def _init_execution_event_buffers(context: AssetExecutionContext) -> tuple[List[
 
 
 def _get_notifier_failures(sqlmesh: SQLMeshResource) -> List[Dict]:
-    """Safely retrieve notifier audit failures; return empty list on error."""
+    """Safely retrieve notifier audit failures via notifier service; return empty list on error."""
     try:
-        notifier = sqlmesh._get_or_create_notifier()
-        return notifier.get_audit_failures()
+        from .notifier_service import get_audit_failures
+        return get_audit_failures()
     except Exception:
         return []
 

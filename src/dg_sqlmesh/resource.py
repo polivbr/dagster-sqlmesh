@@ -23,8 +23,18 @@ from .sqlmesh_asset_utils import (
     analyze_sqlmesh_crons_using_api,
     get_model_from_asset_key,
 )
-from .notifier import CapturingNotifier
-from .sqlmesh_asset_check_utils import extract_failed_audit_details
+from .notifier_service import (
+    get_or_create_notifier,
+    register_notifier_in_context,
+)
+from .sqlmesh_asset_check_utils import (
+    extract_failed_audit_details,
+    deduplicate_asset_check_results,
+    serialize_audit_args,
+    create_failed_audit_check_result,
+    create_general_error_check_result,
+    convert_notifier_failures_to_asset_check_results,
+)
 from sqlmesh.utils.errors import (
     SQLMeshError,
     PlanError,
@@ -110,14 +120,9 @@ class SQLMeshResource(ConfigurableResource):
         return logging.getLogger(__name__)
 
     @classmethod
-    def _get_or_create_notifier(cls) -> CapturingNotifier:
-        """Creates or returns a singleton CapturingNotifier and registers it in SQLMesh Context."""
-        if not hasattr(cls, "_notifier_instance"):
-            cls._notifier_instance = None
-
-        if cls._notifier_instance is None:
-            cls._notifier_instance = CapturingNotifier()
-        return cls._notifier_instance
+    def _get_or_create_notifier(cls):
+        """Deprecated internal accessor kept for backward compatibility; delegates to service."""
+        return get_or_create_notifier()
 
     @property
     def context(self) -> Context:
@@ -129,16 +134,8 @@ class SQLMeshResource(ConfigurableResource):
                 paths=self.project_dir,
                 gateway=self.gateway,
             )
-            # Register our notifier target at Context init
-            notifier = self._get_or_create_notifier()
-            try:
-                self._context_cache.notification_targets.append(notifier)
-                # internal method in SQLMesh to re-register
-                if hasattr(self._context_cache, "_register_notification_targets"):
-                    self._context_cache._register_notification_targets()  # type: ignore[attr-defined]
-            except Exception:
-                # If registration API changes, avoid breaking execution
-                pass
+            # Register our notifier target at Context init via service (idempotent)
+            register_notifier_in_context(self._context_cache)
         return self._context_cache
 
     @property
@@ -178,11 +175,8 @@ class SQLMeshResource(ConfigurableResource):
         return analyze_sqlmesh_crons_using_api(self.context)
 
     def _serialize_audit_args(self, audit_args):
-        """Serialize audit arguments to JSON-compatible format"""
-        try:
-            return json.dumps(audit_args, default=str)
-        except Exception:
-            return "{}"
+        """Deprecated: use sqlmesh_asset_check_utils.serialize_audit_args"""
+        return serialize_audit_args(audit_args)
 
     def _deduplicate_asset_check_results(
         self, asset_check_results: list[AssetCheckResult]
@@ -322,72 +316,25 @@ class SQLMeshResource(ConfigurableResource):
     def _create_failed_audit_check_result(
         self, audit_error, model_name, asset_key
     ) -> AssetCheckResult | None:
-        """
-        Create AssetCheckResult for a failed audit.
-        Returns None if audit details cannot be extracted (just logs the error).
-        """
-        try:
-            audit_sql = audit_error.sql()
-            audit_name = getattr(audit_error, "audit_name", "unknown")
-            audit_args = getattr(audit_error, "audit_args", {})
-            audit_message = str(audit_error)
-            audit_blocking = getattr(audit_error, "blocking", False)
-            serialized_args = self._serialize_audit_args(audit_args)
-
-            # Log failed audit
-            if self._logger:
-                self._logger.warning(
-                    f"❌ AUDIT FAILED for model '{model_name}': {audit_name} - {audit_message}"
-                )
-
-            # Sanitize metadata for Dagster 1.11.4 compatibility
-            metadata = {
-                "sqlmesh_model_name": model_name,
-                "audit_query": audit_sql,
-                "audit_blocking": audit_blocking,
-                "audit_message": audit_message,
-                "audit_args": serialized_args,
-                "error_type": "audit_failure",
-            }
-            return AssetCheckResult(
-                passed=False,  # Failed audit
-                asset_key=asset_key,
-                check_name=audit_name,
-                metadata=metadata,
-            )
-        except Exception as audit_e:
-            if self._logger:
-                self._logger.warning(
-                    f"Failed to extract audit details for {model_name}: {audit_e}"
-                )
-            return None
+        """Deprecated: use sqlmesh_asset_check_utils.create_failed_audit_check_result"""
+        return create_failed_audit_check_result(
+            audit_error=audit_error,
+            model_name=model_name,
+            asset_key=asset_key,
+            logger=self._logger,
+        )
 
     def _create_general_error_check_result(
         self, error, model_name, asset_key, error_type: str, message: str
     ) -> AssetCheckResult:
-        """
-        Create AssetCheckResult for general errors (non-audit).
-        """
-        # Log general error
-        if self._logger:
-            self._logger.warning(
-                f"MODEL ERROR for model '{model_name}': {error_type} - {message}"
-            )
-
-        # Sanitize metadata for Dagster 1.11.4 compatibility
-        metadata = {
-            "sqlmesh_model_name": model_name,
-            "audit_query": "N/A",
-            "audit_blocking": False,
-            "audit_message": message,
-            "audit_args": {},
-            "error_type": error_type,
-        }
-        return AssetCheckResult(
-            passed=False,
+        """Deprecated: use sqlmesh_asset_check_utils.create_general_error_check_result"""
+        return create_general_error_check_result(
+            error=error,
+            model_name=model_name,
             asset_key=asset_key,
-            check_name="model_execution_error",
-            metadata=metadata,
+            error_type=error_type,
+            message=message,
+            logger=self._logger,
         )
 
     def _process_notifier_audit_failures(self) -> list[AssetCheckResult]:
@@ -395,66 +342,18 @@ class SQLMeshResource(ConfigurableResource):
         Convert notifier-captured audit failures into AssetCheckResult.
         Honors blocking flag to set severity and downstream blocking.
         """
-        results: list[AssetCheckResult] = []
         try:
-            notifier = self._get_or_create_notifier()
-            failures = getattr(notifier, "get_audit_failures", lambda: [])()
+            from .notifier_service import get_audit_failures
+            failures = get_audit_failures()
         except Exception:
             failures = []
 
-        for fail in failures:
-            try:
-                # Normalize via shared util when possible
-                if isinstance(fail, dict) and {"audit", "model", "sql", "blocking"}.issubset(
-                    fail.keys()
-                ):
-                    audit_name = fail.get("audit")
-                    model_name = fail.get("model")
-                    sql_text = fail.get("sql", "N/A")
-                    blocking = bool(fail.get("blocking", True))
-                    args = fail.get("args", {})
-                    count = int(fail.get("count", 0) or 0)
-                else:
-                    # Fallback path if shape changes
-                    details = extract_failed_audit_details(fail, logger=self._logger)
-                    audit_name = details["name"]
-                    model_name = details["model_name"]
-                    sql_text = details["sql"]
-                    blocking = details["blocking"]
-                    args = details["args"]
-                    count = details["count"]
-
-                if not model_name:
-                    continue
-                model = self.context.get_model(model_name)
-                if not model:
-                    continue
-                asset_key = self.translator.get_asset_key(model)
-
-                metadata = {
-                    "sqlmesh_model_name": model_name,
-                    "audit_query": sql_text,
-                    "audit_blocking": blocking,
-                    "audit_message": f"audit '{audit_name}' failed (count={count})",
-                    "audit_args": self._serialize_audit_args(args),
-                    "error_type": "audit_failure",
-                }
-
-                results.append(
-                    AssetCheckResult(
-                        passed=False,
-                        asset_key=asset_key,
-                        check_name=str(audit_name),
-                        severity=AssetCheckSeverity.ERROR if blocking else AssetCheckSeverity.WARN,
-                        metadata=metadata,
-                    )
-                )
-            except Exception as e:
-                if self._logger:
-                    self._logger.warning(f"Failed to convert notifier audit failure: {e}")
-                continue
-
-        return results
+        return convert_notifier_failures_to_asset_check_results(
+            context=self.context,
+            translator=self.translator,
+            failures=failures,
+            logger=self._logger,
+        )
 
     def _process_single_error(self, error, model_name, asset_key, asset_check_results):
         # Process audit errors if present
@@ -603,8 +502,8 @@ class SQLMeshResource(ConfigurableResource):
             + non_blocking_warning_results
             + notifier_audit_results
         )
-        deduplicated_results = self._deduplicate_asset_check_results(
-            all_asset_check_results
+        deduplicated_results = deduplicate_asset_check_results(
+            all_asset_check_results, logger=self._logger
         )
 
         # Get failed blocking checks and affected downstream assets

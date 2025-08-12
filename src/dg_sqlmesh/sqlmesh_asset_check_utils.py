@@ -1,6 +1,7 @@
 # Utility functions for SQLMesh AssetCheckSpec creation
 
-from dagster import AssetCheckSpec, AssetKey
+from dagster import AssetCheckSpec, AssetKey, AssetCheckResult
+from typing import Any
 from typing import List, Dict, Any, Tuple, Optional
 from sqlmesh.core.model.definition import ExternalModel
 from sqlglot import exp
@@ -302,3 +303,161 @@ def build_audit_check_metadata(
         metadata["audit_message"] = message
 
     return metadata
+
+
+def serialize_audit_args(audit_args: Dict[str, Any]) -> str:
+    """Serialize audit arguments to a JSON string with safe fallback."""
+    try:
+        return json.dumps(audit_args or {}, default=str)
+    except Exception:
+        return "{}"
+
+
+def deduplicate_asset_check_results(
+    asset_check_results: List[AssetCheckResult] | None, *, logger: Any | None = None
+) -> List[AssetCheckResult]:
+    """Deduplicate AssetCheckResult by (asset_key, check_name), prioritizing failures."""
+    if not asset_check_results:
+        return []
+
+    grouped_results: Dict[tuple, AssetCheckResult] = {}
+    for result in asset_check_results:
+        key = (result.asset_key, result.check_name)
+        if key not in grouped_results:
+            grouped_results[key] = result
+        else:
+            if not result.passed and grouped_results[key].passed:
+                grouped_results[key] = result
+                if logger:
+                    logger.warning(
+                        f"Conflicting audit results for {result.asset_key}.{result.check_name}: prioritizing failed result"
+                    )
+
+    return list(grouped_results.values())
+
+
+def create_failed_audit_check_result(
+    *,
+    audit_error: Any,
+    model_name: str,
+    asset_key: AssetKey | None,
+    logger: Any | None = None,
+) -> AssetCheckResult | None:
+    """Create an AssetCheckResult for a failed audit using centralized metadata builder.
+
+    Returns None if metadata cannot be built (defensive fallback).
+    """
+    try:
+        audit_name = getattr(audit_error, "audit_name", "unknown")
+        metadata = build_audit_check_metadata(
+            model_or_name=model_name,
+            audit_name=audit_name,
+            audit_error=audit_error,
+            logger=logger,
+        )
+        return AssetCheckResult(
+            passed=False,
+            asset_key=asset_key,
+            check_name=audit_name,
+            metadata=metadata,
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        if logger:
+            logger.warning(f"Failed to create failed audit check result for {model_name}: {exc}")
+        return None
+
+
+def create_general_error_check_result(
+    *,
+    error: Any,
+    model_name: str,
+    asset_key: AssetKey | None,
+    error_type: str,
+    message: str,
+    logger: Any | None = None,
+) -> AssetCheckResult:
+    """Create a generic AssetCheckResult for non-audit errors."""
+    if logger:
+        logger.warning(f"MODEL ERROR for model '{model_name}': {error_type} - {message}")
+
+    metadata = {
+        "sqlmesh_model_name": model_name,
+        "audit_query": "N/A",
+        "audit_blocking": False,
+        "audit_message": message,
+        "audit_args": {},
+        "error_type": error_type,
+    }
+    return AssetCheckResult(
+        passed=False,
+        asset_key=asset_key,
+        check_name="model_execution_error",
+        metadata=metadata,
+    )
+
+
+def convert_notifier_failures_to_asset_check_results(
+    *,
+    context: Any,
+    translator: Any,
+    failures: list[dict[str, Any]] | None,
+    logger: Any | None = None,
+) -> list[AssetCheckResult]:
+    """Convert notifier failures to AssetCheckResult with proper severity and metadata."""
+    results: list[AssetCheckResult] = []
+    if not failures:
+        return results
+
+    for fail in failures:
+        try:
+            if isinstance(fail, dict) and {"audit", "model", "sql", "blocking"}.issubset(fail.keys()):
+                audit_name = fail.get("audit")
+                model_name = fail.get("model")
+                sql_text = fail.get("sql", "N/A")
+                blocking = bool(fail.get("blocking", True))
+                args = fail.get("args", {})
+                count = int(fail.get("count", 0) or 0)
+            else:
+                details = extract_failed_audit_details(fail, logger=logger)
+                audit_name = details["name"]
+                model_name = details["model_name"]
+                sql_text = details["sql"]
+                blocking = details["blocking"]
+                args = details["args"]
+                count = details["count"]
+
+            if not model_name:
+                continue
+            model = context.get_model(model_name)
+            if not model:
+                continue
+            asset_key = translator.get_asset_key(model)
+
+            metadata = {
+                "sqlmesh_model_name": model_name,
+                "audit_query": sql_text,
+                "audit_blocking": blocking,
+                "audit_message": f"audit '{audit_name}' failed (count={count})",
+                "audit_args": serialize_audit_args(args),
+                "error_type": "audit_failure",
+            }
+
+            results.append(
+                AssetCheckResult(
+                    passed=False,
+                    asset_key=asset_key,
+                    check_name=str(audit_name),
+                    severity=(
+                        getattr(__import__("dagster"), "AssetCheckSeverity").ERROR
+                        if blocking
+                        else getattr(__import__("dagster"), "AssetCheckSeverity").WARN
+                    ),
+                    metadata=metadata,
+                )
+            )
+        except Exception as e:  # pragma: no cover - defensive
+            if logger:
+                logger.warning(f"Failed to convert notifier audit failure: {e}")
+            continue
+
+    return results
