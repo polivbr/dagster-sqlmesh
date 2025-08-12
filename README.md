@@ -26,7 +26,7 @@ This module provides a complete integration between SQLMesh and Dagster, allowin
 - **AssetCheckResult** : Automatic emission of audit results with proper output handling
 - **Audit metadata** : SQL query, arguments, dialect, blocking status
 - **Non-blocking** : Dagster checks are non-blocking (SQLMesh handles blocking)
-- **Fallback handling** : Graceful handling when no evaluation events are found
+- **Notifier-based capture** : Audit failures captured via notifier service (no console)
 
 ### ⏰ **Adaptive Scheduling**
 

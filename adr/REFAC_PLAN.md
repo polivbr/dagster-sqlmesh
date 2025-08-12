@@ -135,12 +135,18 @@ Benefits:
 - [x] Phase 0: Translate logs; strip dead imports/paths
 - [x] Phase 1: Split into micro-functions
 - [x] Phase 2: Slim and optionally add
-- [ ] Phase 3: Consolidate utils; remove duplicates
-- [ ] Phase 4: Normalize logging and exceptions
-- [ ] Phase 5: Type hints and docstrings
-- [ ] Phase 6: Public API surface validation
-- [ ] Phase 7: Rewrite unit tests; restore integration tests
+- [x] Phase 3: Consolidate utils; remove duplicates
+- [x] Phase 4: Normalize logging and exceptions
+- [x] Phase 5: Type hints and docstrings
+- [x] Phase 6: Public API surface validation
+- [x] Phase 7: Rewrite unit tests; restore integration tests
 - [ ] Phase 8: Docs/ADR sync
+
+Notes:
+
+- Notifier integration uses a dedicated `notifier_service` module (singleton + idempotent registration).
+- Console paths removed; audit failures flow via notifier exclusively.
+- Internal helpers centralized in `sqlmesh_asset_check_utils.py` and `sqlmesh_asset_execution_utils.py`.
 
 ## 5) Risk Management
 
