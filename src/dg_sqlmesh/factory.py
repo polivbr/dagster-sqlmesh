@@ -7,6 +7,7 @@ from dagster import (
     Definitions,
     ConfigurableResource,
     RetryPolicy,
+    AssetSelection
 )
 from .resource import SQLMeshResource
 from .sqlmesh_asset_utils import (
@@ -50,6 +51,18 @@ class SQLMeshResultsResource(ConfigurableResource):
         """Check if results exist for a given run."""
         return run_id in self._results
 
+def build_sqlmesh_job(sqlmesh_assets, name: str = "sqlmesh_job"):
+    selected_assets = AssetSelection.keys(*(key for ad in sqlmesh_assets for key in ad.keys))
+    safe_selection = selected_assets.required_multi_asset_neighbors()
+    return define_asset_job(
+        name=name,
+        selection=safe_selection,
+        op_retry_policy=RetryPolicy(max_retries=0),
+        tags={
+            "dagster/max_retries": "0",
+            "dagster/retry_on_asset_or_op_failure": "false",
+        },
+    )
 
 def sqlmesh_assets_factory(
     *,
@@ -210,15 +223,7 @@ def sqlmesh_adaptive_schedule_factory(
 
     # Create job with all assets (no selection needed since we have individual assets)
     # Force run_retries=false to prevent infinite loops with SQLMesh audit failures
-    sqlmesh_job = define_asset_job(
-        name="sqlmesh_job",
-        op_retry_policy=RetryPolicy(max_retries=0),
-        selection=sqlmesh_assets,  # Pass the list of assets directly
-        tags={
-            "dagster/max_retries": "0",
-            "dagster/retry_on_asset_or_op_failure": "false",
-        },
-    )
+    sqlmesh_job = build_sqlmesh_job(sqlmesh_assets, name="sqlmesh_job")
 
     @schedule(
         job=sqlmesh_job,
@@ -229,7 +234,7 @@ def sqlmesh_adaptive_schedule_factory(
     def _sqlmesh_adaptive_schedule(context):
         return RunRequest(
             run_key=f"sqlmesh_adaptive_{datetime.datetime.now().isoformat()}",
-            tags={"schedule": "sqlmesh_adaptive", "granularity": recommended_schedule},
+            tags={"schedule": "sqlmesh_adaptive", "granularity": recommended_schedule, "dagster/max_retries": "0", "dagster/retry_on_asset_or_op_failure": "false"},
         )
 
     return _sqlmesh_adaptive_schedule, sqlmesh_job, sqlmesh_assets
@@ -341,6 +346,8 @@ def sqlmesh_definitions_factory(
         )
         schedules.append(sqlmesh_adaptive_schedule)
         jobs.append(sqlmesh_job)
+    else:
+        jobs.append(build_sqlmesh_job(sqlmesh_assets, name="sqlmesh_job"))
 
     # Return complete Definitions
     return Definitions(
