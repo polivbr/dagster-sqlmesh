@@ -1,7 +1,12 @@
-from dagster import AssetSpec, AssetCheckSpec
-from sqlmesh.core.model.definition import ExternalModel
-from typing import Any, Optional, List
+import json
+import re
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from dagster import AssetKey, AssetSpec, AssetCheckSpec
+from dagster._core.definitions.metadata import TableMetadataSet
+from sqlmesh.core.model.definition import ExternalModel
+
 from .sqlmesh_asset_check_utils import (
     create_all_asset_checks,
     create_asset_checks_from_model,
@@ -189,6 +194,7 @@ def get_asset_metadata(translator, model, code_version, extra_keys, owners) -> d
     if owners:
         metadata["owners"] = owners
 
+    # Return metadata as-is; Dagster handles serialization of supported types
     return metadata
 
 
@@ -200,7 +206,7 @@ def format_partition_metadata(model_partitions: dict) -> dict:
         model_partitions: Dict with raw partition info from SQLMesh
 
     Returns:
-        Dict with formatted metadata
+        Dict with formatted metadata (compatible with Dagster 1.11.4)
     """
     formatted_metadata = {}
 
@@ -232,7 +238,7 @@ def format_partition_metadata(model_partitions: dict) -> dict:
                     }
                 )
 
-        # Use Python object directly (Dagster can handle it)
+        # Ensure we return a simple list of dicts (JSON-serializable)
         formatted_metadata["partition_intervals"] = readable_intervals
 
     # Grain (if present and not empty)
@@ -531,21 +537,3 @@ def get_extra_keys() -> list[str]:
         "partitioned_by",
         "clustered_by",
     ]
-
-
-def create_asset_checks(sqlmesh_resource) -> list[AssetCheckSpec]:
-    """
-    Creates all AssetCheckSpec for all SQLMesh models.
-
-    Args:
-        sqlmesh_resource: SQLMeshResource
-
-    Returns:
-        List of all AssetCheckSpec
-    """
-    models = [
-        model
-        for model in sqlmesh_resource.get_models()
-        if not isinstance(model, ExternalModel)
-    ]
-    return create_all_asset_checks(models, sqlmesh_resource.translator)

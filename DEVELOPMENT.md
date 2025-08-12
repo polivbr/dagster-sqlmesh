@@ -103,7 +103,6 @@ from dg_sqlmesh import sqlmesh_definitions_factory
 defs = sqlmesh_definitions_factory(
     project_dir="tests/sqlmesh_project",
     gateway="duckdb",
-    ignore_cron=True  # Pour les tests
 )
 
 # Utiliser avec Dagster

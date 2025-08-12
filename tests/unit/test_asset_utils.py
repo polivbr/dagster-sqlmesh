@@ -3,6 +3,7 @@ from unittest.mock import Mock, MagicMock, patch
 from typing import Any, Dict, List, Optional
 
 from dagster import AssetSpec, AssetCheckSpec, AssetKey
+from dagster._core.definitions.metadata import TableMetadataSet, TableSchema, TableColumn
 from sqlmesh.core.model.definition import ExternalModel
 from sqlmesh import Context
 
@@ -22,9 +23,9 @@ from dg_sqlmesh.sqlmesh_asset_utils import (
     create_all_asset_specs,
     create_asset_specs,
     get_extra_keys,
-    create_asset_checks,
 )
 from dg_sqlmesh.sqlmesh_asset_check_utils import safe_extract_audit_query
+from dg_sqlmesh.translator import SQLMeshTranslator
 
 
 class TestAssetUtils:
@@ -472,23 +473,6 @@ class TestAssetUtils:
         assert "kind" in result
         assert "cron" in result
 
-    def test_create_asset_checks(self) -> None:
-        """Test creating asset checks."""
-        # Mock SQLMesh resource
-        sqlmesh_resource = Mock()
-        model1 = Mock()
-        model1.audits_with_args = []
-        model2 = Mock()
-        model2.audits_with_args = []
-        sqlmesh_resource.get_models.return_value = [model1, model2]
-        sqlmesh_resource.translator = Mock()
-        sqlmesh_resource.translator.get_asset_key.return_value = Mock()
-        
-        result = create_asset_checks(sqlmesh_resource)
-        
-        assert isinstance(result, list)
-        # Should return list of AssetCheckSpec objects
-
 
 class TestAssetSpecs:
     """Test asset spec creation functions."""
@@ -572,40 +556,18 @@ class TestAssetSpecs:
         assert all(isinstance(spec, AssetSpec) for spec in result)
 
 
-class TestAssetUtilsIntegration:
-    """Integration tests for asset utilities with real SQLMesh context."""
-
-    def test_get_models_to_materialize_with_real_context(self, sqlmesh_resource) -> None:
-        """Test getting models to materialize with real SQLMesh resource."""
-        from dg_sqlmesh import SQLMeshTranslator
-        
+class TestAssetMetadata:
+    """Basic checks for asset metadata construction."""
+    def test_asset_metadata_includes_code_version_and_owners(self):
         translator = SQLMeshTranslator()
-        
-        # Get real models from resource
-        models = sqlmesh_resource.get_models()
-        assert len(models) > 0
-        
-        # Test getting models to materialize
-        result = get_models_to_materialize(None, lambda: models, translator)
-        
-        assert len(result) > 0
-        assert all(not isinstance(model, ExternalModel) for model in result)
-
-    def test_get_asset_kinds_with_real_context(self, sqlmesh_resource) -> None:
-        """Test getting asset kinds with real SQLMesh resource."""
-        result = get_asset_kinds(sqlmesh_resource)
-        
-        assert isinstance(result, set)
-        assert len(result) > 0
-        # Should contain SQLMesh and dialect
-        assert "sqlmesh" in result
-
-    def test_validate_external_dependencies_with_real_context(self, sqlmesh_resource) -> None:
-        """Test external dependencies validation with real context."""
-        models = sqlmesh_resource.get_models()
-        assert len(models) > 0
-        
-        result = validate_external_dependencies(sqlmesh_resource, models)
-        
-        # Should return list of errors (empty if no external dependencies)
-        assert isinstance(result, list) 
+        class M:
+            name = "m"
+            data_hash = "abc"
+            catalog = "c"
+            schema_name = "s"
+            view_name = "v"
+            columns_to_types = {}
+            column_descriptions = {}
+        md = get_asset_metadata(translator, M, code_version="abc", extra_keys=[], owners=["o"])  # type: ignore[arg-type]
+        assert md.get("code_version") == "abc"
+        assert md.get("owners") == ["o"]

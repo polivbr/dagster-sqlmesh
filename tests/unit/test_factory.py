@@ -66,7 +66,6 @@ class TestSQLMeshDefinitionsFactory:
         defs = sqlmesh_definitions_factory(
             project_dir="tests/fixtures/sqlmesh_project",
             gateway="duckdb",
-            name="test_defs"
         )
         
         # Check that definitions are created

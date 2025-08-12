@@ -2,6 +2,7 @@
 description: Test commands for dg-sqlmesh module
 alwaysApply: false
 ---
+
 # Test Commands for dg-sqlmesh
 
 ## Make Commands
@@ -289,7 +290,7 @@ except Exception as e:
 
 ```bash
 # Generate coverage report
-uv run --group dev pytest tests/ --cov=dg_sqlmesh --cov-report=html --cov-report=term
+PYTHONPATH=src uv run --group dev pytest tests/ --cov=dg_sqlmesh --cov-report=html --cov-report=term
 
 # View coverage in browser
 open htmlcov/index.html
@@ -344,9 +345,3 @@ print('Event console created with debug logging')
 print(f'Event handlers: {len(console._handlers)}')
 "
 ```
-
----
-
-alwaysApply: false
-
----

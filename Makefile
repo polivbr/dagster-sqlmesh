@@ -82,8 +82,8 @@ publish-auth:
 
 # Run tests
 test:
-	@echo "�� Running tests..."
-	@uv run --group dev pytest tests/ -v || echo "⚠️ No tests found or tests failed"
+	@echo "🧪 Running tests..."
+	@PYTHONPATH=src uv run --group dev pytest tests/ -v || echo "⚠️ No tests found or tests failed"
 	@echo "✅ Tests completed!"
 
 # Install in development mode

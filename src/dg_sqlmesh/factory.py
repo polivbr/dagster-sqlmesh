@@ -6,6 +6,7 @@ from dagster import (
     RunRequest,
     Definitions,
     ConfigurableResource,
+    RetryPolicy,
 )
 from .resource import SQLMeshResource
 from .sqlmesh_asset_utils import (
@@ -19,6 +20,7 @@ from sqlmesh.core.model.definition import ExternalModel
 import datetime
 from .translator import SQLMeshTranslator
 from typing import Optional, Dict, List, Any
+import warnings
 
 # Import des nouvelles fonctions utilitaires
 from .sqlmesh_asset_execution_utils import (
@@ -82,9 +84,11 @@ def sqlmesh_assets_factory(
             deps=current_asset_spec.deps,
             check_specs=current_model_checks,
             op_tags=op_tags,
+            retry_policy=RetryPolicy(max_retries=0),
             # Force no retries to prevent infinite loops with SQLMesh audit failures
             tags={
                 **(current_asset_spec.tags or {}),
+                "sqlmesh": "",  # Tag to identify SQLMesh assets
                 "dagster/max_retries": "0",
                 "dagster/retry_on_asset_or_op_failure": "false",
             },
@@ -114,8 +118,15 @@ def sqlmesh_assets_factory(
                 )
 
             # Récupérer les résultats pour ce run
-            failed_check_results, skipped_models_events, evaluation_events = (
-                process_sqlmesh_results(context, sqlmesh_results, run_id)
+            (
+                failed_check_results,
+                skipped_models_events,
+                non_blocking_audit_warnings,
+                notifier_audit_failures,
+                affected_downstream_asset_keys,
+            ) = process_sqlmesh_results(context, sqlmesh_results, run_id)
+            context.log.info(
+                f"🔎 Retrieved results: failed={len(failed_check_results)}, skipped={len(skipped_models_events)}, nb_warn={len(non_blocking_audit_warnings)}, notifier_failures={len(notifier_audit_failures)}"
             )
 
             # Vérifier le statut de notre modèle spécifique
@@ -127,17 +138,19 @@ def sqlmesh_assets_factory(
                 skipped_models_events,
             )
 
-            # Créer le MaterializeResult approprié
-            return create_materialize_result(
+            # Créer le MaterializeResult approprié (API à 9 paramètres)
+            result = create_materialize_result(
                 context,
                 current_model_name,
                 current_asset_spec,
                 current_model_checks,
                 model_was_skipped,
                 model_has_audit_failures,
-                failed_check_results,
-                evaluation_events,
+                non_blocking_audit_warnings,
+                notifier_audit_failures,
+                affected_downstream_asset_keys,
             )
+            return result
 
         # Renommer pour éviter les collisions
         model_asset.__name__ = f"sqlmesh_{current_model_name}_asset"
@@ -199,6 +212,7 @@ def sqlmesh_adaptive_schedule_factory(
     # Force run_retries=false to prevent infinite loops with SQLMesh audit failures
     sqlmesh_job = define_asset_job(
         name="sqlmesh_job",
+        op_retry_policy=RetryPolicy(max_retries=0),
         selection=sqlmesh_assets,  # Pass the list of assets directly
         tags={
             "dagster/max_retries": "0",
@@ -228,7 +242,7 @@ def sqlmesh_definitions_factory(
     environment: str = "prod",
     concurrency_limit: int = 1,
     translator: Optional[SQLMeshTranslator] = None,
-    name: str = "sqlmesh_assets",
+    external_asset_mapping: Optional[str] = None,
     group_name: str = "sqlmesh",
     op_tags: Optional[Dict[str, Any]] = None,
     owners: Optional[List[str]] = None,
@@ -242,18 +256,44 @@ def sqlmesh_definitions_factory(
         project_dir: SQLMesh project directory
         gateway: SQLMesh gateway (postgres, duckdb, etc.)
         concurrency_limit: Concurrency limit
-        translator: Custom translator for asset keys
-        name: Multi-asset name
+        translator: Custom translator for asset keys (takes priority over external_asset_mapping)
+        external_asset_mapping: Jinja2 template for mapping external assets to Dagster asset keys
+            Example: "target/main/{node.name}" or "sling/{node.database}/{node.schema}/{node.name}"
+            Variables available: {node.database}, {node.schema}, {node.name}, {node.fqn}
         group_name: Default group for assets
         op_tags: Operation tags
         owners: Asset owners
         schedule_name: Adaptive schedule name
         enable_schedule: Whether to enable the adaptive schedule (default: False)
+
+    Note:
+        If both 'translator' and 'external_asset_mapping' are provided, the custom translator
+        will be used and a warning will be issued.
     """
 
     # Parameter validation
     if concurrency_limit < 1:
         raise ValueError("concurrency_limit must be >= 1")
+
+    # Handle translator and external_asset_mapping conflicts
+    if translator is not None and external_asset_mapping is not None:
+        warnings.warn(
+            "⚠️  CONFLICT DETECTED: Both 'translator' and 'external_asset_mapping' are provided.\n"
+            "   → Using the custom translator (translator parameter)\n"
+            "   → Ignoring external_asset_mapping parameter\n"
+            "   → To use external_asset_mapping, remove the translator parameter\n"
+            "   → To use custom translator, remove the external_asset_mapping parameter\n"
+            "   → Example: sqlmesh_definitions_factory(external_asset_mapping='target/main/{node.name}')",
+            UserWarning,
+            stacklevel=2
+        )
+    elif external_asset_mapping is not None:
+        # Create JinjaSQLMeshTranslator from the template
+        from .components.sqlmesh_project.component import JinjaSQLMeshTranslator
+        translator = JinjaSQLMeshTranslator(external_asset_mapping)
+    elif translator is None:
+        # Use default translator
+        translator = SQLMeshTranslator()
 
     # Robust default values
     op_tags = op_tags or {"sqlmesh": "true"}

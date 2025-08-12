@@ -26,6 +26,7 @@ Architecture Decision Records are documents that capture important architectural
 | [ADR-0009](./0009-shared-state-management-pattern.md)    | Shared State Management Pattern                  | Accepted | 2025-01-27 |
 | [ADR-0010](./0010-function-extraction-and-modularity.md) | Function Extraction and Modularity               | Accepted | 2025-01-27 |
 | [ADR-0011](./0011-error-handling-strategy.md)            | Error Handling Strategy                          | Accepted | 2025-01-27 |
+| [ADR-0012](./0012-sqlmesh-dagster-component.md)          | SQLMesh Dagster Component                        | Accepted | 2025-01-27 |
 
 ## Key Architectural Patterns
 
@@ -68,6 +69,10 @@ Large functions are broken down into smaller, focused utility functions to impro
 ### 10. Layered Error Handling Strategy
 
 Custom exception classes and error classification system that distinguishes between different error types and handles them appropriately without breaking the entire pipeline.
+
+### 11. Declarative Component Configuration
+
+SQLMesh Dagster Component provides declarative YAML configuration for SQLMesh projects, following dagster-dbt patterns with Jinja2 templating for external asset mapping and smart default values for improved user experience.
 
 ## Current Limitations
 
