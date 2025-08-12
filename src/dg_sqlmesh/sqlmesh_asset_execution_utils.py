@@ -239,6 +239,52 @@ def _get_blocking_and_non_blocking_names_for_model(
     return blocking_names, non_blocking_names, failed_for_model
 
 
+def _build_check_result_failed_from_notifier(
+    *,
+    check_name: str,
+    current_model_name: str,
+    notifier_record: Dict[str, Any] | None,
+    blocking: bool,
+    context: AssetExecutionContext,
+) -> AssetCheckResult:
+    """Build a failed AssetCheckResult from a notifier record with the desired blocking flag."""
+    # Ensure notifier record reflects the blocking flag we want to expose
+    safe_record = {**(notifier_record or {}), "model": current_model_name, "audit": check_name, "blocking": blocking}
+    metadata = build_audit_check_metadata(
+        context=context.resources.sqlmesh.context if hasattr(context.resources, "sqlmesh") else None,  # type: ignore[attr-defined]
+        model_or_name=current_model_name,
+        audit_name=check_name,
+        notifier_record=safe_record,
+        logger=getattr(context, "log", None),
+    )
+    return AssetCheckResult(
+        check_name=check_name,
+        passed=False,
+        severity=get_check_severity_for_blocking(blocking),
+        metadata=metadata,
+    )
+
+
+def _build_pass_check_result(
+    *,
+    check_name: str,
+    current_model_name: str,
+    context: AssetExecutionContext,
+) -> AssetCheckResult:
+    """Build a passing AssetCheckResult with standardized metadata."""
+    pass_meta = build_audit_check_metadata(
+        context=context.resources.sqlmesh.context if hasattr(context.resources, "sqlmesh") else None,  # type: ignore[attr-defined]
+        model_or_name=current_model_name,
+        audit_name=check_name,
+        logger=getattr(context, "log", None),
+    )
+    return AssetCheckResult(
+        check_name=check_name,
+        passed=True,
+        metadata=pass_meta,
+    )
+
+
 # ----------------------------- Internal helpers (Phase 1) -----------------------------
 
 def _log_run_selection(context: AssetExecutionContext, run_id: str, selected_asset_keys: List[AssetKey]) -> None:
@@ -584,39 +630,27 @@ def handle_successful_execution(
         # Emit WARN failed for non-blocking failures, PASS for others
         for check in current_model_checks:
             if check.name in non_blocking_names:
-                    fail = next(
-                        (f for f in notifier_audit_failures if f.get("model") == current_model_name and f.get("audit") == check.name),
-                        {},
-                    )
-                    warn_meta = build_audit_check_metadata(
-                        context=context.resources.sqlmesh.context if hasattr(context.resources, "sqlmesh") else None,  # type: ignore[attr-defined]
-                        model_or_name=current_model_name,
-                        audit_name=check.name,
+                fail = next(
+                    (f for f in notifier_audit_failures if f.get("model") == current_model_name and f.get("audit") == check.name),
+                    {},
+                )
+                check_results.append(
+                    _build_check_result_failed_from_notifier(
+                        check_name=check.name,
+                        current_model_name=current_model_name,
                         notifier_record=fail,
-                        logger=getattr(context, "log", None),
+                        blocking=False,
+                        context=context,
                     )
-                    check_results.append(
-                        AssetCheckResult(
-                            check_name=check.name,
-                            passed=False,
-                            severity=get_check_severity_for_blocking(False),
-                            metadata=warn_meta,
-                        )
-                    )
+                )
             else:
-                    pass_meta = build_audit_check_metadata(
-                        context=context.resources.sqlmesh.context if hasattr(context.resources, "sqlmesh") else None,  # type: ignore[attr-defined]
-                        model_or_name=current_model_name,
-                        audit_name=check.name,
-                        logger=getattr(context, "log", None),
+                check_results.append(
+                    _build_pass_check_result(
+                        check_name=check.name,
+                        current_model_name=current_model_name,
+                        context=context,
                     )
-                    check_results.append(
-                        AssetCheckResult(
-                            check_name=check.name,
-                            passed=True,
-                            metadata=pass_meta,
-                        )
-                    )
+                )
 
         context.log.debug(f"Returning {len(check_results)} check results")
         return MaterializeResult(
