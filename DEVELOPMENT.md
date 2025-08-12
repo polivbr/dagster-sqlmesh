@@ -100,20 +100,20 @@ from dg_sqlmesh import (
 
 ## Typical Development Workflow
 
-1) Local setup
+1. Local setup
 
 ```bash
 make install-dev
 ```
 
-2) Iterate
+2. Iterate
 
 ```bash
 make test
 make vulture
 ```
 
-3) Release preparation
+3. Release preparation
 
 ```bash
 make clean
@@ -121,7 +121,7 @@ make build
 make validate
 ```
 
-4) Publish
+4. Publish
 
 ```bash
 make bump-patch  # or bump-minor / bump-major
@@ -175,5 +175,3 @@ make vulture
 - Shared execution: a single SQLMesh run per Dagster run (shared via SQLMeshResultsResource).
 - Notifier-based audits: audit failures captured via `notifier_service` (no legacy console).
 - No retries: enforced via Dagster tags (see ADR-0004).
-
-
