@@ -285,6 +285,64 @@ def _build_pass_check_result(
     )
 
 
+def _build_check_results_for_create_result(
+    *,
+    current_model_checks: List[Any],
+    current_model_name: str,
+    notifier_audit_failures: List[Dict],
+    non_blocking_audit_warnings: List[Dict],
+    context: AssetExecutionContext,
+) -> List[AssetCheckResult]:
+    """Build check_results for create_materialize_result using notifier and warnings.
+
+    Emits:
+      - blocking audit failures as ERROR
+      - non-blocking audit failures as WARN
+      - PASS for remaining checks
+    """
+    check_results: List[AssetCheckResult] = []
+    blocking_names, non_blocking_names, failed_for_model = _get_blocking_and_non_blocking_names_for_model(
+        notifier_audit_failures, non_blocking_audit_warnings, current_model_name
+    )
+
+    for check in current_model_checks:
+        if check.name in blocking_names:
+            fail = next((f for f in failed_for_model if f.get("audit") == check.name), {})
+            check_results.append(
+                _build_check_result_failed_from_notifier(
+                    check_name=check.name,
+                    current_model_name=current_model_name,
+                    notifier_record=fail,
+                    blocking=True,
+                    context=context,
+                )
+            )
+        elif check.name in non_blocking_names:
+            fail_nb = next(
+                (f for f in failed_for_model if not f.get("blocking") and f.get("audit") == check.name),
+                {},
+            )
+            check_results.append(
+                _build_check_result_failed_from_notifier(
+                    check_name=check.name,
+                    current_model_name=current_model_name,
+                    notifier_record=fail_nb,
+                    blocking=False,
+                    context=context,
+                )
+            )
+        else:
+            check_results.append(
+                _build_pass_check_result(
+                    check_name=check.name,
+                    current_model_name=current_model_name,
+                    context=context,
+                )
+            )
+
+    return check_results
+
+
 # ----------------------------- Internal helpers (Phase 1) -----------------------------
 
 def _log_run_selection(context: AssetExecutionContext, run_id: str, selected_asset_keys: List[AssetKey]) -> None:
@@ -707,86 +765,14 @@ def create_materialize_result(
             f"Creating failed MaterializeResult for {current_model_name} due to blocking audit failure"
         )
 
-        # Build precise check results: only the failing audits should fail
-        failed_for_model = [
-            f for f in notifier_audit_failures if f.get("model") == current_model_name
-        ]
-        blocking_names = {f.get("audit") for f in failed_for_model if f.get("blocking")}
-        non_blocking_names = {f.get("audit") for f in failed_for_model if not f.get("blocking")}
-
-        # Merge legacy console non-blocking warnings
-        for w in non_blocking_audit_warnings:
-            if w.get("model_name") == current_model_name:
-                non_blocking_names.add(w.get("audit_name"))
-
-        check_results: List[AssetCheckResult] = []
-        for check in current_model_checks:
-            if check.name in blocking_names:
-                fail = next(
-                    (f for f in failed_for_model if f.get("audit") == check.name),
-                    {},
-                )
-                metadata = build_audit_check_metadata(
-                    context=getattr(context.resources, "sqlmesh").context if hasattr(context, "resources") and hasattr(context.resources, "sqlmesh") else None,  # type: ignore[attr-defined]
-                    model_or_name=current_model_name,
-                    audit_name=check.name,
-                    notifier_record=fail,
-                    logger=getattr(context, "log", None),
-                )
-                check_results.append(
-                    AssetCheckResult(
-                        check_name=check.name,
-                        passed=False,
-                        severity=get_check_severity_for_blocking(True),
-                        metadata=metadata,
-                    )
-                )
-            elif check.name in non_blocking_names:
-                # Build a synthetic notifier record to guarantee blocking=False in metadata
-                fail_nb = next(
-                    (
-                        f
-                        for f in failed_for_model
-                        if not f.get("blocking") and f.get("audit") == check.name
-                    ),
-                    {},
-                )
-                nb_notifier_record = {
-                    "model": current_model_name,
-                    "audit": check.name,
-                    "blocking": False,
-                    **fail_nb,
-                }
-                metadata = build_audit_check_metadata(
-                    context=getattr(context.resources, "sqlmesh").context if hasattr(context, "resources") and hasattr(context.resources, "sqlmesh") else None,  # type: ignore[attr-defined]
-                    model_or_name=current_model_name,
-                    audit_name=check.name,
-                    notifier_record=nb_notifier_record,
-                    logger=getattr(context, "log", None),
-                )
-                check_results.append(
-                    AssetCheckResult(
-                        check_name=check.name,
-                        passed=False,
-                        severity=get_check_severity_for_blocking(False),
-                        metadata=metadata,
-                    )
-                )
-            else:
-                # Ensure every declared check_spec emits an output (PASS for non failing checks)
-                pass_meta = build_audit_check_metadata(
-                    context=getattr(context.resources, "sqlmesh").context if hasattr(context, "resources") and hasattr(context.resources, "sqlmesh") else None,  # type: ignore[attr-defined]
-                    model_or_name=current_model_name,
-                    audit_name=check.name,
-                    logger=getattr(context, "log", None),
-                )
-                check_results.append(
-                    AssetCheckResult(
-                        check_name=check.name,
-                        passed=True,
-                        metadata=pass_meta,
-                    )
-                )
+        # Build precise check results via centralized helper
+        check_results = _build_check_results_for_create_result(
+            current_model_checks=current_model_checks,
+            current_model_name=current_model_name,
+            notifier_audit_failures=notifier_audit_failures,
+            non_blocking_audit_warnings=non_blocking_audit_warnings,
+            context=context,
+        )
 
         result = MaterializeResult(
             asset_key=current_asset_spec.key,
