@@ -11,6 +11,7 @@ from dagster import (
     DataVersion,
     ConfigurableResource,
     InitResourceContext,
+    Failure
 )
 from sqlmesh import Context
 from .translator import SQLMeshTranslator
@@ -40,13 +41,14 @@ import json
 
 
 
-class UpstreamAuditFailureError(Exception):
+class UpstreamAuditFailureError(Failure):
     """
     Custom exception for upstream audit failures that should be handled gracefully.
-    This exception should not trigger retries or be re-raised by the factory.
+    This exception is marked as non-retriable (allow_retries=False).
     """
 
-    pass
+    def __init__(self, description: str | None = None, metadata: dict | None = None):
+        super().__init__(description=description, metadata=metadata, allow_retries=False)
 
 
 def convert_unix_timestamp_to_readable(timestamp):

@@ -15,6 +15,7 @@ from typing import Dict, List, Any, Tuple
 from .resource import SQLMeshResource
 from .sqlmesh_asset_utils import get_models_to_materialize
 from .sqlmesh_asset_check_utils import build_audit_check_metadata
+from .resource import UpstreamAuditFailureError
 
 
 def get_check_severity_for_blocking(is_blocking: bool) -> AssetCheckSeverity:
@@ -374,14 +375,10 @@ def handle_successful_execution(
     if current_model_checks:
         check_results = []
 
-        # Notifier-only: build from notifier and (legacy) console warnings
+        # Notifier-only: build from notifier
 
         if not check_results:
-            context.log.warning(
-                f"⚠️ No evaluation events found for model {current_model_name}, building results from notifier/console"
-            )
-
-            # Build failing set from notifier non-blocking and console warnings
+            # Build failing set from notifier non-blocking
             nb_audits_for_model = {
                 w.get("audit_name")
                 for w in non_blocking_audit_warnings
@@ -417,17 +414,20 @@ def handle_successful_execution(
                         (f for f in notifier_audit_failures if f.get("model") == current_model_name and f.get("audit") == check.name),
                         {},
                     )
+                    # Standardize WARN failure metadata
+                    warn_meta = build_audit_check_metadata(
+                        context=context.resources.sqlmesh.context if hasattr(context.resources, "sqlmesh") else None,  # type: ignore[attr-defined]
+                        model_or_name=current_model_name,
+                        audit_name=check.name,
+                        notifier_record=fail,
+                        logger=getattr(context, "log", None),
+                    )
                     check_results.append(
                         AssetCheckResult(
                             check_name=check.name,
                             passed=False,
                             severity=get_check_severity_for_blocking(False),
-                            metadata={
-                                "audit_blocking": False,
-                                "sqlmesh_model_name": current_model_name,
-                                "audit_query": fail.get("sql", "N/A"),
-                                "audit_args": json.dumps(fail.get("args", {}), default=str),
-                            },
+                            metadata=warn_meta,
                         )
                     )
                 else:
@@ -490,8 +490,8 @@ def create_materialize_result(
         # Modèle skip → Lever une exception (pas de materialization)
         error_msg = f"Model {current_model_name} was skipped due to upstream failures"
         context.log.error(f"❌ {error_msg}")
-        context.log.debug("🔍 Raising exception for skipped model")
-        raise Exception(error_msg)
+        context.log.debug("🔍 Raising UpstreamAuditFailureError for skipped model")
+        raise UpstreamAuditFailureError(description=error_msg)
     elif model_has_audit_failures or any(
         f.get("blocking") and f.get("model") == current_model_name
         for f in notifier_audit_failures
@@ -594,8 +594,8 @@ def create_materialize_result(
             context.log.info(
                 f"⛔ Blocking downstream materialization for {current_model_name} due to upstream failures"
             )
-            raise Exception(
-                f"Asset {current_asset_spec.key} skipped due to upstream audit failures"
+            raise UpstreamAuditFailureError(
+                description=f"Asset {current_asset_spec.key} skipped due to upstream audit failures"
             )
 
         return handle_successful_execution(

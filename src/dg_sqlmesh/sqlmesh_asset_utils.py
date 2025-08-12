@@ -166,9 +166,6 @@ def get_asset_tags(translator, context, model) -> dict:
     return translator.get_tags(context, model)
 
 
-# Note: Dagster now supports richer metadata values; no custom sanitization required.
-
-
 def get_asset_metadata(translator, model, code_version, extra_keys, owners) -> dict:
     """
     Returns metadata for an asset.

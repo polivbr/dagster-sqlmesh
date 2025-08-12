@@ -6,6 +6,7 @@ from dagster import (
     RunRequest,
     Definitions,
     ConfigurableResource,
+    RetryPolicy,
 )
 from .resource import SQLMeshResource
 from .sqlmesh_asset_utils import (
@@ -83,6 +84,7 @@ def sqlmesh_assets_factory(
             deps=current_asset_spec.deps,
             check_specs=current_model_checks,
             op_tags=op_tags,
+            retry_policy=RetryPolicy(max_retries=0),
             # Force no retries to prevent infinite loops with SQLMesh audit failures
             tags={
                 **(current_asset_spec.tags or {}),
@@ -210,6 +212,7 @@ def sqlmesh_adaptive_schedule_factory(
     # Force run_retries=false to prevent infinite loops with SQLMesh audit failures
     sqlmesh_job = define_asset_job(
         name="sqlmesh_job",
+        op_retry_policy=RetryPolicy(max_retries=0),
         selection=sqlmesh_assets,  # Pass the list of assets directly
         tags={
             "dagster/max_retries": "0",

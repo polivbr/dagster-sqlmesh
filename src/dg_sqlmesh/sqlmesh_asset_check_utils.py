@@ -27,19 +27,19 @@ def create_asset_checks_from_model(model, asset_key: AssetKey) -> List[AssetChec
     )
 
     for audit_obj, audit_args in audits_with_args:
+        # Build standardized metadata via central utility
+        pass_meta = build_audit_check_metadata(
+            model_or_name=model,
+            audit_name=audit_obj.name,
+        )
+
         asset_checks.append(
             AssetCheckSpec(
                 name=audit_obj.name,
                 asset=asset_key,
                 description=f"Triggered by sqlmesh audit {audit_obj.name} on model {model.name}",
                 blocking=False,  # SQLMesh handles blocking itself with audits
-                metadata={
-                    "audit_query": str(audit_obj.query.sql()),
-                    "audit_blocking": getattr(
-                        audit_obj, "blocking", True
-                    ),  # ← Keep original info in metadata
-                    "audit_args": audit_args,
-                },
+                metadata=pass_meta,
             )
         )
 
