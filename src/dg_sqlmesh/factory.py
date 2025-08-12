@@ -137,7 +137,7 @@ def sqlmesh_assets_factory(
             )
 
             # Créer le MaterializeResult approprié (API à 9 paramètres)
-            return create_materialize_result(
+            result = create_materialize_result(
                 context,
                 current_model_name,
                 current_asset_spec,
@@ -148,6 +148,7 @@ def sqlmesh_assets_factory(
                 notifier_audit_failures,
                 affected_downstream_asset_keys,
             )
+            return result
 
         # Renommer pour éviter les collisions
         model_asset.__name__ = f"sqlmesh_{current_model_name}_asset"

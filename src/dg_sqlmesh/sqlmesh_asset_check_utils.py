@@ -299,8 +299,6 @@ def build_audit_check_metadata(
         "audit_args": json.dumps(args or {}, default=str),
         "audit_blocking": bool(blocking),
     }
-    if count is not None:
-        metadata["audit_count"] = int(count)
     if message:
         metadata["audit_message"] = message
 
