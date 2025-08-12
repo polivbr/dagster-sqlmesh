@@ -52,7 +52,7 @@ class SQLMeshResultsResource(ConfigurableResource):
         return run_id in self._results
 
 def build_sqlmesh_job(sqlmesh_assets, name: str = "sqlmesh_job"):
-    selected_assets = AssetSelection.keys(*(key for ad in sqlmesh_assets for key in ad.keys))
+    selected_assets = AssetSelection.assets(*(key for ad in sqlmesh_assets for key in ad.keys))
     safe_selection = selected_assets.required_multi_asset_neighbors()
     return define_asset_job(
         name=name,
