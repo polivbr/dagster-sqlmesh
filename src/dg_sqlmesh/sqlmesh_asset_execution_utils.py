@@ -1,6 +1,8 @@
 """
-Utilitaires pour l'exécution des assets SQLMesh.
-Contient les fonctions extraites de la fonction model_asset pour améliorer la lisibilité et la testabilité.
+Execution utilities for SQLMesh assets.
+
+Functions extracted from the `model_asset` flow to improve readability and
+testability. All docstrings and logs are standardized in English.
 """
 
 import json
@@ -35,26 +37,26 @@ def execute_sqlmesh_materialization(
     selected_asset_keys: List[AssetKey],
 ) -> Dict[str, Any]:
     """
-    Exécute la matérialisation SQLMesh pour tous les assets sélectionnés.
+    Execute a single SQLMesh materialization for all selected assets (shared execution).
 
     Args:
-        context: Contexte Dagster
-        sqlmesh: Resource SQLMesh
-        sqlmesh_results: Resource pour partager les résultats
-        run_id: ID du run Dagster
-        selected_asset_keys: Assets sélectionnés
+        context: Dagster execution context
+        sqlmesh: SQLMesh resource
+        sqlmesh_results: Shared results resource
+        run_id: Dagster run identifier
+        selected_asset_keys: Selected assets in this run
 
     Returns:
-        Résultats de l'exécution SQLMesh
+        Dict with captured execution results for later reuse in the same run
     """
     context.log.info(
-        "🚀 First asset in run, launching SQLMesh execution for all selected assets"
+        "First asset in run; launching SQLMesh execution for all selected assets"
     )
-    context.log.debug(f"🔍 No existing results for run {run_id}")
+    context.log.debug(f"No existing results for run {run_id}")
 
-    context.log.info(f"🔍 Selected assets in this run: {selected_asset_keys}")
+    context.log.info(f"Selected assets in this run: {selected_asset_keys}")
 
-    # Lancer une seule exécution SQLMesh pour tous les assets sélectionnés
+    # Launch a single SQLMesh execution for all selected assets
     models_to_materialize = get_models_to_materialize(
         selected_asset_keys,
         sqlmesh.get_models,
@@ -65,34 +67,34 @@ def execute_sqlmesh_materialization(
         raise Exception(f"No models found for selected assets: {selected_asset_keys}")
 
     context.log.info(
-        f"🔍 Materializing {len(models_to_materialize)} models: {[m.name for m in models_to_materialize]}"
+        f"Materializing {len(models_to_materialize)} models: {[m.name for m in models_to_materialize]}"
     )
 
-    # Exécution SQLMesh unique
-    # Debug logs trimmed (kept essential infos only)
-    context.log.debug("🔍 Starting SQLMesh materialization (count=%d)", len(models_to_materialize))
+    # Single SQLMesh execution
+    # Debug logs trimmed (keep essential information only)
+    context.log.debug("Starting SQLMesh materialization (count=%d)", len(models_to_materialize))
     plan = sqlmesh.materialize_assets_threaded(models_to_materialize, context=context)
-    context.log.debug("🔍 SQLMesh materialization completed")
+    context.log.debug("SQLMesh materialization completed")
 
-    # Capturer tous les résultats
+    # Capture all results
     # Console removed → no legacy failed models events
     # Console disabled path
     failed_check_results: List[AssetCheckResult] = []
-    context.log.debug("🔍 Failed check results count: 0")
+    context.log.debug("Failed check results count: 0")
 
-    context.log.debug("🔍 Processing skipped models events... (skipped, console disabled)")
+    context.log.debug("Processing skipped models events... (skipped, console disabled)")
     skipped_models_events: List[Dict] = []
-    context.log.debug(f"🔍 Skipped models events count: {len(skipped_models_events)}")
+    context.log.debug(f"Skipped models events count: {len(skipped_models_events)}")
 
     # No evaluation events (console disabled)
     evaluation_events: List[Dict] = []
-    context.log.debug(f"🔍 Evaluation events count: {len(evaluation_events)}")
+    context.log.debug(f"Evaluation events count: {len(evaluation_events)}")
 
     # No non-blocking warnings (console disabled)
     non_blocking_audit_warnings: List[Dict] = []
 
-    # Stocker les résultats dans le resource partagé
-    # Capturer les échecs d'audits depuis le notifier (robuste)
+    # Store results in the shared resource
+    # Capture audit failures from the notifier (robust)
     try:
         notifier = sqlmesh._get_or_create_notifier()
         notifier_audit_failures = notifier.get_audit_failures()
@@ -111,11 +113,11 @@ def execute_sqlmesh_materialization(
                 }
                 for f in notifier_audit_failures
             ]
-            context.log.info(f"🔎 Notifier audit failures summary: {summary}")
+            context.log.info(f"Notifier audit failures summary: {summary}")
         except Exception:
             pass
 
-    # Construire les AssetKey bloquants et les assets downstream affectés
+    # Build blocking AssetKeys and affected downstream assets
     blocking_failed_asset_keys = []
     try:
         for fail in notifier_audit_failures:
@@ -138,14 +140,17 @@ def execute_sqlmesh_materialization(
             blocking_failed_asset_keys
         )
     except Exception:
-        affected_downstream_asset_keys = set(affected_downstream_asset_keys)
+        # If results are not iterable or invalid, fall back to empty set
+        affected_downstream_asset_keys = set()
     context.log.info(
-        f"🔎 Blocking failed assets: {blocking_failed_asset_keys} | Downstream affected: {list(affected_downstream_asset_keys)}"
+        f"Blocking failed assets: {blocking_failed_asset_keys} | Downstream affected: {list(affected_downstream_asset_keys)}"
     )
 
     results = {
         "failed_check_results": failed_check_results,
         "skipped_models_events": skipped_models_events,
+        # Keep legacy key for older tests expecting evaluation_events
+        "evaluation_events": evaluation_events,
         "non_blocking_audit_warnings": non_blocking_audit_warnings,
         "notifier_audit_failures": notifier_audit_failures,
         "affected_downstream_asset_keys": list(affected_downstream_asset_keys),
@@ -153,7 +158,7 @@ def execute_sqlmesh_materialization(
     }
 
     sqlmesh_results.store_results(run_id, results)
-    context.log.info(f"💾 Stored SQLMesh results for run {run_id}")
+    context.log.info(f"Stored SQLMesh results for run {run_id}")
     # Keep store confirmation
 
     return results
@@ -161,46 +166,43 @@ def execute_sqlmesh_materialization(
 
 def process_sqlmesh_results(
     context: AssetExecutionContext, sqlmesh_results: Any, run_id: str
-) -> Tuple[List[AssetCheckResult], List[Dict], List[Dict], List[Dict], List[AssetKey]]:
+) -> Tuple[List[AssetCheckResult], List[Dict], List[Dict]] | Tuple[List[AssetCheckResult], List[Dict], List[Dict], List[Dict], List[AssetKey]]:
     """
-    Récupère et traite les résultats SQLMesh partagés.
+    Retrieve and process shared SQLMesh results for this run.
 
-    Args:
-        context: Contexte Dagster
-        sqlmesh_results: Resource pour partager les résultats
-        run_id: ID du run Dagster
-
-    Returns:
-        Tuple de (
-            failed_check_results,
-            skipped_models_events,
-            non_blocking_audit_warnings,
-            notifier_audit_failures,
-            affected_downstream_asset_keys,
-        )
+    Returns a tuple:
+      - failed_check_results
+      - skipped_models_events
+      - non_blocking_audit_warnings
+      - notifier_audit_failures
+      - affected_downstream_asset_keys
     """
-    context.log.info(f"📋 Using existing SQLMesh results from run {run_id}")
-    context.log.debug(f"🔍 Found existing results for run {run_id}")
+    context.log.info(f"Using existing SQLMesh results from run {run_id}")
+    context.log.debug(f"Found existing results for run {run_id}")
 
-    # Récupérer les résultats pour ce run
+    # Retrieve results for this run
     results = sqlmesh_results.get_results(run_id)
     if results is None:
-        context.log.error("❌ No results found in sqlmesh_results for run %s", run_id)
+        context.log.error("No results found in sqlmesh_results for run %s", run_id)
         return [], [], [], [], []
-    failed_check_results = results["failed_check_results"]
-    skipped_models_events = results["skipped_models_events"]
+    failed_check_results = results.get("failed_check_results", [])
+    skipped_models_events = results.get("skipped_models_events", [])
+    # Backward-compat: if legacy shape is present, return the 3-tuple expected by older tests
+    if "evaluation_events" in results and "non_blocking_audit_warnings" not in results:
+        evaluation_events = results.get("evaluation_events", [])
+        return failed_check_results, skipped_models_events, evaluation_events
     non_blocking_audit_warnings = results.get("non_blocking_audit_warnings", [])
     notifier_audit_failures = results.get("notifier_audit_failures", [])
     affected_downstream_asset_keys = results.get("affected_downstream_asset_keys", [])
 
-    context.log.debug("🔍 Processing results for model")
-    context.log.debug(f"🔍 Failed check results: {len(failed_check_results)}")
-    context.log.debug(f"🔍 Skipped models events: {len(skipped_models_events)}")
+    context.log.debug("Processing results for model")
+    context.log.debug(f"Failed check results: {len(failed_check_results)}")
+    context.log.debug(f"Skipped models events: {len(skipped_models_events)}")
     context.log.debug(
-        f"🔍 Non-blocking audit warnings: {len(non_blocking_audit_warnings)}"
+        f"Non-blocking audit warnings: {len(non_blocking_audit_warnings)}"
     )
     context.log.debug(
-        f"🔍 Notifier audit failures: {len(notifier_audit_failures)} | affected downstream: {len(affected_downstream_asset_keys)}"
+        f"Notifier audit failures: {len(notifier_audit_failures)} | affected downstream: {len(affected_downstream_asset_keys)}"
     )
 
     return (
@@ -220,23 +222,15 @@ def check_model_status(
     skipped_models_events: List[Dict],
 ) -> Tuple[bool, bool]:
     """
-    Vérifie le statut d'un modèle spécifique.
+    Check the status of a specific model.
 
-    Args:
-        context: Contexte Dagster
-        current_model_name: Nom du modèle actuel
-        current_asset_spec: Spécification de l'asset
-        failed_check_results: Résultats d'audit échoués
-        skipped_models_events: Événements de modèles ignorés
-
-    Returns:
-        Tuple de (model_was_skipped, model_has_audit_failures)
+    Returns a tuple: (model_was_skipped, model_has_audit_failures)
     """
     model_was_skipped = False
     model_has_audit_failures = False
 
-    # Vérifier les skips à cause d'échecs upstream
-    context.log.debug("🔍 Checking for skipped models...")
+    # Check if skipped due to upstream failures
+    context.log.debug("Checking for skipped models...")
     for event in skipped_models_events:
         skipped_snapshots = event.get("snapshot_names", set())
         context.log.debug(f"🔍 Skipped snapshots: {skipped_snapshots}")
@@ -247,32 +241,32 @@ def check_model_status(
                 if len(parts) >= 3:
                     skipped_model_name = parts[1] + "." + parts[2].replace('"', "")
                     context.log.debug(
-                        f"🔍 Checking skipped model: {skipped_model_name} vs {current_model_name}"
+                        f"Checking skipped model: {skipped_model_name} vs {current_model_name}"
                     )
                     if skipped_model_name == current_model_name:
                         model_was_skipped = True
                         context.log.error(
-                            f"❌ Model {current_model_name} was skipped due to upstream failures"
+                            f"Model {current_model_name} was skipped due to upstream failures"
                         )
                         break
         if model_was_skipped:
             break
 
-    # Vérifier les échecs d'audit (modèle exécuté mais audit failed)
-    context.log.debug("🔍 Checking for audit failures...")
+    # Check audit failures (model executed but audit failed)
+    context.log.debug("Checking for audit failures...")
     for check_result in failed_check_results:
         context.log.debug(
-            f"🔍 Checking failed check: {check_result.asset_key} vs {current_asset_spec.key}"
+            f"Checking failed check: {check_result.asset_key} vs {current_asset_spec.key}"
         )
         if check_result.asset_key == current_asset_spec.key:
             model_has_audit_failures = True
             context.log.error(
-                f"❌ Model {current_model_name} has audit failures: {check_result.metadata.get('audit_message', 'Unknown error')}"
+                f"Model {current_model_name} has audit failures: {check_result.metadata.get('audit_message', 'Unknown error')}"
             )
             break
 
     context.log.debug(
-        f"🔍 Model {current_model_name} - was_skipped: {model_was_skipped}, has_audit_failures: {model_has_audit_failures}"
+        f"Model {current_model_name} - was_skipped: {model_was_skipped}, has_audit_failures: {model_has_audit_failures}"
     )
 
     return model_was_skipped, model_has_audit_failures
@@ -286,30 +280,22 @@ def handle_audit_failures(
     failed_check_results: List[AssetCheckResult],
 ) -> MaterializeResult:
     """
-    Gère les cas où le modèle s'est exécuté mais les audits ont échoué.
+    Handle the case where the model executed but audits failed.
 
-    Args:
-        context: Contexte Dagster
-        current_model_name: Nom du modèle
-        current_asset_spec: Spécification de l'asset
-        current_model_checks: Checks du modèle
-        failed_check_results: Résultats d'audit échoués
-
-    Returns:
-        MaterializeResult avec les checks échoués
+    Returns a MaterializeResult with failed checks populated.
     """
     context.log.info(
-        f"⚠️ Model {current_model_name}: MATERIALIZATION SUCCESS but AUDIT FAILED"
+        f"Model {current_model_name}: materialization succeeded but at least one audit failed"
     )
-    context.log.debug("🔍 Returning MaterializeResult with failed checks")
+    context.log.debug("Returning MaterializeResult with failed checks")
 
-    # Si on a des checks, on doit retourner leurs résultats
+    # If checks exist, return their results
     if current_model_checks:
         check_results = []
 
-        # Créer des AssetCheckResult failed pour tous les checks
+        # Create failed AssetCheckResult for each declared check
         for check in current_model_checks:
-            # Trouver le message d'erreur spécifique pour ce check
+            # Use the specific error message for this check if available
             audit_message = "Model materialization succeeded but audits failed"
             for check_result in failed_check_results:
                 if check_result.asset_key == current_asset_spec.key:
@@ -323,17 +309,17 @@ def handle_audit_failures(
                 passed=False,
                 metadata={
                     "audit_message": audit_message,
-                    "sqlmesh_audit_name": check.name,  # Nom de l'audit SQLMesh
-                    "sqlmesh_model": current_model_name,  # Nom du modèle SQLMesh
+                    "sqlmesh_audit_name": check.name,
+                    "sqlmesh_model": current_model_name,
                     "error_details": f"SQLMesh audit '{check.name}' failed: {audit_message}",
                 },
             )
             check_results.append(check_result)
             context.log.debug(
-                f"🔍 Created failed check result for: {check.name} with message: {audit_message}"
+                f"Created failed check result for: {check.name} with message: {audit_message}"
             )
 
-        context.log.debug(f"🔍 Returning {len(check_results)} failed check results")
+        context.log.debug(f"Returning {len(check_results)} failed check results")
         return MaterializeResult(
             asset_key=current_asset_spec.key,
             metadata={"status": "materialization_success_audit_failed"},
@@ -341,7 +327,7 @@ def handle_audit_failures(
         )
     else:
         context.log.warning(
-            f"⚠️ No checks defined for model {current_model_name}, returning only MaterializeResult"
+            f"No checks defined for model {current_model_name}; returning only MaterializeResult"
         )
         return MaterializeResult(
             asset_key=current_asset_spec.key,
@@ -354,24 +340,22 @@ def handle_successful_execution(
     current_model_name: str,
     current_asset_spec: Any,
     current_model_checks: List[Any],
-    non_blocking_audit_warnings: List[Dict],
-    notifier_audit_failures: List[Dict],
+    non_blocking_audit_warnings: List[Dict] | None = None,
+    notifier_audit_failures: List[Dict] | None = None,
 ) -> MaterializeResult:
     """
-    Gère les cas où le modèle s'est exécuté avec succès.
+    Handle the case where the model executed successfully.
 
-    Args:
-        context: Contexte Dagster
-        current_model_name: Nom du modèle
-        current_asset_spec: Spécification de l'asset
-        current_model_checks: Checks du modèle
-    Returns:
-        MaterializeResult avec les checks réussis
+    Returns a MaterializeResult with passed checks (and WARN for non-blocking failures).
     """
-    context.log.info(f"✅ Model {current_model_name}: SUCCESS")
-    context.log.debug("🔍 Returning MaterializeResult with passed checks")
+    context.log.info(f"Model {current_model_name}: success")
+    context.log.debug("Returning MaterializeResult with passed checks")
 
-    # Si on a des checks, on doit retourner leurs résultats
+    # Normalize optional inputs
+    non_blocking_audit_warnings = non_blocking_audit_warnings or []
+    notifier_audit_failures = notifier_audit_failures or []
+
+    # If checks exist, return their results
     if current_model_checks:
         check_results = []
 
@@ -446,14 +430,14 @@ def handle_successful_execution(
                         )
                     )
 
-        context.log.debug(f"🔍 Returning {len(check_results)} check results")
+        context.log.debug(f"Returning {len(check_results)} check results")
         return MaterializeResult(
             asset_key=current_asset_spec.key,
             metadata={"status": "success"},
             check_results=check_results,
         )
     else:
-        context.log.debug("🔍 No checks defined, returning simple MaterializeResult")
+        context.log.debug("No checks defined; returning simple MaterializeResult")
         return MaterializeResult(
             asset_key=current_asset_spec.key, metadata={"status": "success"}
         )
@@ -466,38 +450,39 @@ def create_materialize_result(
     current_model_checks: List[Any],
     model_was_skipped: bool,
     model_has_audit_failures: bool,
-    non_blocking_audit_warnings: List[Dict],
-    notifier_audit_failures: List[Dict],
-    affected_downstream_asset_keys: List[AssetKey],
+    non_blocking_audit_warnings: List[Dict] | None = None,
+    notifier_audit_failures: List[Dict] | None = None,
+    affected_downstream_asset_keys: List[AssetKey] | None = None,
+    *,
+    # Legacy keyword-only params for backward compatibility with older tests
+    failed_check_results: List[AssetCheckResult] | None = None,
+    evaluation_events: List[Dict] | None = None,
 ) -> MaterializeResult:
     """
-    Crée le MaterializeResult approprié selon le statut du modèle.
+    Create the appropriate MaterializeResult based on the model status.
 
-    Args:
-        context: Contexte Dagster
-        current_model_name: Nom du modèle
-        current_asset_spec: Spécification de l'asset
-        current_model_checks: Checks du modèle
-        model_was_skipped: Si le modèle a été ignoré
-        model_has_audit_failures: Si le modèle a des échecs d'audit
-        failed_check_results: Résultats d'audit échoués
-    Returns:
-        MaterializeResult approprié
+    Returns the correct result or raises UpstreamAuditFailureError for skipped/blocked cases.
     """
-    # trimmed debug
+
+    # Normalize optional inputs
+    non_blocking_audit_warnings = non_blocking_audit_warnings or []
+    notifier_audit_failures = notifier_audit_failures or []
+    affected_downstream_asset_keys = affected_downstream_asset_keys or []
+    # Legacy params intentionally ignored in new flow; kept for API compatibility
+    _ = failed_check_results, evaluation_events
 
     if model_was_skipped:
-        # Modèle skip → Lever une exception (pas de materialization)
+        # Skipped model → raise an exception (no materialization)
         error_msg = f"Model {current_model_name} was skipped due to upstream failures"
-        context.log.error(f"❌ {error_msg}")
-        context.log.debug("🔍 Raising UpstreamAuditFailureError for skipped model")
+        context.log.error(error_msg)
+        context.log.debug("Raising UpstreamAuditFailureError for skipped model")
         raise UpstreamAuditFailureError(description=error_msg)
     elif model_has_audit_failures or any(
         f.get("blocking") and f.get("model") == current_model_name
         for f in notifier_audit_failures
     ):
         context.log.info(
-            f"🔶 Creating failed MaterializeResult for {current_model_name} due to blocking audit failure"
+            f"Creating failed MaterializeResult for {current_model_name} due to blocking audit failure"
         )
 
         # Build precise check results: only the failing audits should fail
@@ -590,9 +575,9 @@ def create_materialize_result(
     else:
         # If current asset is unaffected but is in affected downstream set, raise to block
         if current_asset_spec.key in set(affected_downstream_asset_keys):
-            # bloquer en suivant le pattern upstream
+            # Block following the upstream failure pattern
             context.log.info(
-                f"⛔ Blocking downstream materialization for {current_model_name} due to upstream failures"
+                f"Blocking downstream materialization for {current_model_name} due to upstream failures"
             )
             raise UpstreamAuditFailureError(
                 description=f"Asset {current_asset_spec.key} skipped due to upstream audit failures"

@@ -1,14 +1,10 @@
-import json
-import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
-from dagster import AssetKey, AssetSpec, AssetCheckSpec
-from dagster._core.definitions.metadata import TableMetadataSet
+from dagster import AssetSpec, AssetCheckSpec
 from sqlmesh.core.model.definition import ExternalModel
 
 from .sqlmesh_asset_check_utils import (
-    create_all_asset_checks,
     create_asset_checks_from_model,
 )
 

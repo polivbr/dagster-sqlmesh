@@ -17,7 +17,7 @@ The project follows the **Individual Asset Pattern** with **Shared SQLMesh Execu
 
 ## Core Components
 
-The main entry points are in [src/dg_sqlmesh/__init__.py](mdc:src/dg_sqlmesh/__init__.py) which exposes:
+The main entry points are in [src/dg_sqlmesh/**init**.py](mdc:src/dg_sqlmesh/__init__.py) which exposes:
 
 - `sqlmesh_definitions_factory` - All-in-one factory for complete SQLMesh integration
 - `sqlmesh_assets_factory` - Factory for creating individual Dagster assets from SQLMesh models
@@ -32,12 +32,12 @@ The main entry points are in [src/dg_sqlmesh/__init__.py](mdc:src/dg_sqlmesh/__i
 - [src/dg_sqlmesh/translator.py](mdc:src/dg_sqlmesh/translator.py) - SQLMeshTranslator for concept mapping
 - [src/dg_sqlmesh/sqlmesh_asset_utils.py](mdc:src/dg_sqlmesh/sqlmesh_asset_utils.py) - Asset creation utilities
 - [src/dg_sqlmesh/sqlmesh_asset_check_utils.py](mdc:src/dg_sqlmesh/sqlmesh_asset_check_utils.py) - Asset check utilities
-- [src/dg_sqlmesh/sqlmesh_event_console.py](mdc:src/dg_sqlmesh/sqlmesh_event_console.py) - Custom event console for capturing SQLMesh events
+- [src/dg_sqlmesh/notifier.py](mdc:src/dg_sqlmesh/notifier.py) - Custom slqmesh notifier to catch audit errors
 
 ## Key Resources
 
 - `SQLMeshResultsResource` - Shares SQLMesh execution results across assets in the same run
-- `SQLMeshEventCaptureConsole` - Captures detailed SQLMesh events for asset status determination
+- `CapturingNotifier` - Captures detailed Audit errors
 
 ## Development Tools
 

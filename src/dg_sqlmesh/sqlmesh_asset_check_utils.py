@@ -4,7 +4,6 @@ from dagster import AssetCheckSpec, AssetKey
 from typing import List, Dict, Any, Tuple, Optional
 from sqlmesh.core.model.definition import ExternalModel
 from sqlglot import exp
-import re
 import json
 
 
@@ -88,12 +87,12 @@ def safe_extract_audit_query(model, audit_obj, audit_args, logger=None):
         return model.render_audit_query(audit_obj, **audit_args).sql()
     except Exception as e:
         if logger:
-            logger.warning(f"⚠️ Error rendering audit query: {e}")
+            logger.warning(f"Error rendering audit query: {e}")
         try:
             return audit_obj.query.sql()
         except Exception as e2:
             if logger:
-                logger.warning(f"⚠️ Error extracting base query: {e2}")
+                logger.warning(f"Error extracting base query: {e2}")
             return "N/A"
 
 
@@ -180,7 +179,7 @@ def extract_failed_audit_details(audit_error, logger=None) -> Dict[str, Any]:
             sql_text = audit_error.query.sql(getattr(audit_error, "adapter_dialect", None))
     except Exception as e:  # pragma: no cover - defensive
         if logger:
-            logger.warning(f"⚠️ Failed to extract audit SQL: {e}")
+            logger.warning(f"Failed to extract audit SQL: {e}")
         sql_text = "N/A"
 
     blocking = is_audit_blocking_from_error(audit_error)

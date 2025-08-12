@@ -166,94 +166,9 @@ class TestSQLMeshResourceExecution:
         # Should not have validation errors for our test project
         assert len(errors) == 0
 
-    def test_process_failed_models_events(self, sqlmesh_resource: SQLMeshResource) -> None:
-        """Test processing of failed models events."""
-        # Mock console with failed models events
-        mock_error = Mock()
-        mock_error.node = ["test_model"]
-        mock_error.__cause__ = None
-        
-        mock_audit_error = Mock()
-        mock_audit_error.audit_name = "test_audit"
-        mock_audit_error.audit_args = {"arg1": "value1"}
-        mock_audit_error.blocking = True
-        mock_audit_error.__str__ = Mock(return_value="Audit failed")
-        # Mock the query to return a string instead of a Mock object
-        mock_audit_error.query = Mock()
-        mock_audit_error.query.sql.return_value = "SELECT COUNT(*) FROM test_table"
-        
-        mock_audits_errors = Mock(spec=NodeAuditsErrors)
-        mock_audits_errors.errors = [mock_audit_error]
-        
-        mock_error_with_audit = Mock()
-        mock_error_with_audit.node = ["test_model_with_audit"]
-        mock_error_with_audit.__cause__ = mock_audits_errors
-        
-        # Add events to console
-        sqlmesh_resource._console.failed_models_events = [
-            {
-                'event_type': 'log_failed_models',
-                'errors': [mock_error, mock_error_with_audit],
-                'timestamp': 1234567890.0
-            }
-        ]
-        
-        # Process events
-        results = sqlmesh_resource._process_failed_models_events()
-        
-        # Check results - might be 1 or 2 depending on audit extraction success
-        assert len(results) >= 1  # At least one result (general error)
-        
-        # Check general error result (should always be present)
-        general_result = results[0]
-        assert general_result.passed is False
-        assert general_result.check_name == "model_execution_error"
-        # Asset key can be None if model not found in context
-        assert general_result.asset_key is None or "test_model" in str(general_result.asset_key)
-        
-        # Check audit error result (might not be present if extraction fails)
-        if len(results) > 1:
-            audit_result = results[1]
-            assert audit_result.passed is False
-            assert audit_result.check_name == "test_audit"
-            # Asset key can be None if model not found in context
-            assert audit_result.asset_key is None or "test_model_with_audit" in str(audit_result.asset_key)
-            # Check metadata values (Dagster wraps them in MetadataValue objects)
-            assert audit_result.metadata["audit_blocking"].value is True
-            assert audit_result.metadata["error_type"].value == "audit_failure"
+    # Legacy console-based tests removed (no console integration in resource)
 
-    def test_process_failed_models_events_with_extraction_error(self, sqlmesh_resource: SQLMeshResource) -> None:
-        """Test processing of failed models events with extraction errors."""
-        # Mock console with problematic audit error
-        mock_audit_error = Mock()
-        mock_audit_error.audit_name = Mock(side_effect=Exception("Extraction error"))
-        mock_audit_error.audit_args = {}
-        mock_audit_error.__str__ = Mock(return_value="Audit error")
-        # Mock the query to return a string instead of a Mock object
-        mock_audit_error.query = Mock()
-        mock_audit_error.query.sql.return_value = "SELECT COUNT(*) FROM test_table"
-        
-        mock_audits_errors = Mock(spec=NodeAuditsErrors)
-        mock_audits_errors.errors = [mock_audit_error]
-        
-        mock_error = Mock()
-        mock_error.node = ["test_model"]
-        mock_error.__cause__ = mock_audits_errors
-        
-        # Add events to console
-        sqlmesh_resource._console.failed_models_events = [
-            {
-                'event_type': 'log_failed_models',
-                'errors': [mock_error],
-                'timestamp': 1234567890.0
-            }
-        ]
-        
-        # Process events
-        results = sqlmesh_resource._process_failed_models_events()
-        
-        # Check results - with the new behavior, no AssetCheckResult should be created when extraction fails
-        assert len(results) == 0  # No results created when extraction fails
+    # Legacy console-based tests removed (no console integration in resource)
 
     def test_extract_model_info(self, sqlmesh_resource: SQLMeshResource) -> None:
         """Test the _extract_model_info utility method."""

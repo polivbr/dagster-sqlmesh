@@ -206,7 +206,7 @@ class SQLMeshResource(ConfigurableResource):
                     grouped_results[key] = result
                     if self._logger:
                         self._logger.warning(
-                            f"⚠️ Conflicting audit results for {result.asset_key}.{result.check_name}: prioritizing failed result"
+                            f"Conflicting audit results for {result.asset_key}.{result.check_name}: prioritizing failed result"
                         )
 
         return list(grouped_results.values())
@@ -315,7 +315,7 @@ class SQLMeshResource(ConfigurableResource):
                     asset_key = self.translator.get_asset_key(model)
         except Exception as e:
             if self._logger:
-                self._logger.warning(f"⚠️ Error converting model name to asset key: {e}")
+                self._logger.warning(f"Error converting model name to asset key: {e}")
 
         return model_name, model, asset_key
 
@@ -358,7 +358,7 @@ class SQLMeshResource(ConfigurableResource):
         except Exception as audit_e:
             if self._logger:
                 self._logger.warning(
-                    f"⚠️ Failed to extract audit details for {model_name}: {audit_e}"
+                    f"Failed to extract audit details for {model_name}: {audit_e}"
                 )
             return None
 
@@ -371,7 +371,7 @@ class SQLMeshResource(ConfigurableResource):
         # Log general error
         if self._logger:
             self._logger.warning(
-                f"❌ MODEL ERROR for model '{model_name}': {error_type} - {message}"
+                f"MODEL ERROR for model '{model_name}': {error_type} - {message}"
             )
 
         # Sanitize metadata for Dagster 1.11.4 compatibility
@@ -451,7 +451,7 @@ class SQLMeshResource(ConfigurableResource):
                 )
             except Exception as e:
                 if self._logger:
-                    self._logger.warning(f"⚠️ Failed to convert notifier audit failure: {e}")
+                    self._logger.warning(f"Failed to convert notifier audit failure: {e}")
                 continue
 
         return results
@@ -490,7 +490,7 @@ class SQLMeshResource(ConfigurableResource):
 
     def _log_failed_error_processing(self, exception):
         if self._logger:
-            self._logger.warning(f"⚠️ Failed to process error: {exception}")
+            self._logger.warning(f"Failed to process error: {exception}")
 
     def _get_failed_blocking_checks(
         self, asset_check_results: list[AssetCheckResult]
@@ -626,7 +626,7 @@ class SQLMeshResource(ConfigurableResource):
                 # Skip affected downstream assets - don't yield MaterializeResult
                 if self._logger:
                     self._logger.warning(
-                        f"⏭️ Skipping materialization of {asset_key} due to upstream failures: "
+                        f"Skipping materialization of {asset_key} due to upstream failures: "
                         f"{[str(key) for key in failed_asset_keys]}"
                     )
                 # Raise custom exception that will be handled gracefully by factory
