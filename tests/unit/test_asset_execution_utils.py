@@ -488,20 +488,23 @@ class TestPhase1HelperFunctions:
 
     def test__get_notifier_failures_success(self) -> None:
         from dg_sqlmesh.sqlmesh_asset_execution_utils import _get_notifier_failures
-        sqlmesh = Mock()
-        notifier = Mock()
-        notifier.get_audit_failures.return_value = [{"model": "s.m", "audit": "a1"}]
-        sqlmesh._get_or_create_notifier.return_value = notifier
-
-        failures = _get_notifier_failures(sqlmesh)
-        assert failures == [{"model": "s.m", "audit": "a1"}]
+        # Service-based path
+        with pytest.MonkeyPatch().context() as m:
+            m.setattr(
+                "dg_sqlmesh.notifier_service.get_audit_failures",
+                lambda: [{"model": "s.m", "audit": "a1"}],
+            )
+            failures = _get_notifier_failures(Mock())
+            assert failures == [{"model": "s.m", "audit": "a1"}]
 
     def test__get_notifier_failures_exception(self) -> None:
         from dg_sqlmesh.sqlmesh_asset_execution_utils import _get_notifier_failures
-        sqlmesh = Mock()
-        sqlmesh._get_or_create_notifier.side_effect = Exception("boom")
-        failures = _get_notifier_failures(sqlmesh)
-        assert failures == []
+        with pytest.MonkeyPatch().context() as m:
+            def raise_err():
+                raise Exception("boom")
+            m.setattr("dg_sqlmesh.notifier_service.get_audit_failures", raise_err)
+            failures = _get_notifier_failures(Mock())
+            assert failures == []
 
     def test__summarize_notifier_failures_logs(self) -> None:
         from dg_sqlmesh.sqlmesh_asset_execution_utils import _summarize_notifier_failures

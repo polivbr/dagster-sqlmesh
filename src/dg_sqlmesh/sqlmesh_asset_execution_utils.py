@@ -5,7 +5,6 @@ Functions extracted from the `model_asset` flow to improve readability and
 testability. All docstrings and logs are standardized in English.
 """
 
-import json
 from dagster import (
     AssetExecutionContext,
     MaterializeResult,
@@ -343,128 +342,6 @@ def _build_check_results_for_create_result(
     return check_results
 
 
-# ----------------------------- Internal helpers (Phase 1) -----------------------------
-
-def _log_run_selection(context: AssetExecutionContext, run_id: str, selected_asset_keys: List[AssetKey]) -> None:
-    """Log high-level context for the shared execution."""
-    context.log.info(
-        "First asset in run; launching SQLMesh execution for all selected assets"
-    )
-    context.log.debug(f"No existing results for run {run_id}")
-    context.log.info(f"Selected assets in this run: {selected_asset_keys}")
-
-
-def _select_models_to_materialize(selected_asset_keys: List[AssetKey], sqlmesh: SQLMeshResource) -> List[Any]:
-    """Resolve SQLMesh models to materialize from selection; raise if none found."""
-    models_to_materialize = get_models_to_materialize(
-        selected_asset_keys,
-        sqlmesh.get_models,
-        sqlmesh.translator,
-    )
-    if not models_to_materialize:
-        raise Exception(f"No models found for selected assets: {selected_asset_keys}")
-    return models_to_materialize
-
-
-def _materialize_and_get_plan(sqlmesh: SQLMeshResource, models_to_materialize: List[Any], context: AssetExecutionContext) -> Any:
-    """Run a single SQLMesh materialization and return the plan."""
-    context.log.info(
-        f"Materializing {len(models_to_materialize)} models: {[m.name for m in models_to_materialize]}"
-    )
-    context.log.debug("Starting SQLMesh materialization (count=%d)", len(models_to_materialize))
-    plan = sqlmesh.materialize_assets_threaded(models_to_materialize, context=context)
-    context.log.debug("SQLMesh materialization completed")
-    return plan
-
-
-def _init_execution_event_buffers(context: AssetExecutionContext) -> tuple[List[AssetCheckResult], List[Dict], List[Dict], List[Dict]]:
-    """Initialize buffers for legacy/disabled console paths and non-blocking warnings."""
-    failed_check_results: List[AssetCheckResult] = []
-    context.log.debug("Failed check results count: 0")
-    context.log.debug("Processing skipped models events... (skipped, console disabled)")
-    skipped_models_events: List[Dict] = []
-    context.log.debug(f"Skipped models events count: {len(skipped_models_events)}")
-    evaluation_events: List[Dict] = []  # console disabled
-    context.log.debug(f"Evaluation events count: {len(evaluation_events)}")
-    non_blocking_audit_warnings: List[Dict] = []
-    return failed_check_results, skipped_models_events, evaluation_events, non_blocking_audit_warnings
-
-
-def _get_notifier_failures(sqlmesh: SQLMeshResource) -> List[Dict]:
-    """Safely retrieve notifier audit failures; return empty list on error."""
-    try:
-        notifier = sqlmesh._get_or_create_notifier()
-        return notifier.get_audit_failures()
-    except Exception:
-        return []
-
-
-def _summarize_notifier_failures(context: AssetExecutionContext, notifier_audit_failures: List[Dict]) -> None:
-    """Log a compact summary of notifier failures if present."""
-    if not notifier_audit_failures:
-        return
-    try:
-        summary = [
-            {
-                "model": f.get("model"),
-                "audit": f.get("audit"),
-                "blocking": f.get("blocking"),
-                "count": f.get("count"),
-            }
-            for f in notifier_audit_failures
-        ]
-        context.log.info(f"Notifier audit failures summary: {summary}")
-    except Exception:
-        # ignore logging issues to avoid breaking execution
-        pass
-
-
-def _compute_blocking_and_downstream(sqlmesh: SQLMeshResource, notifier_audit_failures: List[Dict]) -> tuple[List[AssetKey], set[AssetKey]]:
-    """Compute failing blocking asset keys and affected downstream asset keys."""
-    blocking_failed_asset_keys: List[AssetKey] = []
-    try:
-        for fail in notifier_audit_failures:
-            if fail.get("blocking") and fail.get("model"):
-                model = sqlmesh.context.get_model(fail.get("model"))
-                if model:
-                    blocking_failed_asset_keys.append(sqlmesh.translator.get_asset_key(model))
-    except Exception:
-        pass
-
-    try:
-        affected_downstream_asset_keys = sqlmesh._get_affected_downstream_assets(blocking_failed_asset_keys)
-    except Exception:
-        affected_downstream_asset_keys = set()
-
-    # Ensure we don't include the failing assets themselves in the downstream set
-    try:
-        affected_downstream_asset_keys = set(affected_downstream_asset_keys) - set(blocking_failed_asset_keys)
-    except Exception:
-        affected_downstream_asset_keys = set()
-
-    return blocking_failed_asset_keys, affected_downstream_asset_keys
-
-
-def _build_shared_results(
-    plan: Any,
-    failed_check_results: List[AssetCheckResult],
-    skipped_models_events: List[Dict],
-    evaluation_events: List[Dict],
-    non_blocking_audit_warnings: List[Dict],
-    notifier_audit_failures: List[Dict],
-    affected_downstream_asset_keys: set[AssetKey],
-) -> Dict[str, Any]:
-    """Assemble the shared results payload for this run."""
-    return {
-        "failed_check_results": failed_check_results,
-        "skipped_models_events": skipped_models_events,
-        # Keep legacy key for older tests expecting evaluation_events
-        "evaluation_events": evaluation_events,
-        "non_blocking_audit_warnings": non_blocking_audit_warnings,
-        "notifier_audit_failures": notifier_audit_failures,
-        "affected_downstream_asset_keys": list(affected_downstream_asset_keys),
-        "plan": plan,
-    }
 
 
 def execute_sqlmesh_materialization(
@@ -487,39 +364,101 @@ def execute_sqlmesh_materialization(
     Returns:
         Dict with captured execution results for later reuse in the same run
     """
-    _log_run_selection(context, run_id, selected_asset_keys)
+    # Log selection
+    context.log.info(
+        "First asset in run; launching SQLMesh execution for all selected assets"
+    )
+    context.log.debug(f"No existing results for run {run_id}")
+    context.log.info(f"Selected assets in this run: {selected_asset_keys}")
 
     # Launch a single SQLMesh execution for all selected assets
-    models_to_materialize = _select_models_to_materialize(selected_asset_keys, sqlmesh)
+    # Resolve models to materialize
+    models_to_materialize = get_models_to_materialize(
+        selected_asset_keys,
+        sqlmesh.get_models,
+        sqlmesh.translator,
+    )
+    if not models_to_materialize:
+        raise Exception(f"No models found for selected assets: {selected_asset_keys}")
 
     # Single SQLMesh execution
-    plan = _materialize_and_get_plan(sqlmesh, models_to_materialize, context)
+    # Run single SQLMesh execution and get plan
+    context.log.info(
+        f"Materializing {len(models_to_materialize)} models: {[m.name for m in models_to_materialize]}"
+    )
+    context.log.debug("Starting SQLMesh materialization (count=%d)", len(models_to_materialize))
+    plan = sqlmesh.materialize_assets_threaded(models_to_materialize, context=context)
+    context.log.debug("SQLMesh materialization completed")
 
     # Capture all results
     # Console removed → no legacy failed models events
     # Console disabled path
-    failed_check_results, skipped_models_events, evaluation_events, non_blocking_audit_warnings = _init_execution_event_buffers(context)
+    # Initialize result buffers (console disabled)
+    failed_check_results: List[AssetCheckResult] = []
+    context.log.debug("Failed check results count: 0")
+    context.log.debug("Processing skipped models events... (skipped, console disabled)")
+    skipped_models_events: List[Dict] = []
+    context.log.debug(f"Skipped models events count: {len(skipped_models_events)}")
+    evaluation_events: List[Dict] = []
+    context.log.debug(f"Evaluation events count: {len(evaluation_events)}")
+    non_blocking_audit_warnings: List[Dict] = []
 
     # Store results in the shared resource
     # Capture audit failures from the notifier (robust)
-    notifier_audit_failures = _get_notifier_failures(sqlmesh)
-    _summarize_notifier_failures(context, notifier_audit_failures)
+    # Get notifier failures via service and log summary
+    try:
+        from .notifier_service import get_audit_failures
+        notifier_audit_failures = get_audit_failures()
+    except Exception:
+        notifier_audit_failures = []
+    if notifier_audit_failures:
+        try:
+            summary = [
+                {
+                    "model": f.get("model"),
+                    "audit": f.get("audit"),
+                    "blocking": f.get("blocking"),
+                    "count": f.get("count"),
+                }
+                for f in notifier_audit_failures
+            ]
+            context.log.info(f"Notifier audit failures summary: {summary}")
+        except Exception:
+            pass
 
     # Build blocking AssetKeys and affected downstream assets
-    blocking_failed_asset_keys, affected_downstream_asset_keys = _compute_blocking_and_downstream(sqlmesh, notifier_audit_failures)
+    # Compute blocking and downstream
+    blocking_failed_asset_keys: List[AssetKey] = []
+    try:
+        for fail in notifier_audit_failures:
+            if fail.get("blocking") and fail.get("model"):
+                model = sqlmesh.context.get_model(fail.get("model"))
+                if model:
+                    blocking_failed_asset_keys.append(sqlmesh.translator.get_asset_key(model))
+    except Exception:
+        pass
+    try:
+        affected_downstream_asset_keys = sqlmesh._get_affected_downstream_assets(blocking_failed_asset_keys)
+    except Exception:
+        affected_downstream_asset_keys = set()
+    try:
+        affected_downstream_asset_keys = set(affected_downstream_asset_keys) - set(blocking_failed_asset_keys)
+    except Exception:
+        affected_downstream_asset_keys = set()
     context.log.info(
         f"Blocking failed assets: {blocking_failed_asset_keys} | Downstream affected: {list(affected_downstream_asset_keys)}"
     )
 
-    results = _build_shared_results(
-        plan,
-        failed_check_results,
-        skipped_models_events,
-        evaluation_events,
-        non_blocking_audit_warnings,
-        notifier_audit_failures,
-        affected_downstream_asset_keys,
-    )
+    # Build shared result payload
+    results: Dict[str, Any] = {
+        "failed_check_results": failed_check_results,
+        "skipped_models_events": skipped_models_events,
+        "evaluation_events": evaluation_events,
+        "non_blocking_audit_warnings": non_blocking_audit_warnings,
+        "notifier_audit_failures": notifier_audit_failures,
+        "affected_downstream_asset_keys": list(affected_downstream_asset_keys),
+        "plan": plan,
+    }
 
     sqlmesh_results.store_results(run_id, results)
     context.log.info(f"Stored SQLMesh results for run {run_id}")
