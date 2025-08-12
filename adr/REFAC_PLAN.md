@@ -126,7 +126,7 @@ Benefits:
 ## 4) Task Breakdown and Checklist
 
 - [x] Phase 0: Translate logs; strip dead imports/paths
-- [ ] Phase 1: Split  into micro-functions
+- [x] Phase 1: Split  into micro-functions
 - [ ] Phase 2: Slim  and optionally add 
 - [ ] Phase 3: Consolidate utils; remove duplicates
 - [ ] Phase 4: Normalize logging and exceptions
