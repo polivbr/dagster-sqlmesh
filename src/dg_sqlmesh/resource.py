@@ -61,7 +61,7 @@ class UpstreamAuditFailureError(Failure):
         super().__init__(description=description, metadata=metadata, allow_retries=False)
 
 
-def convert_unix_timestamp_to_readable(timestamp):
+def convert_unix_timestamp_to_readable(timestamp: float | int | None) -> str | None:
     """
     Converts a Unix timestamp to a readable date.
 
@@ -205,10 +205,8 @@ class SQLMeshResource(ConfigurableResource):
 
         return list(grouped_results.values())
 
-    def materialize_assets(self, models, context=None):
-        """
-        Materializes specified SQLMesh assets with robust error handling.
-        """
+    def materialize_assets(self, models: list[Any], context: Any | None = None) -> Any:
+        """Materialize specified SQLMesh models with robust error handling."""
         model_names = [model.name for model in models]
         try:
             plan = self._create_sqlmesh_plan(model_names)
@@ -234,28 +232,26 @@ class SQLMeshResource(ConfigurableResource):
         except Exception as e:
             self._log_and_raise(f"Unexpected error: {e}")
 
-    def _create_sqlmesh_plan(self, model_names):
+    def _create_sqlmesh_plan(self, model_names: list[str]) -> Any:
         return self.context.plan(
             select_models=model_names,
             auto_apply=False,  # never apply the plan, we will juste need it for metadata collection
             no_prompts=True,
         )
 
-    def _run_sqlmesh_plan(self, model_names):
+    def _run_sqlmesh_plan(self, model_names: list[str]) -> None:
         self.context.run(
             environment=self.environment,
             select_models=model_names,
             execution_time=datetime.datetime.now(),
         )
 
-    def _log_and_raise(self, message):
+    def _log_and_raise(self, message: str) -> None:
         self._logger.error(message)
         raise
 
-    def materialize_assets_threaded(self, models, context=None):
-        """
-        Synchronous wrapper for Dagster that uses anyio.
-        """
+    def materialize_assets_threaded(self, models: list[Any], context: Any | None = None) -> Any:
+        """Synchronous wrapper for Dagster that uses anyio."""
 
         def run_materialization():
             try:
@@ -266,11 +262,8 @@ class SQLMeshResource(ConfigurableResource):
 
         return anyio.run(anyio.to_thread.run_sync, run_materialization)
 
-    def _extract_model_info(self, error) -> tuple[str, Any, Any]:
-        """
-        Extract model name, model object, and asset key from error.
-        Returns (model_name, model, asset_key)
-        """
+    def _extract_model_info(self, error: Any) -> tuple[str, Any | None, Any | None]:
+        """Extract (model_name, model, asset_key) from a SQLMesh error object."""
         model_name = "unknown"
         model = None
         asset_key = None
@@ -355,7 +348,7 @@ class SQLMeshResource(ConfigurableResource):
             logger=self._logger,
         )
 
-    def _process_single_error(self, error, model_name, asset_key, asset_check_results):
+    def _process_single_error(self, error: Any, model_name: str, asset_key: Any, asset_check_results: list[AssetCheckResult]) -> None:
         # Process audit errors if present
         if hasattr(error, "__cause__") and error.__cause__:
             if isinstance(error.__cause__, NodeAuditsErrors):
@@ -378,8 +371,8 @@ class SQLMeshResource(ConfigurableResource):
             asset_check_results.append(general_result)
 
     def _process_audit_errors(
-        self, audits_errors, model_name, asset_key, asset_check_results
-    ):
+        self, audits_errors: Any, model_name: str, asset_key: Any, asset_check_results: list[AssetCheckResult]
+    ) -> None:
         for audit_error in audits_errors.errors:
             audit_result = self._create_failed_audit_check_result(
                 audit_error, model_name, asset_key
@@ -387,7 +380,7 @@ class SQLMeshResource(ConfigurableResource):
             if audit_result is not None:
                 asset_check_results.append(audit_result)
 
-    def _log_failed_error_processing(self, exception):
+    def _log_failed_error_processing(self, exception: Exception) -> None:
         if self._logger:
             self._logger.warning(f"Failed to process error: {exception}")
 

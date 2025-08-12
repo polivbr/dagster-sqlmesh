@@ -8,7 +8,7 @@ from sqlglot import exp
 import json
 
 
-def create_asset_checks_from_model(model, asset_key: AssetKey) -> List[AssetCheckSpec]:
+def create_asset_checks_from_model(model: Any, asset_key: AssetKey) -> List[AssetCheckSpec]:
     """
     Creates AssetCheckSpec for audits of a SQLMesh model.
 
@@ -46,7 +46,7 @@ def create_asset_checks_from_model(model, asset_key: AssetKey) -> List[AssetChec
     return asset_checks
 
 
-def create_all_asset_checks(models, translator) -> List[AssetCheckSpec]:
+def create_all_asset_checks(models: list[Any], translator: Any) -> List[AssetCheckSpec]:
     """
     Creates all AssetCheckSpec for all SQLMesh models.
 
@@ -71,7 +71,7 @@ def create_all_asset_checks(models, translator) -> List[AssetCheckSpec]:
     return all_checks
 
 
-def safe_extract_audit_query(model, audit_obj, audit_args, logger=None):
+def safe_extract_audit_query(model: Any, audit_obj: Any, audit_args: Dict[str, Any], logger: Any | None = None) -> str:
     """
     Safely extracts audit query with fallback.
 
@@ -97,7 +97,7 @@ def safe_extract_audit_query(model, audit_obj, audit_args, logger=None):
             return "N/A"
 
 
-def extract_audit_details(audit_obj, audit_args, model, logger=None) -> Dict[str, Any]:
+def extract_audit_details(audit_obj: Any, audit_args: Dict[str, Any], model: Any, logger: Any | None = None) -> Dict[str, Any]:
     """
     Extracts all useful information from an audit object.
     This function is moved from the console to follow the separation of concerns pattern.
@@ -124,7 +124,7 @@ def extract_audit_details(audit_obj, audit_args, model, logger=None) -> Dict[str
         "arguments": audit_args,
     }
 
-def is_audit_blocking_from_error(audit_error) -> bool:
+def is_audit_blocking_from_error(audit_error: Any) -> bool:
     """
     Determine if the failed audit was blocking by inspecting the model's audits_with_args.
     Returns True if blocking, False if explicitly set to non-blocking, defaults to True if unknown.
@@ -153,7 +153,7 @@ def is_audit_blocking_from_error(audit_error) -> bool:
     return True  # conservative default
 
 
-def extract_failed_audit_details(audit_error, logger=None) -> Dict[str, Any]:
+def extract_failed_audit_details(audit_error: Any, logger: Any | None = None) -> Dict[str, Any]:
     """
     Extract structured information from an AuditError for building AssetCheckResult.
 
@@ -197,7 +197,7 @@ def extract_failed_audit_details(audit_error, logger=None) -> Dict[str, Any]:
     }
 
 
-def find_audit_on_model(model, audit_name: str) -> Optional[Tuple[Any, Dict[str, Any]]]:
+def find_audit_on_model(model: Any, audit_name: str) -> Optional[Tuple[Any, Dict[str, Any]]]:
     """
     Locate an audit object and its args on a SQLMesh model by name.
     Returns (audit_obj, audit_args) or None if not found.
