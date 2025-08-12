@@ -36,7 +36,7 @@ Adopt SQLMesh's notification targets and introduce a custom in-memory target `Ca
 
 ### Notifier
 
-File: `src/dg_sqlmesh/notifier.py`
+Files: `src/dg_sqlmesh/notifier.py`, `src/dg_sqlmesh/notifier_service.py`
 
 ```python
 class CapturingNotifier(BaseNotificationTarget):
@@ -73,12 +73,13 @@ Key notes:
 - Uses `PrivateAttr(default_factory=list)` to stay compatible with Pydantic frozen models.
 - `notify_on` is explicitly typed to satisfy Pydantic field overrides.
 - We derive the `blocking` flag with best-effort logic (`is_audit_blocking_from_error`) if needed.
+- `notifier_service` provides a process-wide singleton and idempotent registration into the SQLMesh `Context`.
 
 ### Integration
 
 File: `src/dg_sqlmesh/resource.py`
 
-- Register `CapturingNotifier` in the SQLMesh `Context` and expose a getter (`_get_or_create_notifier`).
+- Register notifier via `notifier_service.register_notifier_in_context(context)`.
 - Map captured notifier audit failures to Dagster checks and compute downstream assets to block.
 
 File: `src/dg_sqlmesh/sqlmesh_asset_execution_utils.py`
