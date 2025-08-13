@@ -48,6 +48,15 @@ git commit -m "chore: bump version to X.Y.Z after PyPI release"
 git push
 ```
 
+### 5. Merge to main and tag the release
+
+```bash
+git checkout main
+git merge <dev-branch>
+git tag -a vX.Y.Z -m "Release X.Y.Z"
+git push origin vX.Y.Z
+```
+
 ## Available Makefile Commands
 
 ### Version Management
