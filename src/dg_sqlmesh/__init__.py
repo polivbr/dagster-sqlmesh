@@ -5,7 +5,7 @@ A Python package that provides seamless integration between Dagster and SQLMesh
 for modern data engineering workflows.
 """
 
-__version__ = "1.6.0"
+__version__ = "1.7.0"
 __author__ = "Thomas Trividic"
 
 # Import main components for easy access
