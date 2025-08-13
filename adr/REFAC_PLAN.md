@@ -145,6 +145,32 @@ Note on AssetSelection and non-subsettable execution sets:
   - `required_multi_asset_neighbors()` widens the selection to include all neighbors within the same non-subsettable execution set so that all checks for each selected asset are included.
   - This avoids subsetting errors and guarantees checks follow the selected assets.
 
+### Phase 9 — Utilities Re-organization (Specialized Modules)
+
+Goal:
+
+- Reorganize large utility modules into smaller, domain-focused modules without changing function logic. Only move code and update imports accordingly.
+
+Scope (no behavior changes):
+
+- Split `sqlmesh_asset_execution_utils.py` into specialized submodules, e.g.:
+  - `execution_selection.py` (model selection and orchestration glue)
+  - `execution_notifier.py` (notifier interaction and failure summarization)
+  - `execution_downstream.py` (blocking asset computation and downstream logic)
+  - `execution_check_results.py` (check result assembly for PASS/FAIL/WARN)
+  - `execution_results_payload.py` (results structure and processing utilities)
+- Split `sqlmesh_asset_check_utils.py` into:
+  - `check_metadata.py` (metadata builders and audit detail extraction)
+  - `check_serialization.py` (serialization/deduplication helpers)
+  - `check_conversion.py` (converter from notifier failures → AssetCheckResult)
+- Keep public function names and signatures unchanged; adjust import paths where used (`resource.py`, `factory.py`, tests).
+
+Acceptance criteria:
+
+- All unit/integration tests remain green.
+- No code logic changes; only file/module re-organization and imports update.
+- Documentation remains valid; optional minor doc tweaks to reflect new module layout.
+
 ## 4) Task Breakdown and Checklist
 
 - [x] Phase 0: Translate logs; strip dead imports/paths
