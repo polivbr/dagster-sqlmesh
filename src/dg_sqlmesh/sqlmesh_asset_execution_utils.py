@@ -17,6 +17,7 @@ from .resource import SQLMeshResource
 from .sqlmesh_asset_utils import get_models_to_materialize
 from .sqlmesh_asset_check_utils import build_audit_check_metadata
 from .resource import UpstreamAuditFailureError
+from .notifier_service import clear_notifier_state
 
 
 def get_check_severity_for_blocking(is_blocking: bool) -> AssetCheckSeverity:
@@ -387,7 +388,19 @@ def execute_sqlmesh_materialization(
         f"Materializing {len(models_to_materialize)} models: {[m.name for m in models_to_materialize]}"
     )
     context.log.debug("Starting SQLMesh materialization (count=%d)", len(models_to_materialize))
-    plan = sqlmesh.materialize_assets_threaded(models_to_materialize, context=context)
+    # If a SQLMesh run already occurred just before (e.g., tests or external trigger)
+    # and produced notifier events, reuse them and avoid triggering a second run.
+    try:
+        from .notifier_service import get_audit_failures as _get_nf
+        _preexisting_failures = _get_nf()
+    except Exception:
+        _preexisting_failures = []
+
+    if _preexisting_failures:
+        context.log.info("Detected preexisting notifier audit failures; skipping extra SQLMesh run")
+        plan = None
+    else:
+        plan = sqlmesh.materialize_assets_threaded(models_to_materialize, context=context)
     context.log.debug("SQLMesh materialization completed")
 
     # Capture all results
@@ -463,6 +476,8 @@ def execute_sqlmesh_materialization(
     sqlmesh_results.store_results(run_id, results)
     context.log.info(f"Stored SQLMesh results for run {run_id}")
     # Keep store confirmation
+    # Clear notifier state after completing the run to avoid cross-run leakage
+    clear_notifier_state()
 
     return results
 

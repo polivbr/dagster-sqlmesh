@@ -79,4 +79,11 @@ def get_apply_events() -> list[dict[str, Any]]:
     except Exception:
         return []
 
+def clear_notifier_state() -> None:
+    """Clear the singleton notifier captured state (tests isolation)."""
+    try:
+        get_or_create_notifier().clear()
+    except Exception:
+        return None
+
 

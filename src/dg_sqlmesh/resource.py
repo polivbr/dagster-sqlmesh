@@ -26,6 +26,7 @@ from .sqlmesh_asset_utils import (
 from .notifier_service import (
     get_or_create_notifier,
     register_notifier_in_context,
+    clear_notifier_state,
 )
 from .sqlmesh_asset_check_utils import (
     extract_failed_audit_details,
@@ -209,6 +210,8 @@ class SQLMeshResource(ConfigurableResource):
         """Materialize specified SQLMesh models with robust error handling."""
         model_names = [model.name for model in models]
         try:
+            # Reset notifier state before starting a new materialization run
+            clear_notifier_state()
             plan = self._create_sqlmesh_plan(model_names)
             self._run_sqlmesh_plan(model_names)
             return plan
