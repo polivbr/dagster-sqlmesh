@@ -130,6 +130,21 @@ Benefits:
 - Update README and examples to reflect notifier usage, no retry policy knob.
 - Ensure ADR-0013 reference stands; add short “Migration Notes” section if needed.
 
+Note on AssetSelection and non-subsettable execution sets:
+
+- We build the job selection using a safe expansion:
+
+  ```python
+  safe_selection = selected_assets.required_multi_asset_neighbors()
+  ```
+
+  Rationale:
+
+  - An `AssetsDefinition` that includes an asset and its `AssetCheckSpec`s can behave as a non-subsettable execution block.
+  - Dagster’s ephemeral jobs may otherwise attempt to subset checks independently and raise `DagsterInvalidSubsetError`.
+  - `required_multi_asset_neighbors()` widens the selection to include all neighbors within the same non-subsettable execution set so that all checks for each selected asset are included.
+  - This avoids subsetting errors and guarantees checks follow the selected assets.
+
 ## 4) Task Breakdown and Checklist
 
 - [x] Phase 0: Translate logs; strip dead imports/paths
@@ -140,7 +155,7 @@ Benefits:
 - [x] Phase 5: Type hints and docstrings
 - [x] Phase 6: Public API surface validation
 - [x] Phase 7: Rewrite unit tests; restore integration tests
-- [ ] Phase 8: Docs/ADR sync
+- [x] Phase 8: Docs/ADR sync
 
 Notes:
 
