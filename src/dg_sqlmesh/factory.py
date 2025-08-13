@@ -7,8 +7,14 @@ from dagster import (
     Definitions,
     ConfigurableResource,
     RetryPolicy,
-    AssetSelection
+    AssetSelection,
+    SkipReason,
+    RunsFilter,
+    DagsterRunStatus,
+    DagsterInstance,
+    Failure,
 )
+from dagster._core.run_coordinator import QueuedRunCoordinator
 from .resource import SQLMeshResource
 from .sqlmesh_asset_utils import (
     get_asset_kinds,
@@ -51,6 +57,39 @@ class SQLMeshResultsResource(ConfigurableResource):
         """Check if results exist for a given run."""
         return run_id in self._results
 
+
+# -------------------- Concurrency/Instance validation helpers --------------------
+_CONCURRENCY_CONFIG_ERROR = (
+    "dagster-sqlmesh requires QueuedRunCoordinator for safe SQLMesh scheduling.\n"
+    "Configure dagster.yaml:\n"
+    "run_coordinator:\n"
+    "  module: dagster._core.run_coordinator.queued_run_coordinator\n"
+    "  class: QueuedRunCoordinator\n\n"
+    "Also ensure concurrency key 'sqlmesh_jobs_exclusive' has limit: 1:\n"
+    "concurrency:\n"
+    "  - concurrency_key: sqlmesh_jobs_exclusive\n"
+    "    limit: 1\n"
+)
+
+
+def _assert_instance_has_queued_run_coordinator(instance) -> None:
+    """Raise RuntimeError if the Dagster instance is not using QueuedRunCoordinator."""
+    if not isinstance(instance.run_coordinator, QueuedRunCoordinator):
+        raise RuntimeError(_CONCURRENCY_CONFIG_ERROR)
+
+def _assert_instance_for_compute() -> None:
+    """Fail in compute if instance is missing or not using QueuedRunCoordinator."""
+    instance = None
+    try:
+        instance = DagsterInstance.get()
+    except Exception:
+        instance = None
+    if instance is None or not isinstance(instance.run_coordinator, QueuedRunCoordinator):
+        raise Failure(
+            _CONCURRENCY_CONFIG_ERROR,
+            allow_retries=False,
+        )
+
 def build_sqlmesh_job(sqlmesh_assets, name: str = "sqlmesh_job"):
     selected_assets = AssetSelection.assets(*(key for ad in sqlmesh_assets for key in ad.keys))
     safe_selection = selected_assets.required_multi_asset_neighbors()
@@ -61,6 +100,8 @@ def build_sqlmesh_job(sqlmesh_assets, name: str = "sqlmesh_job"):
         tags={
             "dagster/max_retries": "0",
             "dagster/retry_on_asset_or_op_failure": "false",
+            # Concurrency key to allow instance-level singleton enforcement
+            "dagster/concurrency_key": "sqlmesh_jobs_exclusive",
         },
     )
 
@@ -111,6 +152,7 @@ def sqlmesh_assets_factory(
             sqlmesh: SQLMeshResource,
             sqlmesh_results: SQLMeshResultsResource,
         ):
+            _assert_instance_for_compute()
             context.log.info(f"Processing SQLMesh model: {current_model_name}")
             context.log.debug(f"Run ID: {context.run_id}")
             context.log.debug(f"Asset Key: {current_asset_spec.key}")
@@ -232,9 +274,36 @@ def sqlmesh_adaptive_schedule_factory(
         description=f"Adaptive schedule based on SQLMesh crons (granularity: {recommended_schedule})",
     )
     def _sqlmesh_adaptive_schedule(context):
+        # Enforce instance-level configuration: QueuedRunCoordinator required
+        _assert_instance_has_queued_run_coordinator(context.instance)
+
+        # Prevent concurrent scheduler-triggered runs for this job
+        active = context.instance.get_runs(
+            filters=RunsFilter(
+                job_name=sqlmesh_job.name,
+                statuses=[
+                    DagsterRunStatus.QUEUED,
+                    DagsterRunStatus.SUBMITTED,
+                    DagsterRunStatus.NOT_STARTED,
+                    DagsterRunStatus.STARTING,
+                    DagsterRunStatus.STARTED,
+                    DagsterRunStatus.CANCELING,
+                ],
+            )
+        )
+        if active:
+            return SkipReason("sqlmesh job already active; skipping new run to enforce singleton execution")
+
+        scheduled_ts = context.scheduled_execution_time or datetime.datetime.now()
         return RunRequest(
-            run_key=f"sqlmesh_adaptive_{datetime.datetime.now().isoformat()}",
-            tags={"schedule": "sqlmesh_adaptive", "granularity": recommended_schedule, "dagster/max_retries": "0", "dagster/retry_on_asset_or_op_failure": "false"},
+            run_key=f"sqlmesh_adaptive_{scheduled_ts.isoformat()}",
+            tags={
+                "schedule": "sqlmesh_adaptive",
+                "granularity": recommended_schedule,
+                "dagster/max_retries": "0",
+                "dagster/retry_on_asset_or_op_failure": "false",
+                "dagster/concurrency_key": "sqlmesh_jobs_exclusive",
+            },
         )
 
     return _sqlmesh_adaptive_schedule, sqlmesh_job, sqlmesh_assets
@@ -279,6 +348,10 @@ def sqlmesh_definitions_factory(
     # Parameter validation
     if concurrency_limit < 1:
         raise ValueError("concurrency_limit must be >= 1")
+
+    # Note: Instance-level coordinator enforcement happens reliably at schedule tick time.
+    # Attempting to validate here at Definitions load is unreliable across environments,
+    # so we intentionally do not perform the check at this stage.
 
     # Handle translator and external_asset_mapping conflicts
     if translator is not None and external_asset_mapping is not None:

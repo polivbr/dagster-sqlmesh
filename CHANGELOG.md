@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Documentation
+
+- Document required Dagster instance configuration for safe concurrency:
+  - `QueuedRunCoordinator` requirement
+  - Concurrency key `sqlmesh_jobs_exclusive` with limit `1` (via `tag_concurrency_limits` or `concurrency`)
+  - Notes on manual materialization failure when misconfigured and schedule-time checks
+  - Clarify that SQLMesh does not encourage parallel executions on the same project; list associated risks (state corruption, conflicting DDL, promotion/invalidations races, inconsistent audits/backfills, contention with janitor)
+
 ## [1.4.0] - 2025-08-12
 
 ### Added

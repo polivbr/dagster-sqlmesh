@@ -175,3 +175,40 @@ make vulture
 - Shared execution: a single SQLMesh run per Dagster run (shared via SQLMeshResultsResource).
 - Notifier-based audits: audit failures captured via `notifier_service` (no legacy console).
 - No retries: enforced via Dagster tags (see ADR-0004).
+
+### Mandatory Dagster instance configuration for safe concurrency
+
+All developers must ensure their local/test Dagster instance mirrors production safety for concurrency:
+
+```yaml
+run_coordinator:
+  module: dagster._core.run_coordinator.queued_run_coordinator
+  class: QueuedRunCoordinator
+
+tag_concurrency_limits:
+  - key: dagster/concurrency_key
+    value: sqlmesh_jobs_exclusive
+    limit: 1
+```
+
+Alternatively, if using instance-level concurrency config:
+
+```yaml
+concurrency:
+  - concurrency_key: sqlmesh_jobs_exclusive
+    limit: 1
+```
+
+Rationale:
+
+- The module tags jobs with `dagster/concurrency_key=sqlmesh_jobs_exclusive`.
+- Singleton enforcement prevents concurrent SQLMesh runs which could corrupt state or cause locking.
+- The factory enforces coordinator checks at schedule tick and during manual compute to fail-fast when misconfigured.
+
+Additionally, SQLMesh does not encourage running multiple SQLMesh commands in parallel on the same project/environment. Parallel invocations can lead to:
+
+- State corruption or overwrites
+- Conflicting DDL/schema changes
+- Races on plan/apply/promote/invalidate
+- Inconsistent audits/backfills
+- Contention between jobs and janitor tasks

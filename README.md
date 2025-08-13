@@ -649,6 +649,53 @@ pip install dg-sqlmesh
 - Dagster 1.11.4+
 - SQLMesh 0.206.1+
 
+## Required Dagster instance configuration (mandatory)
+
+To guarantee safe, single-run orchestration of SQLMesh from Dagster, you must configure your Dagster instance to enforce a singleton concurrency on the module’s exposed key and to use a queued run coordinator.
+
+1. Enforce queued run coordinator
+
+```yaml
+run_coordinator:
+  module: dagster._core.run_coordinator.queued_run_coordinator
+  class: QueuedRunCoordinator
+```
+
+2. Enforce singleton on the module’s concurrency key
+
+Recommended (Dagster OSS 1.11+):
+
+```yaml
+tag_concurrency_limits:
+  - key: dagster/concurrency_key
+    value: sqlmesh_jobs_exclusive
+    limit: 1
+```
+
+Alternative (if using instance-level concurrency config):
+
+```yaml
+concurrency:
+  - concurrency_key: sqlmesh_jobs_exclusive
+    limit: 1
+```
+
+Notes:
+
+- The module tags jobs with `dagster/concurrency_key=sqlmesh_jobs_exclusive`. Do not change this key.
+- Manual materializations will hard-fail with a non-retriable error if the instance is not using `QueuedRunCoordinator`.
+- The adaptive schedule also validates the coordinator at tick time and will skip/stop runs if another run is already active.
+
+### Why this is required (SQLMesh guidance)
+
+SQLMesh does not encourage running multiple SQLMesh commands in parallel against the same project/environment. This module enforces a singleton execution to align with that guidance and avoid:
+
+- State corruption or overwrites (e.g., snapshot/store inconsistencies)
+- Conflicting DDL and schema migrations
+- Race conditions on plan/apply/promote/invalidate operations
+- Inconsistent audits and backfills
+- Resource contention between concurrent jobs and any SQLMesh janitor/background tasks
+
 ## Limitations
 
 - **Multiple SQLMesh runs** : Each asset triggers its own `sqlmesh run` (may impact performance with many assets)
