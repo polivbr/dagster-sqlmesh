@@ -29,6 +29,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated component docs and examples to remove retry policy and reference ADR-0004
 - Added notifier notes and usage details
 
+## [1.5.0] - 2025-08-13
+
+### Added
+
+- Support for non-blocking audits surfaced as Dagster checks with WARN severity (suffix `_non_blocking`)
+- Integration tests covering blocking vs non-blocking audits and downstream blocking behavior
+- `CapturingNotifier.clear()` and `notifier_service.clear_notifier_state()` for per-run isolation
+
+### Changed
+
+- Refactor: slimmer `resource.py`, consolidated helpers in `sqlmesh_asset_check_utils.py` and `sqlmesh_asset_execution_utils.py`
+- Job selection uses `required_multi_asset_neighbors()` to include all checks for non-subsettable execution blocks
+- Logs and docstrings standardized in English across modules
+
+### Fixed
+
+- Prevent cross-run contamination by clearing notifier state between runs
+- Remove CLI `invalidate` in tests to avoid DuckDB locks; rely on `execution_time` advancement
+
+### Documentation
+
+- ADR-0003 updated: rationale for `required_multi_asset_neighbors()` selection strategy
+- ADR-0013 updated: explicit mention of `notifier_service` and singleton registration
+
 ## [1.3.0] - 2025-01-27
 
 ### Added

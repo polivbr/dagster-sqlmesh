@@ -432,3 +432,149 @@ class TestCreateMaterializeResult:
         assert isinstance(result, MaterializeResult)
         assert result.asset_key == current_asset_spec.key
         assert result.metadata["status"] == "success" 
+
+
+class TestPhase1HelperFunctions:
+    """Unit tests for internal helper functions introduced in Phase 1."""
+
+    def test__select_models_to_materialize_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from dg_sqlmesh.sqlmesh_asset_execution_utils import _select_models_to_materialize
+        sqlmesh = Mock()
+        selected_asset_keys = [AssetKey(["db", "schema", "model"])]
+
+        # Patch get_models_to_materialize to return a non-empty list
+        monkeypatch.setattr(
+            "dg_sqlmesh.sqlmesh_asset_execution_utils.get_models_to_materialize",
+            lambda *_args, **_kwargs: [Mock(name="model1")],
+        )
+
+        models = _select_models_to_materialize(selected_asset_keys, sqlmesh)  # type: ignore[arg-type]
+        assert isinstance(models, list) and len(models) == 1
+
+    def test__select_models_to_materialize_raises_on_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from dg_sqlmesh.sqlmesh_asset_execution_utils import _select_models_to_materialize
+        sqlmesh = Mock()
+        selected_asset_keys = [AssetKey(["db", "schema", "model"])]
+
+        # Patch get_models_to_materialize to return empty
+        monkeypatch.setattr(
+            "dg_sqlmesh.sqlmesh_asset_execution_utils.get_models_to_materialize",
+            lambda *_args, **_kwargs: [],
+        )
+
+        with pytest.raises(Exception, match="No models found for selected assets"):
+            _select_models_to_materialize(selected_asset_keys, sqlmesh)  # type: ignore[arg-type]
+
+    def test__materialize_and_get_plan(self) -> None:
+        from dg_sqlmesh.sqlmesh_asset_execution_utils import _materialize_and_get_plan
+        context = Mock(spec=AssetExecutionContext)
+        context.log.info = Mock()
+        context.log.debug = Mock()
+        sqlmesh = Mock()
+        plan_obj = Mock()
+        sqlmesh.materialize_assets_threaded.return_value = plan_obj
+        models = [Mock(name="m1"), Mock(name="m2")]
+
+        plan = _materialize_and_get_plan(sqlmesh, models, context)
+        assert plan is plan_obj
+        sqlmesh.materialize_assets_threaded.assert_called_once()
+
+    def test__init_execution_event_buffers(self) -> None:
+        from dg_sqlmesh.sqlmesh_asset_execution_utils import _init_execution_event_buffers
+        context = Mock(spec=AssetExecutionContext)
+        context.log.debug = Mock()
+        failed, skipped, evals, nb_warn = _init_execution_event_buffers(context)
+        assert failed == [] and skipped == [] and evals == [] and nb_warn == []
+
+    def test__get_notifier_failures_success(self) -> None:
+        from dg_sqlmesh.sqlmesh_asset_execution_utils import _get_notifier_failures
+        # Service-based path
+        with pytest.MonkeyPatch().context() as m:
+            m.setattr(
+                "dg_sqlmesh.notifier_service.get_audit_failures",
+                lambda: [{"model": "s.m", "audit": "a1"}],
+            )
+            failures = _get_notifier_failures(Mock())
+            assert failures == [{"model": "s.m", "audit": "a1"}]
+
+    def test__get_notifier_failures_exception(self) -> None:
+        from dg_sqlmesh.sqlmesh_asset_execution_utils import _get_notifier_failures
+        with pytest.MonkeyPatch().context() as m:
+            def raise_err():
+                raise Exception("boom")
+            m.setattr("dg_sqlmesh.notifier_service.get_audit_failures", raise_err)
+            failures = _get_notifier_failures(Mock())
+            assert failures == []
+
+    def test__summarize_notifier_failures_logs(self) -> None:
+        from dg_sqlmesh.sqlmesh_asset_execution_utils import _summarize_notifier_failures
+        context = Mock(spec=AssetExecutionContext)
+        context.log.info = Mock()
+        failures = [
+            {"model": "s.m1", "audit": "a1", "blocking": True, "count": 1},
+            {"model": "s.m2", "audit": "a2", "blocking": False, "count": 0},
+        ]
+        _summarize_notifier_failures(context, failures)
+        assert context.log.info.called
+
+        # No log when empty
+        context2 = Mock(spec=AssetExecutionContext)
+        context2.log.info = Mock()
+        _summarize_notifier_failures(context2, [])
+        context2.log.info.assert_not_called()
+
+    def test__compute_blocking_and_downstream(self) -> None:
+        from dg_sqlmesh.sqlmesh_asset_execution_utils import _compute_blocking_and_downstream
+        sqlmesh = Mock()
+        # Mock model resolution and key mapping
+        model_obj = Mock()
+        sqlmesh.context.get_model.return_value = model_obj
+        failing_key = AssetKey(["db", "schema", "m1"])
+        downstream_key = AssetKey(["db", "schema", "m2"])
+        sqlmesh.translator.get_asset_key.return_value = failing_key
+        # Downstream calculation returns both failing and downstream
+        sqlmesh._get_affected_downstream_assets.return_value = {failing_key, downstream_key}
+
+        notifier_failures = [{"model": "schema.m1", "audit": "a1", "blocking": True}]
+        blocking_keys, affected = _compute_blocking_and_downstream(sqlmesh, notifier_failures)
+        assert blocking_keys == [failing_key]
+        assert affected == {downstream_key}
+
+    def test__compute_blocking_and_downstream_exception(self) -> None:
+        from dg_sqlmesh.sqlmesh_asset_execution_utils import _compute_blocking_and_downstream
+        sqlmesh = Mock()
+        # translator path returns key
+        failing_key = AssetKey(["db", "schema", "m1"])
+        sqlmesh.context.get_model.return_value = Mock()
+        sqlmesh.translator.get_asset_key.return_value = failing_key
+        # Simulate exception in downstream computation
+        sqlmesh._get_affected_downstream_assets.side_effect = Exception("x")
+
+        notifier_failures = [{"model": "schema.m1", "audit": "a1", "blocking": True}]
+        blocking_keys, affected = _compute_blocking_and_downstream(sqlmesh, notifier_failures)
+        assert blocking_keys == [failing_key]
+        assert affected == set()
+
+    def test__build_shared_results_shape(self) -> None:
+        from dg_sqlmesh.sqlmesh_asset_execution_utils import _build_shared_results
+        plan = Mock()
+        results = _build_shared_results(
+            plan,
+            [],
+            [],
+            [],
+            [],
+            [{"model": "s.m", "audit": "a1", "blocking": True}],
+            set(),
+        )
+        # keys present
+        assert set(results.keys()) == {
+            "failed_check_results",
+            "skipped_models_events",
+            "evaluation_events",
+            "non_blocking_audit_warnings",
+            "notifier_audit_failures",
+            "affected_downstream_asset_keys",
+            "plan",
+        }
+        assert isinstance(results["affected_downstream_asset_keys"], list)

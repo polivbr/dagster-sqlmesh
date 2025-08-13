@@ -7,6 +7,7 @@
 ## Context
 
 SQLMesh models can have audits that validate data quality. These audits need to be exposed in Dagster's UI as asset checks. The challenge is to distinguish between:
+
 1. **Materialization failures** (model didn't execute)
 2. **Audit failures** (model executed but audits failed)
 
@@ -19,6 +20,7 @@ SQLMesh models can have audits that validate data quality. These audits need to 
 ### Materialization vs Audit Failure
 
 SQLMesh distinguishes between:
+
 - **Model execution failure**: Model didn't materialize (upstream failure, syntax error, etc.)
 - **Audit failure**: Model materialized successfully but audits failed
 
@@ -83,28 +85,47 @@ else:
     )
 ```
 
+### Selection strategy for non-subsettable execution sets
+
+Some `AssetsDefinition` instances behave as non-subsettable execution blocks when they include both the asset and its `AssetCheckSpec`s. In these cases, Dagster may raise `DagsterInvalidSubsetError` if only a subset of the checks (or assets) is selected by an ephemeral job (e.g., UI "materialize all").
+
+To guarantee that all checks targeting each selected asset are included, we expand the selection to required neighbors within the same non-subsettable block:
+
+```python
+from dagster import AssetSelection
+
+selected_assets = AssetSelection.assets(*(key for ad in sqlmesh_assets for key in ad.keys))
+safe_selection = selected_assets.required_multi_asset_neighbors()
+```
+
+This ensures:
+
+- All checks that belong to the same non-subsettable execution set are included alongside the selected assets
+- Ephemeral jobs do not attempt illegal subsetting of checks, avoiding `DagsterInvalidSubsetError`
+- The behavior is stable regardless of how the job is triggered (UI or code)
+
 ## Architecture Diagram
 
 ```mermaid
 graph TD
     A[SQLMesh Model] --> B[SQLMesh Audits]
     B --> C[Dagster Asset Checks]
-    
+
     D[Asset Execution] --> E{Model Skipped?}
     E -->|Yes| F[Raise Exception]
     E -->|No| G{Model Materialized?}
-    
+
     G -->|No| H[Asset Failed]
     G -->|Yes| I{Audits Passed?}
-    
+
     I -->|No| J[Asset Success + Failed Checks]
     I -->|Yes| K[Asset Success + Passed Checks]
-    
+
     F --> L[Downstream Assets Fail]
     H --> L
     J --> M[Downstream Assets Fail]
     K --> N[Downstream Assets Continue]
-    
+
     style J fill:#fff3e0
     style K fill:#e8f5e8
     style F fill:#ffebee
@@ -150,4 +171,4 @@ MODEL (
 
 - [ADR-0001: Individual Assets vs Multi-Asset Pattern](./0001-individual-assets-vs-multi-asset.md)
 - [ADR-0002: Shared SQLMesh Execution](./0002-shared-sqlmesh-execution.md)
-- [ADR-0004: Retry Policy Management](./0004-retry-policy-management.md) 
+- [ADR-0004: Retry Policy Management](./0004-retry-policy-management.md)

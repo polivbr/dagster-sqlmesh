@@ -106,4 +106,11 @@ class CapturingNotifier(BaseNotificationTarget):
     def get_apply_events(self) -> list[dict[str, t.Any]]:
         return list(self._apply_events)
 
+    # ---------------------- Test helpers / maintenance ----------------------
+    def clear(self) -> None:
+        """Clear all captured events. Useful for test isolation."""
+        self._audit_failures.clear()
+        self._run_events.clear()
+        self._apply_events.clear()
+
 

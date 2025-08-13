@@ -1,5 +1,5 @@
 ---
-description:  Code standards for dg-sqlmesh module
+description: Code standards for dg-sqlmesh module
 alwaysApply: false
 ---
 
@@ -11,7 +11,7 @@ alwaysApply: false
 
 ## API Design
 
-The main API is exposed through [src/dg_sqlmesh/__init__.py](mdc:src/dg_sqlmesh/__init__.py). Follow these patterns:
+The main API is exposed through [src/dg_sqlmesh/**init**.py](mdc:src/dg_sqlmesh/__init__.py). Follow these patterns:
 
 ### Factory Functions
 
@@ -56,6 +56,7 @@ The [src/dg_sqlmesh/translator.py](mdc:src/dg_sqlmesh/translator.py) provides ex
 ### Utils Files
 
 - [src/dg_sqlmesh/sqlmesh_asset_utils.py](mdc:src/dg_sqlmesh/sqlmesh_asset_utils.py) - Asset creation utilities
+- [src/dg_sqlmesh/sqlmesh_asset_execution_utils.py](mdc:src/dg_sqlmesh/sqlmesh_asset_execution_utils.py) - Asset execution utilities
 - [src/dg_sqlmesh/sqlmesh_asset_check_utils.py](mdc:src/dg_sqlmesh/sqlmesh_asset_check_utils.py) - Asset check utilities
 - [src/dg_sqlmesh/sqlmesh_event_console.py](mdc:src/dg_sqlmesh/sqlmesh_event_console.py) - Custom SQLMesh console for event capture
 
@@ -67,9 +68,24 @@ The [src/dg_sqlmesh/translator.py](mdc:src/dg_sqlmesh/translator.py) provides ex
 - Handle SQLMesh-specific exceptions (CircuitBreakerError, PlanError, etc.)
 - Force no retries via tags to prevent infinite loops
 
+## General code standards
+
+- Use English for all code, comments, docstrings, and documentation
+- Use type hints
+- Use English for variable names, function names, and comments
+- Use English for error messages
+- prefer small functions and classes, reuse them when possible
+- use the same naming convention for variables, functions, classes, etc.
+- use the same naming convention for imports
+- use the same naming convention for constants
+- use the same naming convention for classes
+- use the same naming convention for functions
+- use the same naming convention for variables
+
 ## Documentation Standards
 
 - All docstrings in English
+- All functional comments in English
 - Include type hints
 - Document all public API functions
 - Provide usage examples in docstrings
@@ -128,7 +144,7 @@ if not sqlmesh_results.has_results(context.run_id):
     # First asset in run - execute SQLMesh for all selected assets
     models_to_materialize = get_models_to_materialize(selected_asset_keys, ...)
     plan = sqlmesh.materialize_assets_threaded(models_to_materialize)
-    
+
     # Store results for other assets
     results = {
         "failed_check_results": sqlmesh._process_failed_models_events(),
@@ -142,11 +158,10 @@ if not sqlmesh_results.has_results(context.run_id):
 
 - Use `make vulture` to detect dead code
 - Follow the patterns in [src/dg_sqlmesh/factory.py](mdc:src/dg_sqlmesh/factory.py) for new factories
-- Maintain the API exposed in [src/dg_sqlmesh/__init__.py](mdc:src/dg_sqlmesh/__init__.py)
+- Maintain the API exposed in [src/dg_sqlmesh/**init**.py](mdc:src/dg_sqlmesh/__init__.py)
 - Always use English for variable names, function names, and comments
 - Force no retries via tags to prevent infinite loops
 
 ---
-
 
 ---

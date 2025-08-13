@@ -37,12 +37,20 @@ class TestBlockingParameter:
             
             # Verify that metadata includes audit_blocking
             assert "audit_blocking" in check_spec.metadata, f"Check {check_spec.name} should have audit_blocking in metadata"
-            assert check_spec.metadata["audit_blocking"] is True, f"Check {check_spec.name} should have audit_blocking=True"
+            # Blocking should be False for explicit non-blocking audits, True otherwise
+            if check_spec.name.endswith("_non_blocking"):
+                assert check_spec.metadata["audit_blocking"] is False, (
+                    f"Check {check_spec.name} should have audit_blocking=False for non-blocking variant"
+                )
+            else:
+                assert check_spec.metadata["audit_blocking"] is True, (
+                    f"Check {check_spec.name} should have audit_blocking=True"
+                )
         
         print("\n✅ All checks are correctly set to blocking=False!")
         
-        # Verify we have the expected 3 audits
-        expected_audits = {"number_of_rows", "not_null", "not_constant"}
+        # Verify we have the expected audits (including the non-blocking variant)
+        expected_audits = {"number_of_rows", "not_null", "not_constant", "not_constant_non_blocking"}
         actual_audits = {check_spec.name for check_spec in check_specs}
         assert actual_audits == expected_audits, f"Expected audits {expected_audits}, got {actual_audits}"
 

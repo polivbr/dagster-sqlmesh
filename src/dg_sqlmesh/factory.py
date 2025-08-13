@@ -7,6 +7,7 @@ from dagster import (
     Definitions,
     ConfigurableResource,
     RetryPolicy,
+    AssetSelection
 )
 from .resource import SQLMeshResource
 from .sqlmesh_asset_utils import (
@@ -22,7 +23,7 @@ from .translator import SQLMeshTranslator
 from typing import Optional, Dict, List, Any
 import warnings
 
-# Import des nouvelles fonctions utilitaires
+# Import utility functions
 from .sqlmesh_asset_execution_utils import (
     execute_sqlmesh_materialization,
     process_sqlmesh_results,
@@ -32,24 +33,36 @@ from .sqlmesh_asset_execution_utils import (
 
 
 class SQLMeshResultsResource(ConfigurableResource):
-    """Resource pour partager les résultats SQLMesh entre les assets d'un même run."""
+    """Resource to share SQLMesh results between assets within the same run."""
 
     def __init__(self):
         super().__init__()
         self._results = {}
 
     def store_results(self, run_id: str, results: Dict[str, Any]) -> None:
-        """Stocke les résultats SQLMesh pour un run donné."""
+        """Store SQLMesh results for a given run."""
         self._results[run_id] = results
 
     def get_results(self, run_id: str) -> Optional[Dict[str, Any]]:
-        """Récupère les résultats SQLMesh pour un run donné."""
+        """Retrieve SQLMesh results for a given run."""
         return self._results.get(run_id)
 
     def has_results(self, run_id: str) -> bool:
-        """Vérifie si des résultats existent pour un run donné."""
+        """Check if results exist for a given run."""
         return run_id in self._results
 
+def build_sqlmesh_job(sqlmesh_assets, name: str = "sqlmesh_job"):
+    selected_assets = AssetSelection.assets(*(key for ad in sqlmesh_assets for key in ad.keys))
+    safe_selection = selected_assets.required_multi_asset_neighbors()
+    return define_asset_job(
+        name=name,
+        selection=safe_selection,
+        op_retry_policy=RetryPolicy(max_retries=0),
+        tags={
+            "dagster/max_retries": "0",
+            "dagster/retry_on_asset_or_op_failure": "false",
+        },
+    )
 
 def sqlmesh_assets_factory(
     *,
@@ -70,7 +83,7 @@ def sqlmesh_assets_factory(
     except Exception as e:
         raise ValueError(f"Failed to create SQLMesh assets: {e}") from e
 
-    # Créer les assets individuels avec exécution SQLMesh partagée
+    # Create individual assets with shared SQLMesh execution
     assets = []
 
     def create_model_asset(
@@ -98,17 +111,17 @@ def sqlmesh_assets_factory(
             sqlmesh: SQLMeshResource,
             sqlmesh_results: SQLMeshResultsResource,
         ):
-            context.log.info(f"🔄 Processing SQLMesh model: {current_model_name}")
-            context.log.debug(f"🔍 Run ID: {context.run_id}")
-            context.log.debug(f"🔍 Asset Key: {current_asset_spec.key}")
-            context.log.debug(f"🔍 Selected assets: {context.selected_asset_keys}")
+            context.log.info(f"Processing SQLMesh model: {current_model_name}")
+            context.log.debug(f"Run ID: {context.run_id}")
+            context.log.debug(f"Asset Key: {current_asset_spec.key}")
+            context.log.debug(f"Selected assets: {context.selected_asset_keys}")
 
-            # Vérifier si on a déjà exécuté SQLMesh dans ce run
+            # Check if SQLMesh was already executed in this run
             run_id = context.run_id
 
-            # Récupérer ou créer les résultats SQLMesh partagés
+            # Retrieve or create shared SQLMesh results
             if not sqlmesh_results.has_results(run_id):
-                # Exécuter la matérialisation SQLMesh pour tous les assets sélectionnés
+                # Execute SQLMesh materialization for all selected assets
                 execute_sqlmesh_materialization(
                     context,
                     sqlmesh,
@@ -117,7 +130,7 @@ def sqlmesh_assets_factory(
                     context.selected_asset_keys,
                 )
 
-            # Récupérer les résultats pour ce run
+            # Retrieve results for this run
             (
                 failed_check_results,
                 skipped_models_events,
@@ -126,10 +139,10 @@ def sqlmesh_assets_factory(
                 affected_downstream_asset_keys,
             ) = process_sqlmesh_results(context, sqlmesh_results, run_id)
             context.log.info(
-                f"🔎 Retrieved results: failed={len(failed_check_results)}, skipped={len(skipped_models_events)}, nb_warn={len(non_blocking_audit_warnings)}, notifier_failures={len(notifier_audit_failures)}"
+                f"Retrieved results: failed={len(failed_check_results)}, skipped={len(skipped_models_events)}, nb_warn={len(non_blocking_audit_warnings)}, notifier_failures={len(notifier_audit_failures)}"
             )
 
-            # Vérifier le statut de notre modèle spécifique
+            # Check the status for our specific model
             model_was_skipped, model_has_audit_failures = check_model_status(
                 context,
                 current_model_name,
@@ -138,7 +151,7 @@ def sqlmesh_assets_factory(
                 skipped_models_events,
             )
 
-            # Créer le MaterializeResult approprié (API à 9 paramètres)
+            # Create the appropriate MaterializeResult (9-params API)
             result = create_materialize_result(
                 context,
                 current_model_name,
@@ -152,23 +165,23 @@ def sqlmesh_assets_factory(
             )
             return result
 
-        # Renommer pour éviter les collisions
+        # Rename to avoid collisions
         model_asset.__name__ = f"sqlmesh_{current_model_name}_asset"
         return model_asset
 
-    # Utiliser les utilitaires existants
+    # Use existing utilities
     models = sqlmesh_resource.get_models()
 
-    # Créer les assets pour chaque modèle qui a un AssetSpec
+    # Create assets for each model that has an AssetSpec
     for model in models:
-        # Ignorer les modèles externes
+        # Ignore external models
         if isinstance(model, ExternalModel):
             continue
 
-        # Utiliser le translator pour obtenir l'AssetKey
+        # Use translator to get the AssetKey
         asset_key = sqlmesh_resource.translator.get_asset_key(model)
 
-        # Chercher le bon AssetSpec dans la liste
+        # Find the matching AssetSpec in the list
         asset_spec = None
         for spec in specs:
             if spec.key == asset_key:
@@ -176,9 +189,9 @@ def sqlmesh_assets_factory(
                 break
 
         if asset_spec is None:
-            continue  # Skip si pas de spec trouvé
+            continue  # Skip if no spec found
 
-        # Utiliser l'utilitaire existant pour créer les checks
+        # Create checks using existing utility
         model_checks = create_asset_checks_from_model(model, asset_key)
         assets.append(create_model_asset(model.name, asset_spec, model_checks))
 
@@ -210,15 +223,7 @@ def sqlmesh_adaptive_schedule_factory(
 
     # Create job with all assets (no selection needed since we have individual assets)
     # Force run_retries=false to prevent infinite loops with SQLMesh audit failures
-    sqlmesh_job = define_asset_job(
-        name="sqlmesh_job",
-        op_retry_policy=RetryPolicy(max_retries=0),
-        selection=sqlmesh_assets,  # Pass the list of assets directly
-        tags={
-            "dagster/max_retries": "0",
-            "dagster/retry_on_asset_or_op_failure": "false",
-        },
-    )
+    sqlmesh_job = build_sqlmesh_job(sqlmesh_assets, name="sqlmesh_job")
 
     @schedule(
         job=sqlmesh_job,
@@ -229,7 +234,7 @@ def sqlmesh_adaptive_schedule_factory(
     def _sqlmesh_adaptive_schedule(context):
         return RunRequest(
             run_key=f"sqlmesh_adaptive_{datetime.datetime.now().isoformat()}",
-            tags={"schedule": "sqlmesh_adaptive", "granularity": recommended_schedule},
+            tags={"schedule": "sqlmesh_adaptive", "granularity": recommended_schedule, "dagster/max_retries": "0", "dagster/retry_on_asset_or_op_failure": "false"},
         )
 
     return _sqlmesh_adaptive_schedule, sqlmesh_job, sqlmesh_assets
@@ -247,7 +252,7 @@ def sqlmesh_definitions_factory(
     op_tags: Optional[Dict[str, Any]] = None,
     owners: Optional[List[str]] = None,
     schedule_name: str = "sqlmesh_adaptive_schedule",
-    enable_schedule: bool = False,  # ← NOUVEAU : Désactiver le schedule par défaut
+    enable_schedule: bool = False,  # Disable schedule by default
 ):
     """
     All-in-one factory to create a complete SQLMesh integration with Dagster.
@@ -341,6 +346,8 @@ def sqlmesh_definitions_factory(
         )
         schedules.append(sqlmesh_adaptive_schedule)
         jobs.append(sqlmesh_job)
+    else:
+        jobs.append(build_sqlmesh_job(sqlmesh_assets, name="sqlmesh_job"))
 
     # Return complete Definitions
     return Definitions(
