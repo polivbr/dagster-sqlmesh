@@ -26,9 +26,10 @@ SQLMesh distinguishes between:
 
 ### Dagster Integration Strategy
 
-1. **Materialization Success + Audit Failure**: Asset materializes (green) but shows failed checks
+1. **Materialization Success + Non-Blocking Audit Failure**: Asset materializes (green) with failed checks (WARN severity). Downstream assets CONTINUE. No blocking.
 2. **Materialization Failure**: Asset fails (red) and downstream assets fail
 3. **Audit Success**: Asset materializes (green) with passed checks
+4. **Blocking Audit Failure**: When an audit marked as blocking fails, the upstream asset is treated as failing for orchestration purposes and downstream assets are blocked.
 
 ## Implementation
 
@@ -118,12 +119,12 @@ graph TD
     G -->|No| H[Asset Failed]
     G -->|Yes| I{Audits Passed?}
 
-    I -->|No| J[Asset Success + Failed Checks]
+    I -->|No| J[Asset Success + Failed Checks (Non-Blocking)]
     I -->|Yes| K[Asset Success + Passed Checks]
 
     F --> L[Downstream Assets Fail]
     H --> L
-    J --> M[Downstream Assets Fail]
+    J --> N[Downstream Assets Continue]
     K --> N[Downstream Assets Continue]
 
     style J fill:#fff3e0
@@ -138,34 +139,16 @@ graph TD
 
 - ✅ **Proper failure distinction** - Materialization vs audit failures
 - ✅ **Dagster UI integration** - Asset checks visible in UI
-- ✅ **Downstream failure propagation** - Failed audits affect downstream
+- ✅ **Downstream failure propagation** - Blocking audit failures affect downstream; non-blocking audit failures do not
 - ✅ **Detailed error messages** - Audit failure details in metadata
 - ✅ **Non-blocking checks** - Assets can succeed with failed checks
 
 ### Negative
 
 - ⚠️ **Complex failure logic** - Need to distinguish failure types
-- ⚠️ **SQLMesh audit limitations** - Only supports blocking audits currently
 - ⚠️ **UI complexity** - Users must understand asset vs check status
 
 ## Current Limitations
-
-### Non-Blocking Audits
-
-**SQLMesh supports non-blocking audits, but current implementation only handles blocking audits.**
-
-```sql
--- SQLMesh non-blocking audit (not yet supported)
-MODEL (
-    name my_model,
-    audits [
-        UNIQUE_VALUES(columns=[id]) -- blocking
-        UNIQUE_VALUES(columns=[email]) -- non-blocking
-    ]
-)
-```
-
-**Future enhancement needed to support non-blocking audits.**
 
 ## Related Decisions
 

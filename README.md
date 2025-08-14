@@ -71,7 +71,7 @@ This module provides a complete integration between SQLMesh and Dagster, allowin
 | Model dependencies              | ✅ Supported     | Dagster dependency graph                    | Automatic dependency resolution                                 |
 | Audit blocking                  | ✅ Supported     | Non-blocking checks                         | SQLMesh handles blocking logic                                  |
 | **Future Features**             |
-| Non-blocking audits             | 🔄 Planned       | AssetCheckResult for non-blocking audits    | Support for SQLMesh non-blocking audits                         |
+| Non-blocking audits             | ✅ Supported     | AssetCheckResult with WARN severity         | Recognizes `_non_blocking` suffix; SQLMesh manages blocking     |
 | Dagster → SQLMesh backfill      | 🔄 Planned       | Partition integration                       | Direct Dagster partition control                                |
 | Multi-environment orchestration | ❌ Not supported | Dagster OSS does not support multi-tenancy  | Use separate Dagster clusters per environment                   |
 | **Dagster-Specific Features**   |
@@ -698,7 +698,7 @@ SQLMesh does not encourage running multiple SQLMesh commands in parallel against
 
 ## Limitations
 
-- **Multiple SQLMesh runs** : Each asset triggers its own `sqlmesh run` (may impact performance with many assets)
+- **Shared execution model** : A single `sqlmesh run` is triggered per Dagster run; assets reuse shared results via `SQLMeshResultsResource`
 - **No Dagster → SQLMesh backfill** : Partitions managed only by SQLMesh itself (run a materialization to backfill)
 - **Breaking changes** : Handled outside the module (SQLMesh CLI or CI/CD)
 - **Environment management** : SQLMesh CLI or CI/CD

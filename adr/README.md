@@ -78,7 +78,7 @@ SQLMesh Dagster Component provides declarative YAML configuration for SQLMesh pr
 
 ### Non-Blocking Audits
 
-SQLMesh supports non-blocking audits, but current implementation only handles blocking audits. Future enhancement needed.
+Non-blocking audits are supported. Failures are surfaced as Dagster checks with WARN severity, while SQLMesh manages the blocking semantics and downstream propagation for blocking audits.
 
 ### Schedule Complexity
 
@@ -90,10 +90,9 @@ Distinguishing between transient and persistent failures for retry logic is comp
 
 ## Future Enhancements
 
-1. **Non-blocking audit support** - Handle SQLMesh non-blocking audits in Dagster
-2. **Enhanced error classification** - Better distinction between transient and persistent failures
-3. **Advanced scheduling** - More sophisticated adaptive scheduling based on data dependencies
-4. **Performance optimization** - Reduce memory usage and improve execution speed
+1. **Enhanced error classification** - Better distinction between transient and persistent failures
+2. **Advanced scheduling** - More sophisticated adaptive scheduling based on data dependencies
+3. **Performance optimization** - Reduce memory usage and improve execution speed
 
 ## Contributing
 
