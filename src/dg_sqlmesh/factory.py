@@ -171,6 +171,8 @@ def sqlmesh_assets_factory(
                     run_id,
                     context.selected_asset_keys,
                 )
+            else:
+                context.log.debug("Reusing shared SQLMesh results for this run_id (no fresh run)")
 
             # Retrieve results for this run
             (

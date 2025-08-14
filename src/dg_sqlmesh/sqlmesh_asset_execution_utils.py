@@ -351,19 +351,15 @@ def execute_sqlmesh_materialization(
         f"Materializing {len(models_to_materialize)} models: {[m.name for m in models_to_materialize]}"
     )
     context.log.debug("Starting SQLMesh materialization (count=%d)", len(models_to_materialize))
-    # If a SQLMesh run already occurred just before (e.g., tests or external trigger)
-    # and produced notifier events, reuse them and avoid triggering a second run.
+    # Ensure notifier state is clean to avoid cross-run leakage before reading or running
     try:
-        from .notifier_service import get_audit_failures as _get_nf
-        _preexisting_failures = _get_nf()
+        clear_notifier_state()
+        context.log.debug("Notifier state cleared at run start")
     except Exception:
-        _preexisting_failures = []
+        pass
 
-    if _preexisting_failures:
-        context.log.info("Detected preexisting notifier audit failures; skipping extra SQLMesh run")
-        plan = None
-    else:
-        plan = sqlmesh.materialize_assets_threaded(models_to_materialize, context=context)
+    # Always trigger a fresh SQLMesh run; do not reuse potentially stale notifier state
+    plan = sqlmesh.materialize_assets_threaded(models_to_materialize, context=context)
     context.log.debug("SQLMesh materialization completed")
 
     # Capture all results
