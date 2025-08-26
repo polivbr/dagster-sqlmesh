@@ -1,9 +1,7 @@
-import logging
 import os
 from pathlib import Path
 from typing import Optional
 
-import dagster._check as check
 from dagster._core.errors import DagsterInvalidInvocationError
 from dagster.components.component.component_scaffolder import Scaffolder
 from dagster.components.component_scaffolding import scaffold_component

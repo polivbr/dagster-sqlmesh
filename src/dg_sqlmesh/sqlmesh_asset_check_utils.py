@@ -2,7 +2,7 @@
 
 from dagster import AssetCheckSpec, AssetKey, AssetCheckResult
 from typing import Any
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Tuple, Optional
 from sqlmesh.core.model.definition import ExternalModel
 from sqlglot import exp
 import json

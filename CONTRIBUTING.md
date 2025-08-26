@@ -1,214 +1,294 @@
 # Contributing to dg-sqlmesh
 
-We love your input! We want to make contributing to `dg-sqlmesh` as easy and transparent as possible, whether it's:
+Thank you for your interest in contributing to dg-sqlmesh! This guide will help you get started.
 
-- Reporting a bug
-- Discussing the current state of the code
-- Submitting a fix
-- Proposing new features
-- Becoming a maintainer
-
-## Development Process
-
-We use GitHub to host code, to track issues and feature requests, as well as accept pull requests.
-
-### Pull Requests
-
-1. Fork the repo and create your branch from `main`.
-2. If you've added code that should be tested, add tests.
-3. If you've changed APIs, update the documentation.
-4. Ensure the test suite passes.
-5. Make sure your code lints.
-6. Issue that pull request!
-
-## Development Setup
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Python 3.11+
-- uv package manager
-- SQLMesh 0.209.0+
-- Dagster 1.11.4+
+- Python 3.11 or 3.12
+- [uv](https://github.com/astral-sh/uv) package manager
+- Git
 
-### Local Development
+### Development Setup
+
+1. **Fork and clone the repository**
+
+   ```bash
+   git clone https://github.com/yourusername/dagster-sqlmesh.git
+   cd dagster-sqlmesh
+   ```
+
+2. **Install dependencies**
+
+   ```bash
+   uv sync --group dev
+   ```
+
+3. **Load test data**
+
+   ```bash
+   uv run --group dev python tests/load_jaffle_data.py
+   ```
+
+4. **Run tests to verify setup**
+   ```bash
+   make test
+   ```
+
+## 🛠️ Development Workflow
+
+### Before Making Changes
+
+1. **Create a feature branch**
+
+   ```bash
+   git checkout -b feat/your-feature-name
+   ```
+
+2. **Run pre-commit checks**
+   ```bash
+   make pre-commit
+   ```
+
+### During Development
+
+1. **Run tests frequently**
+
+   ```bash
+   make test          # Run all tests
+   make test-unit     # Run unit tests only
+   make coverage      # Run tests with coverage
+   ```
+
+2. **Lint your code**
+
+   ```bash
+   make lint          # Run ruff linting and formatting
+   make vulture       # Check for dead code
+   ```
+
+3. **Follow code standards**
+   - All code, comments, and documentation must be in **English**
+   - Use type hints for all functions
+   - Add docstrings for public APIs
+   - Follow the existing code patterns
+
+### Testing
+
+We use pytest with comprehensive test coverage:
+
+- **Unit tests**: `tests/unit/` - Test individual components
+- **Integration tests**: `tests/integration/` - Test full workflows
+- **Test project**: `tests/fixtures/sqlmesh_project/` - SQLMesh test project
+
+#### Running Specific Tests
 
 ```bash
-# Clone your fork
-git clone https://github.com/YOUR_USERNAME/dagster-sqlmesh.git
-cd dagster-sqlmesh
+# Run specific test file
+uv run pytest tests/unit/test_factory.py -v
 
-# Install dependencies
-uv sync
+# Run specific test class
+uv run pytest tests/unit/test_factory.py::TestSQLMeshAssetsFactory -v
 
-# Run tests
-make test
+# Run with markers
+uv run pytest tests/ -m unit -v
+uv run pytest tests/ -m integration -v
+```
 
-# Run linting
+#### Adding Tests
+
+- **Unit tests**: Test individual functions/classes in isolation
+- **Integration tests**: Test complete workflows
+- **Use fixtures**: Leverage existing fixtures in `tests/conftest.py`
+- **Mock external services**: Use mocks for external dependencies
+
+### Code Style
+
+We use `ruff` for linting and formatting:
+
+```bash
+# Check formatting and linting
 make lint
 
-# Format code
-make format
+# Auto-fix issues
+uv run ruff check --fix src/dg_sqlmesh/
+uv run ruff format src/dg_sqlmesh/
 ```
 
-### Running Tests
+## 📝 Pull Request Process
 
-```bash
-# Run all tests
-uv run pytest
+### 1. Prepare Your PR
 
-# Run unit tests only
-uv run pytest tests/unit/
+- [ ] All tests pass: `make test`
+- [ ] Code is properly formatted: `make lint`
+- [ ] No dead code: `make vulture`
+- [ ] Documentation updated (if applicable)
+- [ ] CHANGELOG.md updated (for notable changes)
 
-# Run integration tests only
-uv run pytest tests/integration/
+### 2. Create Pull Request
 
-# Run with coverage
-uv run pytest --cov=src/dg_sqlmesh --cov-report=html
+1. **Push your branch**
+
+   ```bash
+   git push origin feat/your-feature-name
+   ```
+
+2. **Create PR on GitHub**
+   - Use the provided PR template
+   - Link related issues
+   - Describe your changes clearly
+   - Mark as draft if work in progress
+
+### 3. Review Process
+
+- **Automated checks**: CI/CD will run automatically
+- **Manual review**: Maintainers will review your code
+- **Address feedback**: Make requested changes
+- **Final approval**: PR will be merged after approval
+
+## 🏗️ Architecture
+
+### Key Principles
+
+1. **Individual Asset Pattern**: Each SQLMesh model becomes a separate Dagster asset
+2. **Shared Execution**: Single SQLMesh execution per Dagster run
+3. **Event-Driven Status**: Asset status derived from SQLMesh events
+4. **Resource Management**: SQLMeshResultsResource for shared state
+
+### Code Organization
+
+```
+src/dg_sqlmesh/
+├── __init__.py                    # Public API
+├── factory.py                     # Main factory functions
+├── resource.py                    # SQLMeshResource implementation
+├── translator.py                  # SQLMesh ↔ Dagster mapping
+├── sqlmesh_asset_utils.py         # Asset creation utilities
+├── sqlmesh_asset_execution_utils.py # Execution utilities
+├── sqlmesh_asset_check_utils.py   # Asset check utilities
+└── components/                    # Dagster component
 ```
 
-## Code Style
+### Adding New Features
 
-We use several tools to maintain code quality:
+1. **Follow existing patterns**: Look at similar implementations
+2. **Add tests**: Both unit and integration tests
+3. **Update documentation**: README, docstrings, examples
+4. **Consider backward compatibility**: Avoid breaking changes
+5. **Add ADR**: For significant architectural decisions
 
-- **Ruff**: For linting and formatting
-- **Vulture**: For detecting dead code
-- **pytest**: For testing
+## 🐛 Bug Reports
 
-Run the full quality check:
+### Before Reporting
 
-```bash
-make validate  # Runs: clean, build, test, ruff, vulture
-```
+1. **Search existing issues**: Avoid duplicates
+2. **Use latest version**: Ensure you're using the latest release
+3. **Minimal reproduction**: Create a minimal example
 
-### Code Standards
+### Reporting Process
 
-- Follow PEP 8 style guidelines
-- Use type hints where applicable
-- Write docstrings for public functions and classes
-- Keep functions focused and small
-- Use meaningful variable and function names
+1. **Use issue template**: Follow the bug report template
+2. **Provide context**: Environment, versions, configuration
+3. **Include logs**: Relevant error messages and tracebacks
+4. **Minimal example**: Code that reproduces the issue
 
-### Commit Message Format
+## ✨ Feature Requests
 
-We use conventional commits:
+### Before Requesting
 
-```
-<type>(<scope>): <description>
+1. **Check roadmap**: Review existing plans in README
+2. **Search issues**: See if already requested
+3. **Consider alternatives**: Explore existing workarounds
 
-[optional body]
+### Request Process
 
-[optional footer]
-```
+1. **Use template**: Follow the feature request template
+2. **Explain problem**: What limitation are you facing?
+3. **Propose solution**: How would you like it to work?
+4. **Provide examples**: Show usage examples
 
-Types:
-- `feat`: A new feature
-- `fix`: A bug fix
-- `docs`: Documentation only changes
-- `refactor`: Code change that neither fixes a bug nor adds a feature
-- `test`: Adding missing tests or correcting existing tests
-- `chore`: Changes to the build process or auxiliary tools
+## 🔒 Security
 
-Examples:
-```
-feat(resource): add support for custom SQLMesh environments
-fix(factory): resolve downstream blocking issue with stale notifier state
-docs(readme): update installation instructions for Python 3.12
-```
+### Reporting Security Issues
 
-## Architecture Decision Records (ADRs)
+**Do not** report security vulnerabilities through public GitHub issues.
 
-For significant architectural changes, please:
+Instead:
 
-1. Review existing ADRs in `/adr/`
-2. Create a new ADR following the template
-3. Get feedback from maintainers before implementation
+1. Email: thomastrividic@gmail.com
+2. Include: Detailed description and reproduction steps
+3. Response: We'll respond within 48 hours
 
-## Testing Guidelines
+### Security Best Practices
 
-### Test Structure
+- Keep dependencies updated
+- Use secrets properly (no hardcoded credentials)
+- Follow secure coding practices
+- Run security scans: `make security`
 
-- **Unit tests**: Test individual functions and classes in isolation
-- **Integration tests**: Test SQLMesh-Dagster integration end-to-end
-- **Fixtures**: Shared test data in `tests/fixtures/`
+## 📚 Documentation
 
-### Test Naming
+### Types of Documentation
 
-```python
-def test_function_name_expected_behavior():
-    """Test that function_name does expected_behavior when given specific input."""
-```
+1. **Code documentation**: Docstrings and comments
+2. **User documentation**: README, examples
+3. **Developer documentation**: ADRs, CONTRIBUTING
+4. **API documentation**: Auto-generated from docstrings
 
-### Test Coverage
+### Writing Guidelines
 
-Aim for:
-- 90%+ coverage for new code
-- All public APIs must be tested
-- Critical paths must have integration tests
+- **Clear and concise**: Easy to understand
+- **Examples included**: Show how to use features
+- **Keep updated**: Maintain accuracy with code changes
+- **English only**: All documentation in English
 
-## Release Process
+## 🏷️ Release Process
 
-We follow semantic versioning (SemVer):
+### For Maintainers
 
-- **Patch** (1.8.0 → 1.8.1): Bug fixes, documentation updates
-- **Minor** (1.8.0 → 1.9.0): New features, backwards compatible
-- **Major** (1.8.0 → 2.0.0): Breaking changes
+1. **Version bump**:
 
-### Release Commands
+   ```bash
+   make bump-patch  # or bump-minor, bump-major
+   ```
 
-```bash
-# Patch release
-make release-patch
+2. **Create release**:
 
-# Minor release  
-make release-minor
+   ```bash
+   ./scripts/release.sh patch  # Interactive release
+   ```
 
-# Major release
-make release-major
-```
+3. **Automated process**:
+   - CI/CD tests the release
+   - Publishes to PyPI
+   - Creates GitHub release
 
-## Issue Reporting
+### Version Schema
 
-### Bug Reports
+We follow [Semantic Versioning](https://semver.org/):
 
-When filing a bug report, please include:
+- **MAJOR**: Breaking changes
+- **MINOR**: New features (backward compatible)
+- **PATCH**: Bug fixes (backward compatible)
 
-- **Environment**: Python version, Dagster version, SQLMesh version
-- **Steps to reproduce**: Minimal example that reproduces the issue
-- **Expected behavior**: What you expected to happen
-- **Actual behavior**: What actually happened
-- **Error messages**: Full stack traces if applicable
+## 🎯 Getting Help
 
-### Feature Requests
+### Community Support
 
-For feature requests, please include:
+- **GitHub Issues**: Bug reports and feature requests
+- **GitHub Discussions**: Questions and community support
+- **Documentation**: README and examples
 
-- **Use case**: Why is this feature needed?
-- **Proposed solution**: How should it work?
-- **Alternatives**: What alternatives have you considered?
-- **Breaking changes**: Would this introduce breaking changes?
+### Maintainer Contact
 
-## Documentation
+- **GitHub**: @fosk06
+- **Email**: thomastrividic@gmail.com
 
-- Update README.md for user-facing changes
-- Update ADRs for architectural decisions
-- Add docstrings for new public APIs
-- Update examples in `/examples/` if relevant
+## 📜 License
 
-## Community
-
-- Be respectful and inclusive
-- Help others learn and contribute
-- Follow our [Code of Conduct](CODE_OF_CONDUCT.md)
-- Ask questions in GitHub Discussions or Issues
-
-## License
-
-By contributing, you agree that your contributions will be licensed under the Apache 2.0 License.
-
-## Questions?
-
-Don't hesitate to ask! Create an issue or start a discussion. We're here to help.
+By contributing to dg-sqlmesh, you agree that your contributions will be licensed under the Apache-2.0 License.
 
 ---
 
-Thank you for contributing to dg-sqlmesh! 🚀
+Thank you for contributing to dg-sqlmesh! 🙏

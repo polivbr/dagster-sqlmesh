@@ -6,7 +6,6 @@ from pydantic import PrivateAttr
 from dagster import (
     AssetKey,
     AssetCheckResult,
-    AssetCheckSeverity,
     MaterializeResult,
     DataVersion,
     ConfigurableResource,
@@ -29,7 +28,6 @@ from .notifier_service import (
     clear_notifier_state,
 )
 from .sqlmesh_asset_check_utils import (
-    extract_failed_audit_details,
     deduplicate_asset_check_results,
     serialize_audit_args,
     create_failed_audit_check_result,
@@ -48,7 +46,6 @@ from sqlmesh.utils.errors import (
     PythonModelEvalError,
     SignalEvalError,
 )
-import json
 
 
 

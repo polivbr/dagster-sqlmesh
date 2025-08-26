@@ -6,7 +6,6 @@ from typing import Annotated, Any, Callable, Optional
 
 from dagster import Resolvable, AssetKey
 from dagster._core.definitions.definitions_class import Definitions
-from dagster._core.execution.context.asset_execution_context import AssetExecutionContext
 from dagster._utils.cached_method import cached_method
 from dagster import ComponentTree
 from dagster.components import (
@@ -288,11 +287,7 @@ class ProxySQLMeshTranslator(SQLMeshTranslator):
         return self._fn(base_tags, model)
 
 
-class ProxySQLMeshTranslator(SQLMeshTranslator):
-    """Proxy translator that uses a custom translation function."""
-
-    def __init__(self, fn: TranslationFn):
-        self._fn = fn
+# Removed duplicate ProxySQLMeshTranslator class definition
         super().__init__()
 
     def get_external_asset_key(self, external_fqn: str) -> AssetKey:

@@ -20,12 +20,9 @@ from .resource import UpstreamAuditFailureError
 from .notifier_service import clear_notifier_state
 from .execution_notifier import (
     _get_notifier_failures as _get_notifier_failures_noarg,
-    _summarize_notifier_failures,
 )
-from .execution_downstream import _compute_blocking_and_downstream
 from .execution_selection import (
     _log_run_selection as _log_run_selection_ext,
-    _select_models_to_materialize as _select_models_to_materialize_ext,
     _materialize_and_get_plan as _materialize_and_get_plan_ext,
 )
 from .execution_check_results import (

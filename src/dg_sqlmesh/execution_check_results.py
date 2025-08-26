@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
-from dagster import AssetCheckResult, AssetCheckSeverity, AssetExecutionContext, AssetKey
+from dagster import AssetCheckResult, AssetCheckSeverity, AssetExecutionContext
 
 from .sqlmesh_asset_check_utils import build_audit_check_metadata
 
