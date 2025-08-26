@@ -40,22 +40,25 @@ def _reload_test_db() -> None:
     load_data()
 
 
-def _corrupt_supplies_source(db_path: str) -> None:
-    """Force supply_id to a single constant value to trigger the blocking not_constant audit."""
+def _corrupt_stores_source_blocking(db_path: str) -> None:
+    """Force store_id to a single constant value to trigger the blocking not_constant audit."""
     con = duckdb.connect(db_path)
     try:
-        con.execute("UPDATE main.raw_source_supplies SET id = 'CONST_ID'")
+        con.execute("UPDATE main.raw_source_stores SET id = 'CONST_ID'")
     finally:
         con.close()
 
 
 def _corrupt_supplies_source_non_blocking(db_path: str) -> None:
-    """Force supply_name to a single constant value to trigger only the non-blocking audit."""
+    """Force supply_name to a single constant value to trigger the non-blocking audit."""
     con = duckdb.connect(db_path)
     try:
         con.execute("UPDATE main.raw_source_supplies SET name = 'CONST_NAME'")
     finally:
         con.close()
+
+
+
 
 
 def _invalidate_env(project_dir: str, env: str) -> None:
@@ -83,8 +86,8 @@ def test_blocking_audit_triggers_downstream_block() -> None:
     results_resource = SQLMeshResultsResource()
 
     # Identify the staging model and a clear downstream
-    stg_model = sqlmesh.context.get_model("sqlmesh_jaffle_platform.stg_supplies")
-    downstream_model = sqlmesh.context.get_model("sqlmesh_jaffle_platform.supplies")
+    stg_model = sqlmesh.context.get_model("sqlmesh_jaffle_platform.stg_stores")
+    downstream_model = sqlmesh.context.get_model("sqlmesh_jaffle_platform.stores")
     assert stg_model is not None and downstream_model is not None
 
     stg_key: AssetKey = sqlmesh.translator.get_asset_key(stg_model)
@@ -107,7 +110,7 @@ def test_blocking_audit_triggers_downstream_block() -> None:
         os.chdir(old_cwd)
 
     # 3) Corrupt the specific source to make the audit fail on the next run
-    _corrupt_supplies_source(db_path)
+    _corrupt_stores_source_blocking(db_path)
 
     # 4) Invalidate to force re-evaluation despite cron, then run shared execution
     selected_keys = [stg_key, downstream_key]
@@ -118,22 +121,13 @@ def test_blocking_audit_triggers_downstream_block() -> None:
     sqlmesh.setup_for_execution(context)
     try:
         os.chdir(project_dir)
-        # Force SQLMesh to recompute models regardless of cron window by advancing execution_time
-        future_execution_time = datetime.datetime.now() + datetime.timedelta(minutes=6)
-        sqlmesh.context.run(
-            environment=sqlmesh.environment,
-            select_models=[stg_model.name, downstream_model.name],
-            execution_time=future_execution_time,
-        )
-        # Now execute the Dagster materialization logic which will pick up results
-        # Skip notifier clear since we already ran SQLMesh and want to preserve audit failures
+        # Execute the Dagster materialization logic (includes SQLMesh run)
         execute_sqlmesh_materialization(
             context=context,
             sqlmesh=sqlmesh,
             sqlmesh_results=results_resource,
             run_id="itest_run_blocking_nb",
             selected_asset_keys=selected_keys,
-            skip_notifier_clear=True,
         )
     finally:
         os.chdir(old_cwd)
@@ -239,23 +233,13 @@ def test_non_blocking_audit_warns_without_downstream_block() -> None:
     sqlmesh.setup_for_execution(context)
     try:
         os.chdir(project_dir)
-        # Note: notifier state will be cleared in execute_sqlmesh_materialization
-        # Force SQLMesh to recompute models regardless of cron window by advancing execution_time
-        future_execution_time = datetime.datetime.now() + datetime.timedelta(minutes=6)
-        sqlmesh.context.run(
-            environment=sqlmesh.environment,
-            select_models=[stg_model.name, downstream_model.name],
-            execution_time=future_execution_time,
-        )
-        # Now execute the Dagster materialization logic which will pick up results
-        # Skip notifier clear since we already ran SQLMesh and want to preserve audit failures
+        # Execute the Dagster materialization logic (includes SQLMesh run)
         execute_sqlmesh_materialization(
             context=context,
             sqlmesh=sqlmesh,
             sqlmesh_results=results_resource,
             run_id="itest_run_non_blocking_only",
             selected_asset_keys=selected_keys,
-            skip_notifier_clear=True,
         )
     finally:
         os.chdir(old_cwd)

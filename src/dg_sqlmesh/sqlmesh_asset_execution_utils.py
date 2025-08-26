@@ -176,7 +176,6 @@ def execute_sqlmesh_materialization(
     sqlmesh_results: Any,
     run_id: str,
     selected_asset_keys: List[AssetKey],
-    skip_notifier_clear: bool = False,
 ) -> Dict[str, Any]:
     """
     Execute a single SQLMesh materialization for all selected assets (shared execution).
@@ -217,16 +216,11 @@ def execute_sqlmesh_materialization(
         "Starting SQLMesh materialization (count=%d)", len(models_to_materialize)
     )
     # Clear notifier state at run start to avoid accumulating audit failures from previous runs
-    if not skip_notifier_clear:
-        try:
-            clear_notifier_state()
-            context.log.debug("Notifier state cleared at run start")
-        except Exception:
-            pass
-    else:
-        context.log.debug(
-            "Notifier clear skipped (preserving audit failures from previous SQLMesh run)"
-        )
+    try:
+        clear_notifier_state()
+        context.log.debug("Notifier state cleared at run start")
+    except Exception:
+        pass
 
     # Always trigger a fresh SQLMesh run; do not reuse potentially stale notifier state
     plan = sqlmesh.materialize_assets_threaded(models_to_materialize, context=context)
