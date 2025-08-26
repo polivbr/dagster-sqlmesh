@@ -58,9 +58,6 @@ def _corrupt_supplies_source_non_blocking(db_path: str) -> None:
         con.close()
 
 
-
-
-
 def _invalidate_env(project_dir: str, env: str) -> None:
     """Deprecated in tests: we now advance execution_time instead of invoking CLI."""
     raise RuntimeError(
