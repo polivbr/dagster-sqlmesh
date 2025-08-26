@@ -574,9 +574,7 @@ class TestPhase1HelperFunctions:
             assert failures == []
 
     def test__summarize_notifier_failures_logs(self) -> None:
-        from dg_sqlmesh.sqlmesh_asset_execution_utils import (
-            _summarize_notifier_failures,
-        )
+        from dg_sqlmesh.execution_notifier import _summarize_notifier_failures
 
         context = Mock(spec=AssetExecutionContext)
         context.log.info = Mock()
@@ -594,9 +592,7 @@ class TestPhase1HelperFunctions:
         context2.log.info.assert_not_called()
 
     def test__compute_blocking_and_downstream(self) -> None:
-        from dg_sqlmesh.sqlmesh_asset_execution_utils import (
-            _compute_blocking_and_downstream,
-        )
+        from dg_sqlmesh.execution_downstream import _compute_blocking_and_downstream
 
         sqlmesh = Mock()
         # Mock model resolution and key mapping
@@ -619,9 +615,7 @@ class TestPhase1HelperFunctions:
         assert affected == {downstream_key}
 
     def test__compute_blocking_and_downstream_exception(self) -> None:
-        from dg_sqlmesh.sqlmesh_asset_execution_utils import (
-            _compute_blocking_and_downstream,
-        )
+        from dg_sqlmesh.execution_downstream import _compute_blocking_and_downstream
 
         sqlmesh = Mock()
         # translator path returns key

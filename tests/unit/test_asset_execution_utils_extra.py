@@ -6,7 +6,7 @@ from dagster import AssetKey
 
 def test_get_check_severity_for_blocking() -> None:
     from dagster import AssetCheckSeverity
-    from dg_sqlmesh.sqlmesh_asset_execution_utils import get_check_severity_for_blocking
+    from dg_sqlmesh.execution_check_results import get_check_severity_for_blocking
 
     assert get_check_severity_for_blocking(True) == AssetCheckSeverity.ERROR
     assert get_check_severity_for_blocking(False) == AssetCheckSeverity.WARN
