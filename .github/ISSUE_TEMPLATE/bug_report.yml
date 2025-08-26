@@ -1,0 +1,103 @@
+name: 🐛 Bug Report
+description: File a bug report to help us improve
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report! 🙏
+        
+        Before submitting, please search existing issues to avoid duplicates.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission checks
+      options:
+        - label: I have searched existing issues and this is not a duplicate
+          required: true
+        - label: I have read the documentation
+          required: true
+        - label: I am using the latest version of dg-sqlmesh
+          required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: "Describe the bug..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Provide detailed steps to reproduce the issue.
+      placeholder: |
+        1. Create a SQLMesh project with...
+        2. Configure Dagster with...
+        3. Run the following code...
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: "I expected..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+      placeholder: "Instead, what happened was..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Please provide details about your environment
+      value: |
+        - **dg-sqlmesh version**: 
+        - **Python version**: 
+        - **Dagster version**: 
+        - **SQLMesh version**: 
+        - **Operating System**: 
+        - **Database**: (e.g., PostgreSQL, DuckDB, etc.)
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error Logs/Traceback
+      description: If applicable, add any error messages or tracebacks
+      render: python
+      placeholder: "Paste error logs here..."
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here (screenshots, configuration files, etc.)
+
+  - type: textarea
+    id: minimal_example
+    attributes:
+      label: Minimal Reproducible Example
+      description: If possible, provide a minimal code example that reproduces the issue
+      render: python
+      placeholder: |
+        from dg_sqlmesh import sqlmesh_definitions_factory
+        
+        # Your minimal example here...

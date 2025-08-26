@@ -2,13 +2,15 @@
 
 from dagster import AssetCheckSpec, AssetKey, AssetCheckResult
 from typing import Any
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Tuple, Optional
 from sqlmesh.core.model.definition import ExternalModel
 from sqlglot import exp
 import json
 
 
-def create_asset_checks_from_model(model: Any, asset_key: AssetKey) -> List[AssetCheckSpec]:
+def create_asset_checks_from_model(
+    model: Any, asset_key: AssetKey
+) -> List[AssetCheckSpec]:
     """
     Creates AssetCheckSpec for audits of a SQLMesh model.
 
@@ -71,7 +73,9 @@ def create_all_asset_checks(models: list[Any], translator: Any) -> List[AssetChe
     return all_checks
 
 
-def safe_extract_audit_query(model: Any, audit_obj: Any, audit_args: Dict[str, Any], logger: Any | None = None) -> str:
+def safe_extract_audit_query(
+    model: Any, audit_obj: Any, audit_args: Dict[str, Any], logger: Any | None = None
+) -> str:
     """
     Safely extracts audit query with fallback.
 
@@ -97,7 +101,58 @@ def safe_extract_audit_query(model: Any, audit_obj: Any, audit_args: Dict[str, A
             return "N/A"
 
 
-def extract_audit_details(audit_obj: Any, audit_args: Dict[str, Any], model: Any, logger: Any | None = None) -> Dict[str, Any]:
+def _get_actual_blocking_status_from_model_audit(
+    audit_error: Any, audit_name: str, logger: Any | None = None
+) -> bool:
+    """Get the real blocking status from SQLMesh ModelAudit object.
+
+    Args:
+        audit_error: AuditError object from notifier callback
+        audit_name: Name of the audit to find
+        logger: Optional logger instance
+
+    Returns:
+        Boolean indicating if the audit is blocking
+    """
+    try:
+        # Navigate to model.audits_with_args to find the right audit
+        if not hasattr(audit_error, "model"):
+            return True  # Default to blocking for safety
+
+        model = audit_error.model
+        if not hasattr(model, "audits_with_args"):
+            return True  # Default to blocking for safety
+
+        # Find the matching audit by name
+        for audit_with_args in model.audits_with_args:
+            if len(audit_with_args) >= 1:
+                model_audit = audit_with_args[0]  # The ModelAudit object
+                if hasattr(model_audit, "name") and model_audit.name == audit_name:
+                    # Found the right audit, get its blocking status
+                    blocking_status = getattr(model_audit, "blocking", True)
+                    if logger:
+                        logger.debug(
+                            f"Found ModelAudit '{audit_name}' with blocking={blocking_status}"
+                        )
+                    return blocking_status
+
+        if logger:
+            logger.warning(
+                f"Could not find ModelAudit for '{audit_name}' in model.audits_with_args"
+            )
+        return True  # Default to blocking for safety
+
+    except Exception as e:
+        if logger:
+            logger.warning(
+                f"Failed to get blocking status from ModelAudit for '{audit_name}': {e}"
+            )
+        return True  # Default to blocking for safety
+
+
+def extract_audit_details(
+    audit_obj: Any, audit_args: Dict[str, Any], model: Any, logger: Any | None = None
+) -> Dict[str, Any]:
     """
     Extracts all useful information from an audit object.
     This function is moved from the console to follow the separation of concerns pattern.
@@ -116,23 +171,38 @@ def extract_audit_details(audit_obj: Any, audit_args: Dict[str, Any], model: Any
         model=model, audit_obj=audit_obj, audit_args=audit_args, logger=logger
     )
 
+    audit_name = getattr(audit_obj, "name", "unknown")
+
+    # Get the real blocking status from SQLMesh ModelAudit object
+    # This is the authoritative source of truth for blocking status
+    blocking = _get_actual_blocking_status_from_model_audit(
+        audit_obj, audit_name, logger
+    )
+
     return {
-        "name": getattr(audit_obj, "name", "unknown"),
+        "name": audit_name,
         "sql": sql_query,
-        "blocking": getattr(audit_obj, "blocking", False),
+        "blocking": blocking,
         "skip": getattr(audit_obj, "skip", False),
         "arguments": audit_args,
     }
+
 
 def is_audit_blocking_from_error(audit_error: Any) -> bool:
     """
     Determine if the failed audit was blocking by inspecting the model's audits_with_args.
     Returns True if blocking, False if explicitly set to non-blocking, defaults to True if unknown.
+
+    Convention: Audits ending with "_non_blocking" are automatically non-blocking.
     """
     model = getattr(audit_error, "model", None)
     audit_name = getattr(audit_error, "audit_name", None)
     if not model or not audit_name:
         return True  # conservative default
+
+    # Check naming convention: audits ending with "_non_blocking" are non-blocking
+    if audit_name.endswith("_non_blocking"):
+        return False
 
     try:
         for audit, args in getattr(model, "audits_with_args", []):
@@ -153,7 +223,9 @@ def is_audit_blocking_from_error(audit_error: Any) -> bool:
     return True  # conservative default
 
 
-def extract_failed_audit_details(audit_error: Any, logger: Any | None = None) -> Dict[str, Any]:
+def extract_failed_audit_details(
+    audit_error: Any, logger: Any | None = None
+) -> Dict[str, Any]:
     """
     Extract structured information from an AuditError for building AssetCheckResult.
 
@@ -168,7 +240,9 @@ def extract_failed_audit_details(audit_error: Any, logger: Any | None = None) ->
     audit_name = getattr(audit_error, "audit_name", "unknown")
     model = getattr(audit_error, "model", None)
     # Prefer built-in property if available, fallback to model.name
-    model_name = getattr(audit_error, "model_name", None) or getattr(model, "name", None)
+    model_name = getattr(audit_error, "model_name", None) or getattr(
+        model, "name", None
+    )
 
     # Prefer the API on the error object itself
     sql_text = "N/A"
@@ -177,13 +251,15 @@ def extract_failed_audit_details(audit_error: Any, logger: Any | None = None) ->
             # Many SQLMesh versions expose a convenience .sql(pretty=True)
             sql_text = audit_error.sql(pretty=True)  # type: ignore[attr-defined]
         elif hasattr(audit_error, "query"):
-            sql_text = audit_error.query.sql(getattr(audit_error, "adapter_dialect", None))
+            sql_text = audit_error.query.sql(
+                getattr(audit_error, "adapter_dialect", None)
+            )
     except Exception as e:  # pragma: no cover - defensive
         if logger:
             logger.warning(f"Failed to extract audit SQL: {e}")
         sql_text = "N/A"
 
-    blocking = is_audit_blocking_from_error(audit_error)
+    blocking = _get_actual_blocking_status_from_model_audit(audit_error, audit_name)
     count = int(getattr(audit_error, "count", 0) or 0)
     args = dict(getattr(audit_error, "audit_args", {}) or {})
 
@@ -197,7 +273,9 @@ def extract_failed_audit_details(audit_error: Any, logger: Any | None = None) ->
     }
 
 
-def find_audit_on_model(model: Any, audit_name: str) -> Optional[Tuple[Any, Dict[str, Any]]]:
+def find_audit_on_model(
+    model: Any, audit_name: str
+) -> Optional[Tuple[Any, Dict[str, Any]]]:
     """
     Locate an audit object and its args on a SQLMesh model by name.
     Returns (audit_obj, audit_args) or None if not found.
@@ -209,6 +287,7 @@ def find_audit_on_model(model: Any, audit_name: str) -> Optional[Tuple[Any, Dict
     except Exception:
         return None
     return None
+
 
 def build_audit_check_metadata(
     *,
@@ -284,7 +363,10 @@ def build_audit_check_metadata(
                 sql_text = sql_text or details.get("sql")
                 args = args or details.get("arguments", {})
                 if blocking is None:
-                    blocking = details.get("blocking")
+                    # Get the blocking status directly from the ModelAudit object itself
+                    # This is the most reliable source of truth
+                    blocking = getattr(audit_obj, "blocking", True)
+
             except Exception:
                 pass
 
@@ -363,7 +445,9 @@ def create_failed_audit_check_result(
         )
     except Exception as exc:  # pragma: no cover - defensive
         if logger:
-            logger.warning(f"Failed to create failed audit check result for {model_name}: {exc}")
+            logger.warning(
+                f"Failed to create failed audit check result for {model_name}: {exc}"
+            )
         return None
 
 
@@ -378,7 +462,9 @@ def create_general_error_check_result(
 ) -> AssetCheckResult:
     """Create a generic AssetCheckResult for non-audit errors."""
     if logger:
-        logger.warning(f"MODEL ERROR for model '{model_name}': {error_type} - {message}")
+        logger.warning(
+            f"MODEL ERROR for model '{model_name}': {error_type} - {message}"
+        )
 
     metadata = {
         "sqlmesh_model_name": model_name,
@@ -410,7 +496,12 @@ def convert_notifier_failures_to_asset_check_results(
 
     for fail in failures:
         try:
-            if isinstance(fail, dict) and {"audit", "model", "sql", "blocking"}.issubset(fail.keys()):
+            if isinstance(fail, dict) and {
+                "audit",
+                "model",
+                "sql",
+                "blocking",
+            }.issubset(fail.keys()):
                 audit_name = fail.get("audit")
                 model_name = fail.get("model")
                 sql_text = fail.get("sql", "N/A")

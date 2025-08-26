@@ -1,0 +1,253 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g., 1.8.2)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write # For trusted publishing to PyPI
+
+jobs:
+  validate-version:
+    name: Validate version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+      is-prerelease: ${{ steps.get-version.outputs.is-prerelease }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version from tag or input
+        id: get-version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/v}
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+          # Check if it's a prerelease (contains alpha, beta, rc)
+          if [[ $VERSION =~ (alpha|beta|rc) ]]; then
+            echo "is-prerelease=true" >> $GITHUB_OUTPUT
+            echo "This is a prerelease"
+          else
+            echo "is-prerelease=false" >> $GITHUB_OUTPUT
+            echo "This is a stable release"
+          fi
+
+      - name: Verify version consistency
+        run: |
+          EXPECTED_VERSION="${{ steps.get-version.outputs.version }}"
+          PYPROJECT_VERSION=$(grep 'version = ' pyproject.toml | cut -d'"' -f2)
+          INIT_VERSION=$(grep '__version__ = ' src/dg_sqlmesh/__init__.py | cut -d'"' -f2)
+
+          echo "Expected version: $EXPECTED_VERSION"
+          echo "pyproject.toml version: $PYPROJECT_VERSION"
+          echo "__init__.py version: $INIT_VERSION"
+
+          if [ "$PYPROJECT_VERSION" != "$EXPECTED_VERSION" ]; then
+            echo "❌ Version mismatch: pyproject.toml has $PYPROJECT_VERSION, expected $EXPECTED_VERSION"
+            exit 1
+          fi
+
+          if [ "$INIT_VERSION" != "$EXPECTED_VERSION" ]; then
+            echo "❌ Version mismatch: __init__.py has $INIT_VERSION, expected $EXPECTED_VERSION"
+            exit 1
+          fi
+
+          echo "✅ All versions are consistent"
+
+  test:
+    name: Run tests before release
+    runs-on: ubuntu-latest
+    needs: validate-version
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Run linting
+        run: |
+          uv run ruff check src/dg_sqlmesh/
+          uv run ruff format --check src/dg_sqlmesh/
+
+      - name: Load test data
+        run: uv run --group dev python tests/load_jaffle_data.py
+
+      - name: Run tests
+        run: uv run pytest tests/ -v
+
+  build:
+    name: Build package
+    runs-on: ubuntu-latest
+    needs: [validate-version, test]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Clean previous builds
+        run: |
+          rm -rf dist/
+          rm -rf build/
+          rm -rf src/*.egg-info/
+
+      - name: Build package
+        run: |
+          echo "🔨 Building dg-sqlmesh v${{ needs.validate-version.outputs.version }}..."
+          uv build
+          echo "📦 Build completed:"
+          ls -la dist/
+
+      - name: Verify build
+        run: |
+          echo "🔍 Verifying package contents..."
+          uv run python -m pip install dist/*.whl
+          uv run python -c "import dg_sqlmesh; print(f'✅ Successfully imported dg_sqlmesh v{dg_sqlmesh.__version__}')"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-release-${{ needs.validate-version.outputs.version }}
+          path: dist/
+          retention-days: 90
+
+  publish-pypi:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    needs: [validate-version, build]
+    environment: release
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-release-${{ needs.validate-version.outputs.version }}
+          path: dist/
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Publish to PyPI
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          echo "🚀 Publishing dg-sqlmesh v${{ needs.validate-version.outputs.version }} to PyPI..."
+          ls -la dist/
+          uv publish --token $UV_PUBLISH_TOKEN
+          echo "✅ Successfully published to PyPI!"
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [validate-version, publish-pypi]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for changelog
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-release-${{ needs.validate-version.outputs.version }}
+          path: dist/
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ needs.validate-version.outputs.version }}"
+          echo "Generating changelog for v$VERSION..."
+
+          # Get the previous tag
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "v$VERSION" | head -n1)
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous tag found, using all commits"
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          else
+            echo "Generating changelog from $PREV_TAG to v$VERSION"
+            CHANGELOG=$(git log $PREV_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          fi
+
+          # Save changelog to file
+          cat > CHANGELOG.md << EOF
+          ## What's Changed
+
+          $CHANGELOG
+
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREV_TAG...v$VERSION
+
+          ## Installation
+
+          \`\`\`bash
+          pip install dg-sqlmesh==$VERSION
+          \`\`\`
+
+          ## PyPI
+
+          📦 [View on PyPI](https://pypi.org/project/dg-sqlmesh/$VERSION/)
+          EOF
+
+          echo "changelog-file=CHANGELOG.md" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.validate-version.outputs.version }}
+          name: Release v${{ needs.validate-version.outputs.version }}
+          body_path: CHANGELOG.md
+          files: dist/*
+          prerelease: ${{ needs.validate-version.outputs.is-prerelease }}
+          make_latest: ${{ needs.validate-version.outputs.is-prerelease == 'false' }}
+
+  notify-success:
+    name: Notify success
+    runs-on: ubuntu-latest
+    needs: [validate-version, create-release]
+    if: success()
+
+    steps:
+      - name: Success notification
+        run: |
+          echo "🎉 Release v${{ needs.validate-version.outputs.version }} completed successfully!"
+          echo "📦 PyPI: https://pypi.org/project/dg-sqlmesh/${{ needs.validate-version.outputs.version }}/"
+          echo "📋 GitHub: https://github.com/${{ github.repository }}/releases/tag/v${{ needs.validate-version.outputs.version }}"

@@ -185,4 +185,47 @@ validate: clean build test ruff vulture
 
 # Quick publish (build + publish)
 quick-publish: build publish
-	@echo "🚀 Quick publish completed!" 
+	@echo "🚀 Quick publish completed!"
+
+# Coverage report
+coverage:
+	@echo "📊 Running tests with coverage..."
+	@uv run coverage run -m pytest tests/ -v
+	@uv run coverage report --show-missing
+	@uv run coverage html
+	@echo "✅ Coverage report generated in htmlcov/"
+
+# Security audit
+security:
+	@echo "🔒 Running security audit..."
+	@uv run pip-audit --desc || true
+	@uv run safety check || true
+	@echo "📄 Checking license compliance..."
+	@uv run pip-licenses --summary || true
+	@echo "✅ Security audit completed!"
+
+# Release helper
+release-patch-interactive:
+	@echo "🚀 Starting interactive patch release..."
+	@./scripts/release.sh patch
+
+release-minor-interactive:
+	@echo "🚀 Starting interactive minor release..."
+	@./scripts/release.sh minor
+
+release-major-interactive:
+	@echo "🚀 Starting interactive major release..."
+	@./scripts/release.sh major
+
+# CI/CD simulation
+ci-test:
+	@echo "🤖 Simulating CI/CD test workflow..."
+	@make lint
+	@make vulture
+	@make test
+	@make build
+	@echo "✅ CI simulation completed!"
+
+# Pre-commit checks
+pre-commit: lint test vulture security
+	@echo "✅ Pre-commit checks completed!" 

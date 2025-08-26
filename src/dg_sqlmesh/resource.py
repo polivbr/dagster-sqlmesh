@@ -6,12 +6,11 @@ from pydantic import PrivateAttr
 from dagster import (
     AssetKey,
     AssetCheckResult,
-    AssetCheckSeverity,
     MaterializeResult,
     DataVersion,
     ConfigurableResource,
     InitResourceContext,
-    Failure
+    Failure,
 )
 from sqlmesh import Context
 from .translator import SQLMeshTranslator
@@ -26,10 +25,8 @@ from .sqlmesh_asset_utils import (
 from .notifier_service import (
     get_or_create_notifier,
     register_notifier_in_context,
-    clear_notifier_state,
 )
 from .sqlmesh_asset_check_utils import (
-    extract_failed_audit_details,
     deduplicate_asset_check_results,
     serialize_audit_args,
     create_failed_audit_check_result,
@@ -48,8 +45,6 @@ from sqlmesh.utils.errors import (
     PythonModelEvalError,
     SignalEvalError,
 )
-import json
-
 
 
 class UpstreamAuditFailureError(Failure):
@@ -59,7 +54,9 @@ class UpstreamAuditFailureError(Failure):
     """
 
     def __init__(self, description: str | None = None, metadata: dict | None = None):
-        super().__init__(description=description, metadata=metadata, allow_retries=False)
+        super().__init__(
+            description=description, metadata=metadata, allow_retries=False
+        )
 
 
 def convert_unix_timestamp_to_readable(timestamp: float | int | None) -> str | None:
@@ -210,8 +207,8 @@ class SQLMeshResource(ConfigurableResource):
         """Materialize specified SQLMesh models with robust error handling."""
         model_names = [model.name for model in models]
         try:
-            # Reset notifier state before starting a new materialization run
-            clear_notifier_state()
+            # Note: Do NOT clear notifier state here as audit failures may have been
+            # captured by a previous SQLMesh run and need to be preserved
             plan = self._create_sqlmesh_plan(model_names)
             self._run_sqlmesh_plan(model_names)
             return plan
@@ -253,7 +250,9 @@ class SQLMeshResource(ConfigurableResource):
         self._logger.error(message)
         raise
 
-    def materialize_assets_threaded(self, models: list[Any], context: Any | None = None) -> Any:
+    def materialize_assets_threaded(
+        self, models: list[Any], context: Any | None = None
+    ) -> Any:
         """Synchronous wrapper for Dagster that uses anyio."""
 
         def run_materialization():
@@ -340,6 +339,7 @@ class SQLMeshResource(ConfigurableResource):
         """
         try:
             from .notifier_service import get_audit_failures
+
             failures = get_audit_failures()
         except Exception:
             failures = []
@@ -351,7 +351,13 @@ class SQLMeshResource(ConfigurableResource):
             logger=self._logger,
         )
 
-    def _process_single_error(self, error: Any, model_name: str, asset_key: Any, asset_check_results: list[AssetCheckResult]) -> None:
+    def _process_single_error(
+        self,
+        error: Any,
+        model_name: str,
+        asset_key: Any,
+        asset_check_results: list[AssetCheckResult],
+    ) -> None:
         # Process audit errors if present
         if hasattr(error, "__cause__") and error.__cause__:
             if isinstance(error.__cause__, NodeAuditsErrors):
@@ -374,7 +380,11 @@ class SQLMeshResource(ConfigurableResource):
             asset_check_results.append(general_result)
 
     def _process_audit_errors(
-        self, audits_errors: Any, model_name: str, asset_key: Any, asset_check_results: list[AssetCheckResult]
+        self,
+        audits_errors: Any,
+        model_name: str,
+        asset_key: Any,
+        asset_check_results: list[AssetCheckResult],
     ) -> None:
         for audit_error in audits_errors.errors:
             audit_result = self._create_failed_audit_check_result(

@@ -6,7 +6,8 @@ MODEL (
   tags ["dagster:group_name:staging"],
   audits(
     number_of_rows(threshold := 5),
-    not_null(columns := (store_id))
+    not_null(columns := (store_id)),
+    not_constant(column := store_id)
   )
 );
 

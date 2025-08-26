@@ -10,30 +10,23 @@ from dagster import (
     MaterializeResult,
     AssetCheckResult,
     AssetKey,
-    AssetCheckSeverity,
 )
 from typing import Dict, List, Any, Tuple
 from .resource import SQLMeshResource
 from .sqlmesh_asset_utils import get_models_to_materialize
-from .sqlmesh_asset_check_utils import build_audit_check_metadata
 from .resource import UpstreamAuditFailureError
-from .notifier_service import clear_notifier_state
 from .execution_notifier import (
     _get_notifier_failures as _get_notifier_failures_noarg,
-    _summarize_notifier_failures,
 )
-from .execution_downstream import _compute_blocking_and_downstream
+from .notifier_service import clear_notifier_state
 from .execution_selection import (
     _log_run_selection as _log_run_selection_ext,
-    _select_models_to_materialize as _select_models_to_materialize_ext,
     _materialize_and_get_plan as _materialize_and_get_plan_ext,
 )
 from .execution_check_results import (
-    get_check_severity_for_blocking,
     _build_failed_check_results_for_all_checks,
     _get_blocking_and_non_blocking_names_for_model,
     _build_check_result_failed_from_notifier,
-    _build_pass_check_result,
     _build_check_results_for_create_result,
 )
 from .execution_results_payload import (
@@ -42,22 +35,21 @@ from .execution_results_payload import (
 )
 
 
-def get_check_severity_for_blocking(is_blocking: bool) -> AssetCheckSeverity:
-    """Return the standardized severity for an audit based on its blocking flag.
-
-    - True  -> ERROR (blocking audit failures should be errors)
-    - False -> WARN  (non-blocking audit failures should be warnings)
-    """
-    return AssetCheckSeverity.ERROR if is_blocking else AssetCheckSeverity.WARN
+# get_check_severity_for_blocking is imported from execution_check_results
 
 
 # ----------------------------- Internal helpers (Phase 1) -----------------------------
 
-def _log_run_selection(context: AssetExecutionContext, run_id: str, selected_asset_keys: List[AssetKey]) -> None:
+
+def _log_run_selection(
+    context: AssetExecutionContext, run_id: str, selected_asset_keys: List[AssetKey]
+) -> None:
     _log_run_selection_ext(context, run_id, selected_asset_keys)
 
 
-def _select_models_to_materialize(selected_asset_keys: List[AssetKey], sqlmesh: SQLMeshResource) -> List[Any]:
+def _select_models_to_materialize(
+    selected_asset_keys: List[AssetKey], sqlmesh: SQLMeshResource
+) -> List[Any]:
     """Resolve SQLMesh models from selection.
 
     Kept here to preserve test monkeypatching of `get_models_to_materialize` symbol
@@ -73,16 +65,21 @@ def _select_models_to_materialize(selected_asset_keys: List[AssetKey], sqlmesh: 
     return models_to_materialize
 
 
-def _materialize_and_get_plan(sqlmesh: SQLMeshResource, models_to_materialize: List[Any], context: AssetExecutionContext) -> Any:
+def _materialize_and_get_plan(
+    sqlmesh: SQLMeshResource,
+    models_to_materialize: List[Any],
+    context: AssetExecutionContext,
+) -> Any:
     return _materialize_and_get_plan_ext(sqlmesh, models_to_materialize, context)
 
 
-def _init_execution_event_buffers(context: AssetExecutionContext) -> tuple[List[AssetCheckResult], List[Dict], List[Dict], List[Dict]]:
+def _init_execution_event_buffers(
+    context: AssetExecutionContext,
+) -> tuple[List[AssetCheckResult], List[Dict], List[Dict], List[Dict]]:
     context.log.debug("Failed check results count: 0")
     context.log.debug("Processing skipped models events... (skipped, console disabled)")
     context.log.debug("Evaluation events count: 0")
     return _init_execution_event_buffers_ext()
-
 
 
 def _get_notifier_failures(_: SQLMeshResource | None = None) -> List[Dict]:
@@ -127,7 +124,11 @@ def _parse_snapshot_to_model_name(snapshot_name: str) -> str | None:
     return None
 
 
-def _model_was_skipped_from_events(skipped_models_events: List[Dict], current_model_name: str, logger: Any | None = None) -> bool:
+def _model_was_skipped_from_events(
+    skipped_models_events: List[Dict],
+    current_model_name: str,
+    logger: Any | None = None,
+) -> bool:
     """Check if the current model appears in the skipped events."""
     for event in skipped_models_events:
         skipped_snapshots = event.get("snapshot_names", set())
@@ -136,19 +137,26 @@ def _model_was_skipped_from_events(skipped_models_events: List[Dict], current_mo
                 continue
             skipped_model_name = _parse_snapshot_to_model_name(snapshot_name)
             if logger:
-                logger.debug(f"Checking skipped model: {skipped_model_name} vs {current_model_name}")
+                logger.debug(
+                    f"Checking skipped model: {skipped_model_name} vs {current_model_name}"
+                )
             if skipped_model_name == current_model_name:
                 return True
     return False
 
 
 def _model_has_failed_audits_for_asset(
-    failed_check_results: List[AssetCheckResult], current_asset_spec_key: Any, current_model_name: str, logger: Any | None = None
+    failed_check_results: List[AssetCheckResult],
+    current_asset_spec_key: Any,
+    current_model_name: str,
+    logger: Any | None = None,
 ) -> bool:
     """Check if any failed check result targets the current asset key."""
     for check_result in failed_check_results:
         if logger:
-            logger.debug(f"Checking failed check: {check_result.asset_key} vs {current_asset_spec_key}")
+            logger.debug(
+                f"Checking failed check: {check_result.asset_key} vs {current_asset_spec_key}"
+            )
         if check_result.asset_key == current_asset_spec_key:
             if logger:
                 logger.error(
@@ -158,154 +166,7 @@ def _model_has_failed_audits_for_asset(
     return False
 
 
-def _build_failed_check_results_for_all_checks(
-    current_model_checks: List[Any],
-    current_asset_spec_key: Any,
-    failed_check_results: List[AssetCheckResult],
-    current_model_name: str,
-    logger: Any | None = None,
-) -> List[AssetCheckResult]:
-    """Create failed AssetCheckResult for all declared checks with proper metadata."""
-    results: List[AssetCheckResult] = []
-    for check in current_model_checks:
-        audit_message = "Model materialization succeeded but audits failed"
-        for check_result in failed_check_results:
-            if check_result.asset_key == current_asset_spec_key:
-                audit_message = check_result.metadata.get("audit_message", audit_message)
-                break
-        result = AssetCheckResult(
-            check_name=check.name,
-            passed=False,
-            metadata={
-                "audit_message": audit_message,
-                "sqlmesh_audit_name": check.name,
-                "sqlmesh_model": current_model_name,
-                "error_details": f"SQLMesh audit '{check.name}' failed: {audit_message}",
-            },
-        )
-        results.append(result)
-        if logger:
-            logger.debug(f"Created failed check result for: {check.name} with message: {audit_message}")
-    return results
-
-
-def _get_blocking_and_non_blocking_names_for_model(
-    notifier_audit_failures: List[Dict], non_blocking_audit_warnings: List[Dict], current_model_name: str
-) -> tuple[set[str], set[str], List[Dict]]:
-    """Partition audit names into blocking and non-blocking for a given model."""
-    failed_for_model = [f for f in notifier_audit_failures if f.get("model") == current_model_name]
-    blocking_names = {f.get("audit") for f in failed_for_model if f.get("blocking")}
-    non_blocking_names = {f.get("audit") for f in failed_for_model if not f.get("blocking")}
-    for w in non_blocking_audit_warnings:
-        if w.get("model_name") == current_model_name:
-            non_blocking_names.add(w.get("audit_name"))
-    return blocking_names, non_blocking_names, failed_for_model
-
-
-def _build_check_result_failed_from_notifier(
-    *,
-    check_name: str,
-    current_model_name: str,
-    notifier_record: Dict[str, Any] | None,
-    blocking: bool,
-    context: AssetExecutionContext,
-) -> AssetCheckResult:
-    """Build a failed AssetCheckResult from a notifier record with the desired blocking flag."""
-    # Ensure notifier record reflects the blocking flag we want to expose
-    safe_record = {**(notifier_record or {}), "model": current_model_name, "audit": check_name, "blocking": blocking}
-    metadata = build_audit_check_metadata(
-        context=context.resources.sqlmesh.context if hasattr(context.resources, "sqlmesh") else None,  # type: ignore[attr-defined]
-        model_or_name=current_model_name,
-        audit_name=check_name,
-        notifier_record=safe_record,
-        logger=getattr(context, "log", None),
-    )
-    return AssetCheckResult(
-        check_name=check_name,
-        passed=False,
-        severity=get_check_severity_for_blocking(blocking),
-        metadata=metadata,
-    )
-
-
-def _build_pass_check_result(
-    *,
-    check_name: str,
-    current_model_name: str,
-    context: AssetExecutionContext,
-) -> AssetCheckResult:
-    """Build a passing AssetCheckResult with standardized metadata."""
-    pass_meta = build_audit_check_metadata(
-        context=context.resources.sqlmesh.context if hasattr(context.resources, "sqlmesh") else None,  # type: ignore[attr-defined]
-        model_or_name=current_model_name,
-        audit_name=check_name,
-        logger=getattr(context, "log", None),
-    )
-    return AssetCheckResult(
-        check_name=check_name,
-        passed=True,
-        metadata=pass_meta,
-    )
-
-
-def _build_check_results_for_create_result(
-    *,
-    current_model_checks: List[Any],
-    current_model_name: str,
-    notifier_audit_failures: List[Dict],
-    non_blocking_audit_warnings: List[Dict],
-    context: AssetExecutionContext,
-) -> List[AssetCheckResult]:
-    """Build check_results for create_materialize_result using notifier and warnings.
-
-    Emits:
-      - blocking audit failures as ERROR
-      - non-blocking audit failures as WARN
-      - PASS for remaining checks
-    """
-    check_results: List[AssetCheckResult] = []
-    blocking_names, non_blocking_names, failed_for_model = _get_blocking_and_non_blocking_names_for_model(
-        notifier_audit_failures, non_blocking_audit_warnings, current_model_name
-    )
-
-    for check in current_model_checks:
-        if check.name in blocking_names:
-            fail = next((f for f in failed_for_model if f.get("audit") == check.name), {})
-            check_results.append(
-                _build_check_result_failed_from_notifier(
-                    check_name=check.name,
-                    current_model_name=current_model_name,
-                    notifier_record=fail,
-                    blocking=True,
-                    context=context,
-                )
-            )
-        elif check.name in non_blocking_names:
-            fail_nb = next(
-                (f for f in failed_for_model if not f.get("blocking") and f.get("audit") == check.name),
-                {},
-            )
-            check_results.append(
-                _build_check_result_failed_from_notifier(
-                    check_name=check.name,
-                    current_model_name=current_model_name,
-                    notifier_record=fail_nb,
-                    blocking=False,
-                    context=context,
-                )
-            )
-        else:
-            check_results.append(
-                _build_pass_check_result(
-                    check_name=check.name,
-                    current_model_name=current_model_name,
-                    context=context,
-                )
-            )
-
-    return check_results
-
-
+# All check result functions are imported from execution_check_results module
 
 
 def execute_sqlmesh_materialization(
@@ -350,8 +211,10 @@ def execute_sqlmesh_materialization(
     context.log.info(
         f"Materializing {len(models_to_materialize)} models: {[m.name for m in models_to_materialize]}"
     )
-    context.log.debug("Starting SQLMesh materialization (count=%d)", len(models_to_materialize))
-    # Ensure notifier state is clean to avoid cross-run leakage before reading or running
+    context.log.debug(
+        "Starting SQLMesh materialization (count=%d)", len(models_to_materialize)
+    )
+    # Clear notifier state at run start to avoid accumulating audit failures from previous runs
     try:
         clear_notifier_state()
         context.log.debug("Notifier state cleared at run start")
@@ -380,6 +243,7 @@ def execute_sqlmesh_materialization(
     # Get notifier failures via service and log summary
     try:
         from .notifier_service import get_audit_failures
+
         notifier_audit_failures = get_audit_failures()
     except Exception:
         notifier_audit_failures = []
@@ -406,15 +270,21 @@ def execute_sqlmesh_materialization(
             if fail.get("blocking") and fail.get("model"):
                 model = sqlmesh.context.get_model(fail.get("model"))
                 if model:
-                    blocking_failed_asset_keys.append(sqlmesh.translator.get_asset_key(model))
+                    blocking_failed_asset_keys.append(
+                        sqlmesh.translator.get_asset_key(model)
+                    )
     except Exception:
         pass
     try:
-        affected_downstream_asset_keys = sqlmesh._get_affected_downstream_assets(blocking_failed_asset_keys)
+        affected_downstream_asset_keys = sqlmesh._get_affected_downstream_assets(
+            blocking_failed_asset_keys
+        )
     except Exception:
         affected_downstream_asset_keys = set()
     try:
-        affected_downstream_asset_keys = set(affected_downstream_asset_keys) - set(blocking_failed_asset_keys)
+        affected_downstream_asset_keys = set(affected_downstream_asset_keys) - set(
+            blocking_failed_asset_keys
+        )
     except Exception:
         affected_downstream_asset_keys = set()
     context.log.info(
@@ -435,15 +305,18 @@ def execute_sqlmesh_materialization(
     sqlmesh_results.store_results(run_id, results)
     context.log.info(f"Stored SQLMesh results for run {run_id}")
     # Keep store confirmation
-    # Clear notifier state after completing the run to avoid cross-run leakage
-    clear_notifier_state()
+    # Note: Do NOT clear notifier state here as it contains audit failures
+    # that need to be retrieved by the caller for check result creation
 
     return results
 
 
 def process_sqlmesh_results(
     context: AssetExecutionContext, sqlmesh_results: Any, run_id: str
-) -> Tuple[List[AssetCheckResult], List[Dict], List[Dict]] | Tuple[List[AssetCheckResult], List[Dict], List[Dict], List[Dict], List[AssetKey]]:
+) -> (
+    Tuple[List[AssetCheckResult], List[Dict], List[Dict]]
+    | Tuple[List[AssetCheckResult], List[Dict], List[Dict], List[Dict], List[AssetKey]]
+):
     """
     Retrieve and process shared SQLMesh results for this run.
 
@@ -508,16 +381,23 @@ def check_model_status(
 
     # Check if skipped due to upstream failures
     context.log.debug("Checking for skipped models...")
-    if _model_was_skipped_from_events(skipped_models_events, current_model_name, logger=context.log):
+    if _model_was_skipped_from_events(
+        skipped_models_events, current_model_name, logger=context.log
+    ):
         model_was_skipped = True
-        context.log.error(f"Model {current_model_name} was skipped due to upstream failures")
+        context.log.error(
+            f"Model {current_model_name} was skipped due to upstream failures"
+        )
 
     # Check audit failures (model executed but audit failed)
     context.log.debug("Checking for audit failures...")
     if _model_has_failed_audits_for_asset(
-        failed_check_results, current_asset_spec.key, current_model_name, logger=context.log
+        failed_check_results,
+        current_asset_spec.key,
+        current_model_name,
+        logger=context.log,
     ):
-            model_has_audit_failures = True
+        model_has_audit_failures = True
 
     context.log.debug(
         f"Model {current_model_name} - was_skipped: {model_was_skipped}, has_audit_failures: {model_has_audit_failures}"
@@ -594,15 +474,22 @@ def handle_successful_execution(
         check_results: List[AssetCheckResult] = []
 
         # Build failing set from notifier and warnings for current model
-        blocking_names, non_blocking_names, _failed_for_model = _get_blocking_and_non_blocking_names_for_model(
-            notifier_audit_failures, non_blocking_audit_warnings, current_model_name
+        blocking_names, non_blocking_names, _failed_for_model = (
+            _get_blocking_and_non_blocking_names_for_model(
+                notifier_audit_failures, non_blocking_audit_warnings, current_model_name
+            )
         )
 
         # Emit WARN failed for non-blocking failures, PASS for others
         for check in current_model_checks:
             if check.name in non_blocking_names:
                 fail = next(
-                    (f for f in notifier_audit_failures if f.get("model") == current_model_name and f.get("audit") == check.name),
+                    (
+                        f
+                        for f in notifier_audit_failures
+                        if f.get("model") == current_model_name
+                        and f.get("audit") == check.name
+                    ),
                     {},
                 )
                 check_results.append(
@@ -615,11 +502,18 @@ def handle_successful_execution(
                     )
                 )
             else:
+                # Use the existing check's metadata instead of rebuilding it
+                # This preserves the correct blocking status determined during check creation
+                from .execution_check_results import get_check_severity_for_blocking
+
                 check_results.append(
-                    _build_pass_check_result(
+                    AssetCheckResult(
+                        passed=True,
+                        severity=get_check_severity_for_blocking(
+                            check.metadata.get("audit_blocking", True)
+                        ),
                         check_name=check.name,
-                        current_model_name=current_model_name,
-                        context=context,
+                        metadata=check.metadata,
                     )
                 )
 

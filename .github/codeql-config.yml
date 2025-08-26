@@ -1,0 +1,27 @@
+name: "CodeQL Configuration"
+
+disable-default-queries: false
+
+queries:
+  - uses: security-and-quality
+  - uses: security-extended
+
+paths-ignore:
+  - tests/
+  - examples/
+  - dist/
+  - build/
+
+paths:
+  - src/
+
+packs:
+  - codeql/python-queries
+
+query-filters:
+  - include:
+      kind: problem
+  - include:
+      kind: path-problem
+  - exclude:
+      id: py/unused-import  # Handled by ruff

@@ -3,32 +3,28 @@ import subprocess
 import warnings
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
+
+import pytest
+from dg_sqlmesh import SQLMeshResource
+from sqlmesh import Context
 
 # Suppress Pydantic deprecation warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="pydantic")
-warnings.filterwarnings("ignore", message=".*json_encoders.*", category=DeprecationWarning)
-warnings.filterwarnings("ignore", message=".*class-based `config`.*", category=DeprecationWarning)
-
-import pytest
-from dagster import materialize
-from dg_sqlmesh import SQLMeshResource, sqlmesh_assets_factory
-from sqlmesh import Context
+warnings.filterwarnings(
+    "ignore", message=".*json_encoders.*", category=DeprecationWarning
+)
+warnings.filterwarnings(
+    "ignore", message=".*class-based `config`.*", category=DeprecationWarning
+)
 
 # Register custom marks to avoid warnings
 pytest_plugins = []
 
+
 def pytest_configure(config):
     """Configure pytest to register custom marks and suppress warnings."""
-    config.addinivalue_line(
-        "markers", "core: mark test as core functionality test"
-    )
-
-def pytest_collection_modifyitems(config, items):
-    """Add core marker to all tests in core directory."""
-    for item in items:
-        if "core" in str(item.fspath):
-            item.add_marker(pytest.mark.core)
+    config.addinivalue_line("markers", "core: mark test as core functionality test")
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -48,9 +44,12 @@ def setup_duckdb_dbfile_path_fixture() -> None:
     """Set environment variables to generate a unique duckdb dbfile path for each pytest-xdist worker."""
     # Use a simple unique identifier for now
     import uuid
+
     unique_id = str(uuid.uuid4())[:8]
     sqlmesh_duckdb_db_file_name = f"test_{unique_id}_jaffle"
-    sqlmesh_duckdb_dbfile_path = f"tests/fixtures/sqlmesh_project/{sqlmesh_duckdb_db_file_name}.db"
+    sqlmesh_duckdb_dbfile_path = (
+        f"tests/fixtures/sqlmesh_project/{sqlmesh_duckdb_db_file_name}.db"
+    )
 
     os.environ["SQLMESH_PYTEST_XDIST_DUCKDB_DBFILE_NAME"] = sqlmesh_duckdb_db_file_name
     os.environ["SQLMESH_PYTEST_XDIST_DUCKDB_DBFILE_PATH"] = sqlmesh_duckdb_dbfile_path
@@ -68,43 +67,53 @@ def ensure_sqlmesh_dev_environment(sqlmesh_project_path: Path) -> None:
     """Ensure the 'dev' environment exists and is invalidated for testing."""
     # First, load the test data
     subprocess.run(
-        [
-            "uv", "run", "--group", "dev",
-            "python", "tests/load_jaffle_data.py"
-        ],
+        ["uv", "run", "--group", "dev", "python", "tests/load_jaffle_data.py"],
         check=True,
         capture_output=True,
     )
-    
+
     try:
         # Then, ensure the dev environment exists
-            subprocess.run(
-                [
-                    "uv", "run", "--group", "dev",
-                    "sqlmesh", "-p", ".", "plan", "dev", "--no-prompts"
-                ],
-                check=True,
-                capture_output=True,
-                input=b"y\n",  # Auto-respond "yes" to prompts
-                cwd=str(sqlmesh_project_path),  # Run from the project directory
-            )
-            
-            # Then invalidate the dev environment to force recomputation
-            subprocess.run(
-                [
-                    "uv", "run", "--group", "dev",
-                    "sqlmesh", "-p", ".", "invalidate", "dev"
-                ],
-                check=True,
-                capture_output=True,
-                cwd=str(sqlmesh_project_path),  # Run from the project directory
-            )
-    except subprocess.CalledProcessError as e:
+        subprocess.run(
+            [
+                "uv",
+                "run",
+                "--group",
+                "dev",
+                "sqlmesh",
+                "-p",
+                ".",
+                "plan",
+                "dev",
+                "--no-prompts",
+            ],
+            check=True,
+            capture_output=True,
+            input=b"y\n",  # Auto-respond "yes" to prompts
+            cwd=str(sqlmesh_project_path),  # Run from the project directory
+        )
+
+        # Then invalidate the dev environment to force recomputation
+        subprocess.run(
+            ["uv", "run", "--group", "dev", "sqlmesh", "-p", ".", "invalidate", "dev"],
+            check=True,
+            capture_output=True,
+            cwd=str(sqlmesh_project_path),  # Run from the project directory
+        )
+    except subprocess.CalledProcessError:
         # If the environment doesn't exist yet, create it
         subprocess.run(
             [
-                "uv", "run", "--group", "dev",
-                "sqlmesh", "-p", ".", "plan", "dev", "--no-prompts"
+                "uv",
+                "run",
+                "--group",
+                "dev",
+                "sqlmesh",
+                "-p",
+                ".",
+                "plan",
+                "dev",
+                "--no-prompts",
             ],
             check=True,
             input=b"y\n",  # Auto-respond "yes" to prompts
@@ -112,12 +121,10 @@ def ensure_sqlmesh_dev_environment(sqlmesh_project_path: Path) -> None:
         )
 
 
-def _create_sqlmesh_context(
-    project_dir: Path, load_test_data: bool = True
-) -> Context:
+def _create_sqlmesh_context(project_dir: Path, load_test_data: bool = True) -> Context:
     """Create a SQLMesh context for testing."""
     context = Context(str(project_dir))
-    
+
     if load_test_data:
         # Load test data if not already loaded
         try:
@@ -130,7 +137,7 @@ def _create_sqlmesh_context(
                 cwd=project_dir.parent,
             )
             context.load()
-    
+
     return context
 
 
@@ -149,7 +156,9 @@ def sqlmesh_context_fixture(sqlmesh_project_path: Path) -> Context:
 @pytest.fixture(name="sqlmesh_resource", scope="session")
 def sqlmesh_resource_fixture(sqlmesh_project_path: Path) -> SQLMeshResource:
     """Create a SQLMeshResource for testing."""
-    return SQLMeshResource(project_dir=str(sqlmesh_project_path), gateway="duckdb", environment="dev")
+    return SQLMeshResource(
+        project_dir=str(sqlmesh_project_path), gateway="duckdb", environment="dev"
+    )
 
 
 @pytest.fixture(name="sqlmesh_models", scope="session")
@@ -176,6 +185,7 @@ def sqlmesh_external_models_fixture(sqlmesh_context: Context) -> dict[str, Any]:
     external_models_path = sqlmesh_context.path / "external_models.yaml"
     if external_models_path.exists():
         import yaml
+
         with open(external_models_path) as f:
             return yaml.safe_load(f)
     return {}
@@ -190,4 +200,4 @@ def sqlmesh_audits_fixture(sqlmesh_context: Context) -> dict[str, Any]:
         for audit_file in audits_path.glob("*.sql"):
             with open(audit_file) as f:
                 audits[audit_file.stem] = f.read()
-    return audits 
+    return audits

@@ -1,7 +1,5 @@
 from typing import Any
 
-import pytest
-
 
 def test_get_or_create_notifier_singleton() -> None:
     from dg_sqlmesh.notifier_service import get_or_create_notifier
@@ -46,9 +44,7 @@ def test_get_audit_failures_safe() -> None:
         get_audit_failures,
     )
 
-    notifier = get_or_create_notifier()
+    get_or_create_notifier()
     # Should return list even when empty
     failures = get_audit_failures()
     assert isinstance(failures, list)
-
-

@@ -53,15 +53,18 @@ class TestExternalAssetMapping:
         sqlmesh_resource = defs.resources["sqlmesh"]
         translator = sqlmesh_resource.translator
         assert isinstance(translator, JinjaSQLMeshTranslator)
-        assert translator.external_asset_mapping_template == "sling/{node.database}/{node.schema}/{node.name}"
+        assert (
+            translator.external_asset_mapping_template
+            == "sling/{node.database}/{node.schema}/{node.name}"
+        )
 
     def test_custom_translator_takes_priority(self, project_path):
         """Test that custom translator takes priority over external_asset_mapping."""
         custom_translator = SQLMeshTranslator()
-        
+
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            
+
             defs = sqlmesh_definitions_factory(
                 project_dir=str(project_path),
                 gateway="duckdb",
@@ -72,7 +75,9 @@ class TestExternalAssetMapping:
             )
 
             # Check that a warning was issued
-            conflict_warnings = [warning for warning in w if "CONFLICT DETECTED" in str(warning.message)]
+            conflict_warnings = [
+                warning for warning in w if "CONFLICT DETECTED" in str(warning.message)
+            ]
             assert len(conflict_warnings) == 1
             warning_message = str(conflict_warnings[0].message)
             assert "CONFLICT DETECTED" in warning_message
@@ -147,7 +152,8 @@ class TestExternalAssetMapping:
         # Test translation of an external asset
         external_fqn = '"jaffle_db"."main"."raw_source_customers"'
         asset_key = translator.get_external_asset_key(external_fqn)
-        
+
         # Should translate to target/main/raw_source_customers
         from dagster import AssetKey
+
         assert asset_key == AssetKey(["target", "main", "raw_source_customers"])
