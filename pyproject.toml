@@ -55,6 +55,7 @@ dev = [
     "coverage[toml]>=7.0.0",
     "pip-audit>=2.6.0",
     "safety>=3.0.0",
+    "pip-licenses>=5.0.0",
     "dg-sqlmesh",
 ]
 

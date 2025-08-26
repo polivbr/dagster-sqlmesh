@@ -200,6 +200,8 @@ security:
 	@echo "🔒 Running security audit..."
 	@uv run pip-audit --desc || true
 	@uv run safety check || true
+	@echo "📄 Checking license compliance..."
+	@uv run pip-licenses --summary || true
 	@echo "✅ Security audit completed!"
 
 # Release helper
