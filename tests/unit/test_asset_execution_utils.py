@@ -227,6 +227,7 @@ class TestHandleAuditFailures:
 
         check = Mock()
         check.name = "test_check"
+        check.metadata = {"audit_blocking": True}  # Mock metadata as dict
         current_model_checks = [check]
 
         failed_check_result = Mock()
@@ -300,6 +301,7 @@ class TestHandleSuccessfulExecution:
 
         check = Mock()
         check.name = "test_check"
+        check.metadata = {"audit_blocking": True}  # Mock metadata as dict
         current_model_checks = [check]
 
         evaluation_events = [
@@ -409,6 +411,7 @@ class TestCreateMaterializeResult:
 
         check = Mock()
         check.name = "test_check"
+        check.metadata = {"audit_blocking": True}  # Mock metadata as dict
         current_model_checks = [check]
 
         model_was_skipped = False
@@ -451,6 +454,7 @@ class TestCreateMaterializeResult:
 
         check = Mock()
         check.name = "test_check"
+        check.metadata = {"audit_blocking": True}  # Mock metadata as dict
         current_model_checks = [check]
 
         model_was_skipped = False
