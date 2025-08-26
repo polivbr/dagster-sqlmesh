@@ -16,8 +16,6 @@ from __future__ import annotations
 import duckdb
 import pytest
 from dagster import AssetKey, build_asset_context
-import subprocess
-import sys
 import datetime
 import os
 
@@ -92,7 +90,6 @@ def test_blocking_audit_triggers_downstream_block() -> None:
     stg_checks = create_asset_checks_from_model(stg_model, stg_key)
 
     # Bootstrap environment with a plan/apply so that a subsequent run can execute
-    import os
     old_cwd = os.getcwd()
     try:
         os.chdir(project_dir)
@@ -209,7 +206,6 @@ def test_non_blocking_audit_warns_without_downstream_block() -> None:
     downstream_key: AssetKey = sqlmesh.translator.get_asset_key(downstream_model)
 
     # Bootstrap env
-    import os
     old_cwd = os.getcwd()
     try:
         os.chdir(project_dir)

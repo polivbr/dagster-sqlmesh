@@ -14,7 +14,6 @@ from dagster.components import (
     scaffold_with,
 )
 from dagster.components.resolved.core_models import OpSpec
-from dagster.components.utils.translation import TranslationFn
 
 from dg_sqlmesh import sqlmesh_definitions_factory, SQLMeshResource, SQLMeshTranslator
 from .scaffolder import SQLMeshProjectComponentScaffolder

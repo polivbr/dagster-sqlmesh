@@ -7,25 +7,19 @@ in end-to-end scenarios with real SQLMesh models and Dagster contexts.
 
 import pytest
 from dagster import (
-    materialize,
     build_asset_context,
-    AssetExecutionContext,
     MaterializeResult,
     AssetCheckResult,
     AssetKey,
-    Definitions,
 )
-from unittest.mock import Mock, patch
-from typing import List, Dict, Any
+from unittest.mock import Mock
 
 from dg_sqlmesh import (
     SQLMeshResource,
     sqlmesh_assets_factory,
     sqlmesh_definitions_factory,
 )
-from dg_sqlmesh.factory import SQLMeshResultsResource
 from dg_sqlmesh.sqlmesh_asset_execution_utils import (
-    execute_sqlmesh_materialization,
     process_sqlmesh_results,
     check_model_status,
     create_materialize_result,
@@ -158,7 +152,7 @@ class TestAssetExecutionWithContext:
         context = build_asset_context()
         
         # Mock SQLMesh results
-        mock_results = {
+        {
             "failed_check_results": [],
             "skipped_models_events": [],
             "evaluation_events": [],
@@ -232,7 +226,7 @@ class TestAssetExecutionErrors:
         """Test handling of asset materialization failures."""
         # Test that our error handling works correctly
         # We'll test the error handling at the function level instead of mocking
-        assets = sqlmesh_assets_factory(
+        sqlmesh_assets_factory(
             sqlmesh_resource=sqlmesh_resource
         )
         

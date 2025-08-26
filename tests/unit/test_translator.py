@@ -1,11 +1,6 @@
-import pytest
-from unittest.mock import Mock, MagicMock
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from unittest.mock import Mock
 
 from dagster import AssetKey
-from sqlmesh.core.model.definition import ExternalModel
-from sqlmesh import Context
 
 from dg_sqlmesh import SQLMeshTranslator
 

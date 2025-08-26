@@ -7,7 +7,6 @@ This creates the raw source tables that correspond to SQLMesh external models.
 import os
 import duckdb
 import pandas as pd
-from pathlib import Path
 
 def load_csv_to_duckdb(csv_path: str, table_name: str, db_path: str = "tests/fixtures/sqlmesh_project/jaffle_test.db"):
     """
@@ -21,7 +20,7 @@ def load_csv_to_duckdb(csv_path: str, table_name: str, db_path: str = "tests/fix
     print(f"Loading {csv_path} into table {table_name}...")
     
     # Read CSV with pandas
-    df = pd.read_csv(csv_path)
+    pd.read_csv(csv_path)
     
     # Connect to DuckDB
     con = duckdb.connect(db_path)
@@ -57,7 +56,6 @@ def main():
     
     # Generate test data if CSV files don't exist
     import subprocess
-    import os
     
     csv_files_exist = all(os.path.exists(csv_path) for csv_path in csv_to_table_mapping.keys())
     if not csv_files_exist:

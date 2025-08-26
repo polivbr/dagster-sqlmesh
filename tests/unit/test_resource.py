@@ -1,14 +1,7 @@
 import os
-import shutil
-from pathlib import Path
-from typing import Any, Union
 
-import pydantic
 import pytest
-from dagster import materialize
-from dagster._core.execution.context.compute import AssetExecutionContext
 from dg_sqlmesh import SQLMeshResource, sqlmesh_assets_factory
-from sqlmesh.utils.errors import NodeAuditsErrors
 from unittest.mock import Mock
 
 
@@ -137,7 +130,7 @@ class TestSQLMeshResourceExecution:
         
         # Test that we can select a specific asset
         from dagster import AssetKey
-        target_asset = AssetKey(["jaffle_test", "sqlmesh_jaffle_platform", "stg_customers"])
+        AssetKey(["jaffle_test", "sqlmesh_jaffle_platform", "stg_customers"])
         
         # Verify the asset exists in the assets definition
         # assets is a list, not a dict, so we can't check keys directly
@@ -201,7 +194,7 @@ class TestSQLMeshResourceExecution:
         mock_audit_error.__str__ = Mock(return_value="Test audit error message")
         
         # Mock model
-        mock_model = Mock()
+        Mock()
         
         # Test creation - this will likely return None due to safe_extract_audit_query failure
         result = sqlmesh_resource._create_failed_audit_check_result(
@@ -236,7 +229,7 @@ class TestSQLMeshResourceExecution:
 
     def test_deduplicate_asset_check_results(self, sqlmesh_resource: SQLMeshResource) -> None:
         """Test the _deduplicate_asset_check_results method"""
-        from dagster import AssetCheckResult, AssetKey, MetadataValue
+        from dagster import AssetCheckResult, AssetKey
         
         # Create test AssetCheckResult objects
         asset_key = AssetKey(["test_db", "test_schema", "test_model"])
@@ -269,13 +262,13 @@ class TestSQLMeshResourceExecution:
         # Test 2: Conflict between successful and failed (should prioritize failed)
         results = sqlmesh_resource._deduplicate_asset_check_results([successful_audit, failed_audit])
         assert len(results) == 1
-        assert results[0].passed == False
+        assert not results[0].passed
         assert results[0].metadata["error_type"].value == "audit_failure"
         
         # Test 3: Conflict with failed first (should keep failed)
         results = sqlmesh_resource._deduplicate_asset_check_results([failed_audit, successful_audit])
         assert len(results) == 1
-        assert results[0].passed == False
+        assert not results[0].passed
         
         # Test 4: Empty list
         results = sqlmesh_resource._deduplicate_asset_check_results([])

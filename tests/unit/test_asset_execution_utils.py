@@ -3,8 +3,8 @@ Tests pour les utilitaires d'exécution des assets SQLMesh.
 """
 
 import pytest
-from unittest.mock import Mock, MagicMock
-from dagster import AssetExecutionContext, AssetKey, MaterializeResult, AssetCheckResult
+from unittest.mock import Mock
+from dagster import AssetExecutionContext, AssetKey, MaterializeResult
 from dg_sqlmesh.sqlmesh_asset_execution_utils import (
     execute_sqlmesh_materialization,
     process_sqlmesh_results,

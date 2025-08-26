@@ -1,12 +1,6 @@
-import pytest
-from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 from dagster import (
     AssetKey,
-    # Removed RetryPolicy
-    Definitions,
-    materialize,
 )
 from dg_sqlmesh import (
     sqlmesh_assets_factory,
@@ -165,7 +159,7 @@ class TestFactoryIntegration:
         
         # Test that we can select a specific asset
         from dagster import AssetKey
-        target_asset = AssetKey(["jaffle_test", "sqlmesh_jaffle_platform", "stg_customers"])
+        AssetKey(["jaffle_test", "sqlmesh_jaffle_platform", "stg_customers"])
         
         # Verify the asset exists in the assets definition
         # assets is a list, not a dict, so we can't check keys directly

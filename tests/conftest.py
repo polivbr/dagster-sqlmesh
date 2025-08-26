@@ -3,7 +3,7 @@ import subprocess
 import warnings
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 # Suppress Pydantic deprecation warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="pydantic")
@@ -11,8 +11,7 @@ warnings.filterwarnings("ignore", message=".*json_encoders.*", category=Deprecat
 warnings.filterwarnings("ignore", message=".*class-based `config`.*", category=DeprecationWarning)
 
 import pytest
-from dagster import materialize
-from dg_sqlmesh import SQLMeshResource, sqlmesh_assets_factory
+from dg_sqlmesh import SQLMeshResource
 from sqlmesh import Context
 
 # Register custom marks to avoid warnings
@@ -99,7 +98,7 @@ def ensure_sqlmesh_dev_environment(sqlmesh_project_path: Path) -> None:
                 capture_output=True,
                 cwd=str(sqlmesh_project_path),  # Run from the project directory
             )
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         # If the environment doesn't exist yet, create it
         subprocess.run(
             [
