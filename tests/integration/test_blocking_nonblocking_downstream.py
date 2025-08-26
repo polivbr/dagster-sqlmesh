@@ -32,28 +32,50 @@ from dg_sqlmesh.sqlmesh_asset_execution_utils import (
 from dg_sqlmesh.resource import UpstreamAuditFailureError
 
 
-def _reload_test_db() -> None:
+def _reload_test_db(db_path: str | None = None) -> None:
     """Reload the DuckDB database from CSV fixtures to a known-good state."""
     # Import here to avoid heavy imports at module load
     from tests.load_jaffle_data import main as load_data
 
-    load_data()
+    load_data(db_path)
 
 
 def _corrupt_stores_source_blocking(db_path: str) -> None:
     """Force store_id to a single constant value to trigger the blocking not_constant audit."""
+    print(f"🔧 Corrupting stores data in: {db_path}")
     con = duckdb.connect(db_path)
     try:
-        con.execute("UPDATE main.raw_source_stores SET id = 'CONST_ID'")
+        # Check current data
+        current_data = con.execute("SELECT id, name FROM main.raw_source_stores LIMIT 5").fetchall()
+        print(f"📋 Current stores data: {current_data}")
+        
+        # Apply corruption
+        result = con.execute("UPDATE main.raw_source_stores SET id = 'CONST_ID'")
+        print(f"✏️  Updated {result.fetchone() if hasattr(result, 'fetchone') else 'N/A'} rows")
+        
+        # Verify corruption
+        new_data = con.execute("SELECT id, name FROM main.raw_source_stores LIMIT 5").fetchall()
+        print(f"📋 After corruption: {new_data}")
     finally:
         con.close()
 
 
 def _corrupt_supplies_source_non_blocking(db_path: str) -> None:
     """Force supply_name to a single constant value to trigger the non-blocking audit."""
+    print(f"🔧 Corrupting supplies data in: {db_path}")
     con = duckdb.connect(db_path)
     try:
-        con.execute("UPDATE main.raw_source_supplies SET name = 'CONST_NAME'")
+        # Check current data
+        current_data = con.execute("SELECT id, name FROM main.raw_source_supplies LIMIT 5").fetchall()
+        print(f"📋 Current supplies data: {current_data}")
+        
+        # Apply corruption
+        result = con.execute("UPDATE main.raw_source_supplies SET name = 'CONST_NAME'")
+        print(f"✏️  Updated {result.fetchone() if hasattr(result, 'fetchone') else 'N/A'} rows")
+        
+        # Verify corruption
+        new_data = con.execute("SELECT id, name FROM main.raw_source_supplies LIMIT 5").fetchall()
+        print(f"📋 After corruption: {new_data}")
     finally:
         con.close()
 
@@ -93,6 +115,9 @@ def test_blocking_audit_triggers_downstream_block() -> None:
     # Build check specs for the staging model
     stg_checks = create_asset_checks_from_model(stg_model, stg_key)
 
+    # 3) Corrupt the specific source BEFORE plan to ensure SQLMesh sees corrupted data
+    _corrupt_stores_source_blocking(db_path)
+
     # Bootstrap environment with a plan/apply so that a subsequent run can execute
     old_cwd = os.getcwd()
     try:
@@ -105,9 +130,6 @@ def test_blocking_audit_triggers_downstream_block() -> None:
         )
     finally:
         os.chdir(old_cwd)
-
-    # 3) Corrupt the specific source to make the audit fail on the next run
-    _corrupt_stores_source_blocking(db_path)
 
     # 4) Invalidate to force re-evaluation despite cron, then run shared execution
     selected_keys = [stg_key, downstream_key]
@@ -208,6 +230,9 @@ def test_non_blocking_audit_warns_without_downstream_block() -> None:
     stg_key: AssetKey = sqlmesh.translator.get_asset_key(stg_model)
     downstream_key: AssetKey = sqlmesh.translator.get_asset_key(downstream_model)
 
+    # Corrupt only the non-blocking signal BEFORE plan (supply_name constant)
+    _corrupt_supplies_source_non_blocking(db_path)
+
     # Bootstrap env
     old_cwd = os.getcwd()
     try:
@@ -220,9 +245,6 @@ def test_non_blocking_audit_warns_without_downstream_block() -> None:
         )
     finally:
         os.chdir(old_cwd)
-
-    # Corrupt only the non-blocking signal (supply_name constant)
-    _corrupt_supplies_source_non_blocking(db_path)
 
     selected_keys = [stg_key, downstream_key]
     context = build_asset_context()

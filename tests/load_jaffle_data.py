@@ -46,7 +46,7 @@ def load_csv_to_duckdb(
     con.close()
 
 
-def main():
+def main(custom_db_path: str | None = None):
     """Load all Jaffle data CSV files into DuckDB tables."""
 
     # Define the mapping of CSV files to table names
@@ -70,8 +70,8 @@ def main():
         print("📊 Generating test data files...")
         subprocess.run(["python", "tests/generate_test_data.py"], check=True)
 
-    # Database path - use the same name as in SQLMesh config
-    db_path = "tests/fixtures/sqlmesh_project/jaffle_test.db"
+    # Database path - use custom path if provided, otherwise default
+    db_path = custom_db_path or "tests/fixtures/sqlmesh_project/jaffle_test.db"
 
     # Remove existing database file if it exists
     if os.path.exists(db_path):
