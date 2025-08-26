@@ -129,7 +129,7 @@ def extract_audit_details(
         blocking = False
     else:
         blocking = getattr(audit_obj, "blocking", True)  # Default True for safety
-    
+
     return {
         "name": audit_name,
         "sql": sql_query,
@@ -143,14 +143,14 @@ def is_audit_blocking_from_error(audit_error: Any) -> bool:
     """
     Determine if the failed audit was blocking by inspecting the model's audits_with_args.
     Returns True if blocking, False if explicitly set to non-blocking, defaults to True if unknown.
-    
+
     Convention: Audits ending with "_non_blocking" are automatically non-blocking.
     """
     model = getattr(audit_error, "model", None)
     audit_name = getattr(audit_error, "audit_name", None)
     if not model or not audit_name:
         return True  # conservative default
-    
+
     # Check naming convention: audits ending with "_non_blocking" are non-blocking
     if audit_name.endswith("_non_blocking"):
         return False
