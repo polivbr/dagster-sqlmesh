@@ -83,17 +83,7 @@ def get_apply_events() -> list[dict[str, Any]]:
 def clear_notifier_state() -> None:
     """Clear the singleton notifier captured state (tests isolation)."""
     try:
-        import traceback
-
         notifier = get_or_create_notifier()
-        audit_failures_before = len(notifier.get_audit_failures())
-        print(
-            f"🔥 DEBUG service: CLEARING notifier state (had {audit_failures_before} audit failures)"
-        )
-        print("🔥 DEBUG service: Call stack:")
-        for line in traceback.format_stack()[-4:-1]:  # Show last 3 stack frames
-            print(f"🔥 DEBUG service:   {line.strip()}")
         notifier.clear()
-        print("🔥 DEBUG service: CLEARED notifier state")
     except Exception:
         return None
