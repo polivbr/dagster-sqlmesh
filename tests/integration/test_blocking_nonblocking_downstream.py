@@ -16,7 +16,6 @@ from __future__ import annotations
 import duckdb
 import pytest
 from dagster import AssetKey, build_asset_context
-import datetime
 import os
 
 from dg_sqlmesh import SQLMeshResource
@@ -24,7 +23,6 @@ from dg_sqlmesh.factory import SQLMeshResultsResource
 from dg_sqlmesh.notifier_service import clear_notifier_state
 from dg_sqlmesh.sqlmesh_asset_check_utils import create_asset_checks_from_model
 from dg_sqlmesh.sqlmesh_asset_execution_utils import (
-    execute_sqlmesh_materialization,
     process_sqlmesh_results,
     check_model_status,
     create_materialize_result,
@@ -144,7 +142,6 @@ def test_blocking_audit_triggers_downstream_block() -> None:
     _corrupt_stores_source_blocking(db_path)
 
     # 4) Invalidate to force re-evaluation despite cron, then run shared execution
-    selected_keys = [stg_key, downstream_key]
     # Dagster 1.11 build_asset_context doesn't accept selected_asset_keys kwarg
     # We pass selection directly to the execution function.
     context = build_asset_context()
@@ -155,7 +152,7 @@ def test_blocking_audit_triggers_downstream_block() -> None:
         # Use REAL production function - this will handle notifier properly
         models_to_materialize = [stg_model, downstream_model]
         sqlmesh.materialize_assets(models_to_materialize, context)
-        
+
         # Store dummy results since materialize_assets doesn't use the results resource pattern
         results_resource.store_results("itest_run_blocking_nb", {})
     finally:
@@ -256,7 +253,6 @@ def test_non_blocking_audit_warns_without_downstream_block() -> None:
     # Corrupt only the non-blocking signal AFTER plan (supply_name constant)
     _corrupt_supplies_source_non_blocking(db_path)
 
-    selected_keys = [stg_key, downstream_key]
     context = build_asset_context()
     # Ensure logger is set up for the resource
     sqlmesh.setup_for_execution(context)
@@ -265,7 +261,7 @@ def test_non_blocking_audit_warns_without_downstream_block() -> None:
         # Use REAL production function - this will handle notifier properly
         models_to_materialize = [stg_model, downstream_model]
         sqlmesh.materialize_assets(models_to_materialize, context)
-        
+
         # Store dummy results since materialize_assets doesn't use the results resource pattern
         results_resource.store_results("itest_run_non_blocking_only", {})
     finally:
