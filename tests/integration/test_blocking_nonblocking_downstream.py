@@ -126,12 +126,14 @@ def test_blocking_audit_triggers_downstream_block() -> None:
             execution_time=future_execution_time,
         )
         # Now execute the Dagster materialization logic which will pick up results
+        # Skip notifier clear since we already ran SQLMesh and want to preserve audit failures
         execute_sqlmesh_materialization(
             context=context,
             sqlmesh=sqlmesh,
             sqlmesh_results=results_resource,
             run_id="itest_run_blocking_nb",
             selected_asset_keys=selected_keys,
+            skip_notifier_clear=True,
         )
     finally:
         os.chdir(old_cwd)
@@ -199,6 +201,8 @@ def test_non_blocking_audit_warns_without_downstream_block() -> None:
     project_dir = "tests/fixtures/sqlmesh_project"
     db_path = f"{project_dir}/jaffle_test.db"
 
+    # Clear notifier state to ensure test isolation from previous tests
+    clear_notifier_state()
     _reload_test_db()
 
     sqlmesh = SQLMeshResource(
@@ -235,8 +239,7 @@ def test_non_blocking_audit_warns_without_downstream_block() -> None:
     sqlmesh.setup_for_execution(context)
     try:
         os.chdir(project_dir)
-        # Clear notifier state BEFORE running SQLMesh to capture fresh audit failures
-        clear_notifier_state()
+        # Note: notifier state will be cleared in execute_sqlmesh_materialization
         # Force SQLMesh to recompute models regardless of cron window by advancing execution_time
         future_execution_time = datetime.datetime.now() + datetime.timedelta(minutes=6)
         sqlmesh.context.run(
@@ -245,12 +248,14 @@ def test_non_blocking_audit_warns_without_downstream_block() -> None:
             execution_time=future_execution_time,
         )
         # Now execute the Dagster materialization logic which will pick up results
+        # Skip notifier clear since we already ran SQLMesh and want to preserve audit failures
         execute_sqlmesh_materialization(
             context=context,
             sqlmesh=sqlmesh,
             sqlmesh_results=results_resource,
             run_id="itest_run_non_blocking_only",
             selected_asset_keys=selected_keys,
+            skip_notifier_clear=True,
         )
     finally:
         os.chdir(old_cwd)

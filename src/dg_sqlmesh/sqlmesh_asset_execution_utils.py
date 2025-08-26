@@ -18,6 +18,7 @@ from .resource import UpstreamAuditFailureError
 from .execution_notifier import (
     _get_notifier_failures as _get_notifier_failures_noarg,
 )
+from .notifier_service import clear_notifier_state
 from .execution_selection import (
     _log_run_selection as _log_run_selection_ext,
     _materialize_and_get_plan as _materialize_and_get_plan_ext,
@@ -175,6 +176,7 @@ def execute_sqlmesh_materialization(
     sqlmesh_results: Any,
     run_id: str,
     selected_asset_keys: List[AssetKey],
+    skip_notifier_clear: bool = False,
 ) -> Dict[str, Any]:
     """
     Execute a single SQLMesh materialization for all selected assets (shared execution).
@@ -214,8 +216,17 @@ def execute_sqlmesh_materialization(
     context.log.debug(
         "Starting SQLMesh materialization (count=%d)", len(models_to_materialize)
     )
-    # Note: Notifier state should be cleared before calling this function
-    # to ensure we capture audit failures from the SQLMesh run
+    # Clear notifier state at run start to avoid accumulating audit failures from previous runs
+    if not skip_notifier_clear:
+        try:
+            clear_notifier_state()
+            context.log.debug("Notifier state cleared at run start")
+        except Exception:
+            pass
+    else:
+        context.log.debug(
+            "Notifier clear skipped (preserving audit failures from previous SQLMesh run)"
+        )
 
     # Always trigger a fresh SQLMesh run; do not reuse potentially stale notifier state
     plan = sqlmesh.materialize_assets_threaded(models_to_materialize, context=context)
