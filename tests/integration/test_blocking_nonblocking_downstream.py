@@ -13,6 +13,7 @@ We reproduce the manual scenario described by the user:
 
 from __future__ import annotations
 
+import datetime
 import duckdb
 import pytest
 from dagster import AssetKey, build_asset_context
@@ -141,19 +142,22 @@ def test_blocking_audit_triggers_downstream_block() -> None:
     # 3) Corrupt the specific source AFTER plan to ensure execution sees corrupted data
     _corrupt_stores_source_blocking(db_path)
 
-    # 4) Invalidate to force re-evaluation despite cron, then run shared execution
-    # Dagster 1.11 build_asset_context doesn't accept selected_asset_keys kwarg
-    # We pass selection directly to the execution function.
+    # 4) Force SQLMesh to re-plan and re-run with corrupted data
     context = build_asset_context()
     # Ensure logger is set up for the resource
     sqlmesh.setup_for_execution(context)
     try:
         os.chdir(project_dir)
-        # Use REAL production function - this will handle notifier properly
-        models_to_materialize = [stg_model, downstream_model]
-        sqlmesh.materialize_assets_threaded(models_to_materialize, context)
-
-        # Store dummy results since materialize_assets doesn't use the results resource pattern
+        # Re-plan with corrupted data so audits will fail 
+        sqlmesh.context.plan(
+            environment=sqlmesh.environment,
+            select_models=[stg_model.name, downstream_model.name],
+            auto_apply=True,
+            no_prompts=True,
+            # Force invalidation to ensure re-evaluation
+            restate_models=[stg_model.name],
+        )
+        # Store dummy results since we're using plan+apply directly
         results_resource.store_results("itest_run_blocking_nb", {})
     finally:
         os.chdir(old_cwd)
