@@ -35,6 +35,7 @@ def create_asset_checks_from_model(
             audit_name=audit_obj.name,
         )
 
+
         asset_checks.append(
             AssetCheckSpec(
                 name=audit_obj.name,
@@ -259,7 +260,7 @@ def extract_failed_audit_details(
             logger.warning(f"Failed to extract audit SQL: {e}")
         sql_text = "N/A"
 
-    blocking = _get_actual_blocking_status_from_model_audit(audit_error)
+    blocking = _get_actual_blocking_status_from_model_audit(audit_error, audit_name)
     count = int(getattr(audit_error, "count", 0) or 0)
     args = dict(getattr(audit_error, "audit_args", {}) or {})
 
@@ -366,6 +367,7 @@ def build_audit_check_metadata(
                     # Get the blocking status directly from the ModelAudit object itself
                     # This is the most reliable source of truth
                     blocking = getattr(audit_obj, "blocking", True)
+
             except Exception:
                 pass
 

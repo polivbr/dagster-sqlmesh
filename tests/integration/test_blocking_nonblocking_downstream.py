@@ -125,9 +125,6 @@ def test_blocking_audit_triggers_downstream_block() -> None:
     # Build check specs for the staging model
     stg_checks = create_asset_checks_from_model(stg_model, stg_key)
 
-    # 3) Corrupt the specific source BEFORE plan so SQLMesh snapshots corrupted data
-    _corrupt_stores_source_blocking(db_path)
-
     # Bootstrap environment with a plan/apply so that a subsequent run can execute
     old_cwd = os.getcwd()
     try:
@@ -140,6 +137,9 @@ def test_blocking_audit_triggers_downstream_block() -> None:
         )
     finally:
         os.chdir(old_cwd)
+
+    # 3) Corrupt the specific source AFTER plan to ensure execution sees corrupted data
+    _corrupt_stores_source_blocking(db_path)
 
     # 4) Invalidate to force re-evaluation despite cron, then run shared execution
     # Dagster 1.11 build_asset_context doesn't accept selected_asset_keys kwarg

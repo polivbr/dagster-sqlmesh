@@ -503,11 +503,17 @@ def handle_successful_execution(
                     )
                 )
             else:
+                # Use the existing check's metadata instead of rebuilding it
+                # This preserves the correct blocking status determined during check creation
+                from .execution_check_results import get_check_severity_for_blocking
                 check_results.append(
-                    _build_pass_check_result(
+                    AssetCheckResult(
+                        passed=True,
+                        severity=get_check_severity_for_blocking(
+                            check.metadata.get("audit_blocking", True)
+                        ),
                         check_name=check.name,
-                        current_model_name=current_model_name,
-                        context=context,
+                        metadata=check.metadata,
                     )
                 )
 
