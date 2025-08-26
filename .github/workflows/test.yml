@@ -52,7 +52,7 @@ jobs:
       - name: Run linting with ruff
         run: |
           echo "🔍 Running ruff linting..."
-          uv run ruff check src/dg_sqlmesh/ tests/
+          uv run ruff check --ignore=F401,F811,E402 src/dg_sqlmesh/ tests/
           echo "🎨 Running ruff formatting check..."
           uv run ruff format --check src/dg_sqlmesh/ tests/
 

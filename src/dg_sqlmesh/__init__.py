@@ -40,3 +40,6 @@ if COMPONENT_AVAILABLE:
         "SQLMeshProjectComponent",
         "SQLMeshProjectComponentScaffolder",
     ])
+    # Make imports available at module level
+    locals()["SQLMeshProjectComponent"] = SQLMeshProjectComponent
+    locals()["SQLMeshProjectComponentScaffolder"] = SQLMeshProjectComponentScaffolder

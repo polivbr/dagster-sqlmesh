@@ -39,13 +39,7 @@ from .execution_results_payload import (
 )
 
 
-def get_check_severity_for_blocking(is_blocking: bool) -> AssetCheckSeverity:
-    """Return the standardized severity for an audit based on its blocking flag.
-
-    - True  -> ERROR (blocking audit failures should be errors)
-    - False -> WARN  (non-blocking audit failures should be warnings)
-    """
-    return AssetCheckSeverity.ERROR if is_blocking else AssetCheckSeverity.WARN
+# get_check_severity_for_blocking is imported from execution_check_results
 
 
 # ----------------------------- Internal helpers (Phase 1) -----------------------------

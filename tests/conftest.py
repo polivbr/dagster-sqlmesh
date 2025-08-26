@@ -5,14 +5,14 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
+import pytest
+from dg_sqlmesh import SQLMeshResource
+from sqlmesh import Context
+
 # Suppress Pydantic deprecation warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="pydantic")
 warnings.filterwarnings("ignore", message=".*json_encoders.*", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message=".*class-based `config`.*", category=DeprecationWarning)
-
-import pytest
-from dg_sqlmesh import SQLMeshResource
-from sqlmesh import Context
 
 # Register custom marks to avoid warnings
 pytest_plugins = []
@@ -22,13 +22,6 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "core: mark test as core functionality test"
     )
-
-def pytest_collection_modifyitems(config, items):
-    """Add core marker to all tests in core directory."""
-    for item in items:
-        if "core" in str(item.fspath):
-            item.add_marker(pytest.mark.core)
-
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> Iterator[None]:
