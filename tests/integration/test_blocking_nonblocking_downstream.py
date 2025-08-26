@@ -152,15 +152,11 @@ def test_blocking_audit_triggers_downstream_block() -> None:
     sqlmesh.setup_for_execution(context)
     try:
         os.chdir(project_dir)
-        # Force SQLMesh to recompute models regardless of cron window by advancing execution_time
-        future_execution_time = datetime.datetime.now() + datetime.timedelta(minutes=6)
-        sqlmesh.context.run(
-            environment=sqlmesh.environment,
-            select_models=[stg_model.name, downstream_model.name],
-            execution_time=future_execution_time,
-        )
-        # Don't call execute_sqlmesh_materialization as it would clear notifier state
-        # Instead, manually store results for process_sqlmesh_results to find
+        # Use REAL production function - this will handle notifier properly
+        models_to_materialize = [stg_model, downstream_model]
+        sqlmesh.materialize_assets(models_to_materialize, context)
+        
+        # Store dummy results since materialize_assets doesn't use the results resource pattern
         results_resource.store_results("itest_run_blocking_nb", {})
     finally:
         os.chdir(old_cwd)
@@ -266,15 +262,11 @@ def test_non_blocking_audit_warns_without_downstream_block() -> None:
     sqlmesh.setup_for_execution(context)
     try:
         os.chdir(project_dir)
-        # Force SQLMesh to recompute models regardless of cron window by advancing execution_time
-        future_execution_time = datetime.datetime.now() + datetime.timedelta(minutes=6)
-        sqlmesh.context.run(
-            environment=sqlmesh.environment,
-            select_models=[stg_model.name, downstream_model.name],
-            execution_time=future_execution_time,
-        )
-        # Don't call execute_sqlmesh_materialization as it would clear notifier state
-        # Instead, manually store results for process_sqlmesh_results to find
+        # Use REAL production function - this will handle notifier properly
+        models_to_materialize = [stg_model, downstream_model]
+        sqlmesh.materialize_assets(models_to_materialize, context)
+        
+        # Store dummy results since materialize_assets doesn't use the results resource pattern
         results_resource.store_results("itest_run_non_blocking_only", {})
     finally:
         os.chdir(old_cwd)
