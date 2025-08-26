@@ -58,7 +58,7 @@ class TestBlockingParameter:
         # Verify we have the expected audits (including the non-blocking variant)
         expected_audits = {
             "number_of_rows",
-            "not_null", 
+            "not_null",
             "not_constant_non_blocking",
         }
         actual_audits = {check_spec.name for check_spec in check_specs}

@@ -16,7 +16,6 @@ from __future__ import annotations
 import duckdb
 import pytest
 from dagster import AssetKey, build_asset_context
-import datetime
 import os
 
 from dg_sqlmesh import SQLMeshResource
@@ -46,15 +45,21 @@ def _corrupt_stores_source_blocking(db_path: str) -> None:
     con = duckdb.connect(db_path)
     try:
         # Check current data
-        current_data = con.execute("SELECT id, name FROM main.raw_source_stores LIMIT 5").fetchall()
+        current_data = con.execute(
+            "SELECT id, name FROM main.raw_source_stores LIMIT 5"
+        ).fetchall()
         print(f"📋 Current stores data: {current_data}")
-        
+
         # Apply corruption
         result = con.execute("UPDATE main.raw_source_stores SET id = 'CONST_ID'")
-        print(f"✏️  Updated {result.fetchone() if hasattr(result, 'fetchone') else 'N/A'} rows")
-        
+        print(
+            f"✏️  Updated {result.fetchone() if hasattr(result, 'fetchone') else 'N/A'} rows"
+        )
+
         # Verify corruption
-        new_data = con.execute("SELECT id, name FROM main.raw_source_stores LIMIT 5").fetchall()
+        new_data = con.execute(
+            "SELECT id, name FROM main.raw_source_stores LIMIT 5"
+        ).fetchall()
         print(f"📋 After corruption: {new_data}")
     finally:
         con.close()
@@ -66,15 +71,21 @@ def _corrupt_supplies_source_non_blocking(db_path: str) -> None:
     con = duckdb.connect(db_path)
     try:
         # Check current data
-        current_data = con.execute("SELECT id, name FROM main.raw_source_supplies LIMIT 5").fetchall()
+        current_data = con.execute(
+            "SELECT id, name FROM main.raw_source_supplies LIMIT 5"
+        ).fetchall()
         print(f"📋 Current supplies data: {current_data}")
-        
+
         # Apply corruption
         result = con.execute("UPDATE main.raw_source_supplies SET name = 'CONST_NAME'")
-        print(f"✏️  Updated {result.fetchone() if hasattr(result, 'fetchone') else 'N/A'} rows")
-        
+        print(
+            f"✏️  Updated {result.fetchone() if hasattr(result, 'fetchone') else 'N/A'} rows"
+        )
+
         # Verify corruption
-        new_data = con.execute("SELECT id, name FROM main.raw_source_supplies LIMIT 5").fetchall()
+        new_data = con.execute(
+            "SELECT id, name FROM main.raw_source_supplies LIMIT 5"
+        ).fetchall()
         print(f"📋 After corruption: {new_data}")
     finally:
         con.close()
