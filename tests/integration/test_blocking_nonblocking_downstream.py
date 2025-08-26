@@ -16,6 +16,7 @@ from __future__ import annotations
 import duckdb
 import pytest
 from dagster import AssetKey, build_asset_context
+import datetime
 import os
 
 from dg_sqlmesh import SQLMeshResource
@@ -126,9 +127,6 @@ def test_blocking_audit_triggers_downstream_block() -> None:
     # Build check specs for the staging model
     stg_checks = create_asset_checks_from_model(stg_model, stg_key)
 
-    # 3) Corrupt the specific source BEFORE plan to ensure SQLMesh sees corrupted data
-    _corrupt_stores_source_blocking(db_path)
-
     # Bootstrap environment with a plan/apply so that a subsequent run can execute
     old_cwd = os.getcwd()
     try:
@@ -142,6 +140,9 @@ def test_blocking_audit_triggers_downstream_block() -> None:
     finally:
         os.chdir(old_cwd)
 
+    # 3) Corrupt the specific source AFTER plan to ensure execution sees corrupted data
+    _corrupt_stores_source_blocking(db_path)
+
     # 4) Invalidate to force re-evaluation despite cron, then run shared execution
     selected_keys = [stg_key, downstream_key]
     # Dagster 1.11 build_asset_context doesn't accept selected_asset_keys kwarg
@@ -151,14 +152,16 @@ def test_blocking_audit_triggers_downstream_block() -> None:
     sqlmesh.setup_for_execution(context)
     try:
         os.chdir(project_dir)
-        # Execute the Dagster materialization logic (includes SQLMesh run)
-        execute_sqlmesh_materialization(
-            context=context,
-            sqlmesh=sqlmesh,
-            sqlmesh_results=results_resource,
-            run_id="itest_run_blocking_nb",
-            selected_asset_keys=selected_keys,
+        # Force SQLMesh to recompute models regardless of cron window by advancing execution_time
+        future_execution_time = datetime.datetime.now() + datetime.timedelta(minutes=6)
+        sqlmesh.context.run(
+            environment=sqlmesh.environment,
+            select_models=[stg_model.name, downstream_model.name],
+            execution_time=future_execution_time,
         )
+        # Don't call execute_sqlmesh_materialization as it would clear notifier state
+        # Instead, manually store results for process_sqlmesh_results to find
+        results_resource.store_results("itest_run_blocking_nb", {})
     finally:
         os.chdir(old_cwd)
 
@@ -241,9 +244,6 @@ def test_non_blocking_audit_warns_without_downstream_block() -> None:
     stg_key: AssetKey = sqlmesh.translator.get_asset_key(stg_model)
     downstream_key: AssetKey = sqlmesh.translator.get_asset_key(downstream_model)
 
-    # Corrupt only the non-blocking signal BEFORE plan (supply_name constant)
-    _corrupt_supplies_source_non_blocking(db_path)
-
     # Bootstrap env
     old_cwd = os.getcwd()
     try:
@@ -257,20 +257,25 @@ def test_non_blocking_audit_warns_without_downstream_block() -> None:
     finally:
         os.chdir(old_cwd)
 
+    # Corrupt only the non-blocking signal AFTER plan (supply_name constant)
+    _corrupt_supplies_source_non_blocking(db_path)
+
     selected_keys = [stg_key, downstream_key]
     context = build_asset_context()
     # Ensure logger is set up for the resource
     sqlmesh.setup_for_execution(context)
     try:
         os.chdir(project_dir)
-        # Execute the Dagster materialization logic (includes SQLMesh run)
-        execute_sqlmesh_materialization(
-            context=context,
-            sqlmesh=sqlmesh,
-            sqlmesh_results=results_resource,
-            run_id="itest_run_non_blocking_only",
-            selected_asset_keys=selected_keys,
+        # Force SQLMesh to recompute models regardless of cron window by advancing execution_time
+        future_execution_time = datetime.datetime.now() + datetime.timedelta(minutes=6)
+        sqlmesh.context.run(
+            environment=sqlmesh.environment,
+            select_models=[stg_model.name, downstream_model.name],
+            execution_time=future_execution_time,
         )
+        # Don't call execute_sqlmesh_materialization as it would clear notifier state
+        # Instead, manually store results for process_sqlmesh_results to find
+        results_resource.store_results("itest_run_non_blocking_only", {})
     finally:
         os.chdir(old_cwd)
 
