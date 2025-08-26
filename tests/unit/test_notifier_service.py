@@ -1,7 +1,6 @@
 from typing import Any
 
 
-
 def test_get_or_create_notifier_singleton() -> None:
     from dg_sqlmesh.notifier_service import get_or_create_notifier
 
@@ -49,5 +48,3 @@ def test_get_audit_failures_safe() -> None:
     # Should return list even when empty
     failures = get_audit_failures()
     assert isinstance(failures, list)
-
-

@@ -51,10 +51,10 @@ dev = [
     "pytest>=8.4.1",
     "sqlmesh[web]>=0.209.0",
     "duckdb>=1.3.2",
-    "ruff>=0.3.0",
+    "ruff>=0.12.10",
     "coverage[toml]>=7.0.0",
-    "pip-audit>=2.6.0",
-    "safety>=3.0.0",
+    "pip-audit>=2.9.0",
+    "safety>=3.6.0",
     "pip-licenses>=5.0.0",
     "dg-sqlmesh",
 ]

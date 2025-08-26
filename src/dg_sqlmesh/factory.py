@@ -77,6 +77,7 @@ def _assert_instance_has_queued_run_coordinator(instance) -> None:
     if not isinstance(instance.run_coordinator, QueuedRunCoordinator):
         raise RuntimeError(_CONCURRENCY_CONFIG_ERROR)
 
+
 def _assert_instance_for_compute() -> None:
     """Fail in compute if instance is missing or not using QueuedRunCoordinator."""
     instance = None
@@ -84,14 +85,19 @@ def _assert_instance_for_compute() -> None:
         instance = DagsterInstance.get()
     except Exception:
         instance = None
-    if instance is None or not isinstance(instance.run_coordinator, QueuedRunCoordinator):
+    if instance is None or not isinstance(
+        instance.run_coordinator, QueuedRunCoordinator
+    ):
         raise Failure(
             _CONCURRENCY_CONFIG_ERROR,
             allow_retries=False,
         )
 
+
 def build_sqlmesh_job(sqlmesh_assets, name: str = "sqlmesh_job"):
-    selected_assets = AssetSelection.assets(*(key for ad in sqlmesh_assets for key in ad.keys))
+    selected_assets = AssetSelection.assets(
+        *(key for ad in sqlmesh_assets for key in ad.keys)
+    )
     safe_selection = selected_assets.required_multi_asset_neighbors()
     return define_asset_job(
         name=name,
@@ -104,6 +110,7 @@ def build_sqlmesh_job(sqlmesh_assets, name: str = "sqlmesh_job"):
             "dagster/concurrency_key": "sqlmesh_jobs_exclusive",
         },
     )
+
 
 def sqlmesh_assets_factory(
     *,
@@ -172,7 +179,9 @@ def sqlmesh_assets_factory(
                     context.selected_asset_keys,
                 )
             else:
-                context.log.debug("Reusing shared SQLMesh results for this run_id (no fresh run)")
+                context.log.debug(
+                    "Reusing shared SQLMesh results for this run_id (no fresh run)"
+                )
 
             # Retrieve results for this run
             (
@@ -294,7 +303,9 @@ def sqlmesh_adaptive_schedule_factory(
             )
         )
         if active:
-            return SkipReason("sqlmesh job already active; skipping new run to enforce singleton execution")
+            return SkipReason(
+                "sqlmesh job already active; skipping new run to enforce singleton execution"
+            )
 
         scheduled_ts = context.scheduled_execution_time or datetime.datetime.now()
         return RunRequest(
@@ -365,11 +376,12 @@ def sqlmesh_definitions_factory(
             "   → To use custom translator, remove the external_asset_mapping parameter\n"
             "   → Example: sqlmesh_definitions_factory(external_asset_mapping='target/main/{node.name}')",
             UserWarning,
-            stacklevel=2
+            stacklevel=2,
         )
     elif external_asset_mapping is not None:
         # Create JinjaSQLMeshTranslator from the template
         from .components.sqlmesh_project.component import JinjaSQLMeshTranslator
+
         translator = JinjaSQLMeshTranslator(external_asset_mapping)
     elif translator is None:
         # Use default translator

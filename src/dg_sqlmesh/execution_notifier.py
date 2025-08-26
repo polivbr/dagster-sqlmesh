@@ -8,12 +8,15 @@ def _get_notifier_failures() -> List[Dict]:
     """Safely retrieve notifier audit failures via notifier service; return empty list on error."""
     try:
         from .notifier_service import get_audit_failures
+
         return get_audit_failures()
     except Exception:
         return []
 
 
-def _summarize_notifier_failures(context: AssetExecutionContext, notifier_audit_failures: List[Dict]) -> None:
+def _summarize_notifier_failures(
+    context: AssetExecutionContext, notifier_audit_failures: List[Dict]
+) -> None:
     """Log a compact summary of notifier failures if present."""
     if not notifier_audit_failures:
         return
@@ -31,5 +34,3 @@ def _summarize_notifier_failures(context: AssetExecutionContext, notifier_audit_
     except Exception:
         # ignore logging issues to avoid breaking execution
         pass
-
-

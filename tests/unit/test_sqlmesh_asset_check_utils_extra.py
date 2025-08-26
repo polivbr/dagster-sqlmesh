@@ -23,8 +23,20 @@ def test_convert_notifier_failures_to_asset_check_results_basic() -> None:
     translator = DummyTranslator()
 
     failures = [
-        {"model": "s.m", "audit": "a1", "sql": "select 1", "blocking": True, "count": 2},
-        {"model": "s.m", "audit": "a2", "sql": "select 2", "blocking": False, "count": 0},
+        {
+            "model": "s.m",
+            "audit": "a1",
+            "sql": "select 1",
+            "blocking": True,
+            "count": 2,
+        },
+        {
+            "model": "s.m",
+            "audit": "a2",
+            "sql": "select 2",
+            "blocking": False,
+            "count": 0,
+        },
     ]
 
     results = convert_notifier_failures_to_asset_check_results(
@@ -35,5 +47,3 @@ def test_convert_notifier_failures_to_asset_check_results_basic() -> None:
     by_name = {r.check_name: r for r in results}
     assert by_name["a1"].metadata["audit_blocking"].value is True
     assert by_name["a2"].metadata["audit_blocking"].value is False
-
-

@@ -45,9 +45,11 @@ def resolve_sqlmesh_config(context, model) -> SQLMeshConfig:
 
 def resolve_sqlmesh_project(context, model) -> str:
     if isinstance(model, str):
-        return str(context.resolve_source_relative_path(
-            context.resolve_value(model, as_type=str),
-        ))
+        return str(
+            context.resolve_source_relative_path(
+                context.resolve_value(model, as_type=str),
+            )
+        )
 
     args = SQLMeshProjectArgs.resolve_from_model(context, model)
     return str(context.resolve_source_relative_path(args.project_dir))
@@ -90,7 +92,7 @@ class SQLMeshProjectComponent(Component, Resolvable):
     ```yaml
     # defs.yaml
     type: dg_sqlmesh.SQLMeshProjectComponent
-    
+
     attributes:
       sqlmesh_config:
         project_path: "{{ project_root }}/sqlmesh_project"
@@ -116,7 +118,7 @@ class SQLMeshProjectComponent(Component, Resolvable):
     external_asset_mapping: "target/main/{node.name}"
     # Result: "jaffle_db.main.raw_source_customers" → ["target", "main", "raw_source_customers"]
 
-    # Map to database/schema/table structure  
+    # Map to database/schema/table structure
     external_asset_mapping: "{node.database}/{node.schema}/{node.name}"
     # Result: "jaffle_db.main.raw_source_customers" → ["jaffle_db", "main", "raw_source_customers"]
     ```
@@ -124,7 +126,7 @@ class SQLMeshProjectComponent(Component, Resolvable):
     ### Available Template Variables
 
     - **`{node.database}`**: Database name (e.g., "jaffle_db")
-    - **`{node.schema}`**: Schema name (e.g., "main") 
+    - **`{node.schema}`**: Schema name (e.g., "main")
     - **`{node.name}`**: Table name (e.g., "raw_source_customers")
     - **`{node.fqn}`**: Full qualified name (e.g., "jaffle_db.main.raw_source_customers")
     """
@@ -201,7 +203,10 @@ class SQLMeshProjectComponent(Component, Resolvable):
         Optional[Mapping[str, Any]],
         Resolver.default(
             description="Tags to apply to the SQLMesh assets. These tags help organize and filter assets in the Dagster UI.",
-            examples=[{"team": "data", "env": "prod"}, {"owner": "data-team", "priority": "high"}],
+            examples=[
+                {"team": "data", "env": "prod"},
+                {"owner": "data-team", "priority": "high"},
+            ],
         ),
     ] = None
     # Note: RetryPolicy is not model compliant in Dagster Components
@@ -210,7 +215,11 @@ class SQLMeshProjectComponent(Component, Resolvable):
         str,
         Resolver.default(
             description="The name for the adaptive schedule. This schedule will automatically run SQLMesh models based on their cron configurations.",
-            examples=["sqlmesh_adaptive_schedule", "data_pipeline_schedule", "analytics_schedule"],
+            examples=[
+                "sqlmesh_adaptive_schedule",
+                "data_pipeline_schedule",
+                "analytics_schedule",
+            ],
         ),
     ] = "sqlmesh_adaptive_schedule"
     enable_schedule: Annotated[
@@ -285,26 +294,25 @@ class ProxySQLMeshTranslator(SQLMeshTranslator):
         base_tags = super().get_tags(context, model)
         return self._fn(base_tags, model)
 
-
-# Removed duplicate ProxySQLMeshTranslator class definition
+        # Removed duplicate ProxySQLMeshTranslator class definition
         super().__init__()
 
     def get_external_asset_key(self, external_fqn: str) -> AssetKey:
         # Parse the FQN to extract database, schema, name
         import re
-        
+
         parts = re.findall(r'"([^"]+)"', external_fqn)
         if len(parts) == 3:
             database, schema, name = parts
         else:
             # Fallback for unquoted format
-            parts = external_fqn.replace('"', '').split('.')
+            parts = external_fqn.replace('"', "").split(".")
             if len(parts) >= 3:
                 database, schema, name = parts[0], parts[1], parts[2]
             else:
                 # If we can't parse it properly, use the original
                 return super().get_external_asset_key(external_fqn)
-        
+
         # Create node data for translation function
         node_data = {
             "database": database,
@@ -312,13 +320,13 @@ class ProxySQLMeshTranslator(SQLMeshTranslator):
             "name": name,
             "fqn": external_fqn,
         }
-        
+
         # Call the translation function
         result = self._fn(node_data)
-        
+
         # Convert the result to an AssetKey
         if isinstance(result, str):
-            segments = [seg.strip() for seg in result.split('/') if seg.strip()]
+            segments = [seg.strip() for seg in result.split("/") if seg.strip()]
             return AssetKey(segments)
         elif isinstance(result, AssetKey):
             return result
@@ -338,13 +346,13 @@ class JinjaSQLMeshTranslator(SQLMeshTranslator):
         Generates an AssetKey for an external asset using Jinja2 template.
         Template variables available:
         - node.database: The database name
-        - node.schema: The schema name  
+        - node.schema: The schema name
         - node.name: The table/view name
         - node.fqn: The full qualified name
         """
         import re
         from jinja2 import Template
-        
+
         # Parse the FQN to extract database, schema, name
         # Handle both quoted and unquoted formats
         parts = re.findall(r'"([^"]+)"', external_fqn)
@@ -352,13 +360,13 @@ class JinjaSQLMeshTranslator(SQLMeshTranslator):
             database, schema, name = parts
         else:
             # Fallback for unquoted format
-            parts = external_fqn.replace('"', '').split('.')
+            parts = external_fqn.replace('"', "").split(".")
             if len(parts) >= 3:
                 database, schema, name = parts[0], parts[1], parts[2]
             else:
                 # If we can't parse it properly, use the original
                 return super().get_external_asset_key(external_fqn)
-        
+
         # Create template context
         context = {
             "node": {
@@ -368,17 +376,19 @@ class JinjaSQLMeshTranslator(SQLMeshTranslator):
                 "fqn": external_fqn,
             }
         }
-        
+
         # Convert {node.name} format to {{ node.name }} for Jinja2
-        template_str = self.external_asset_mapping_template.replace("{node.", "{{ node.").replace("}", "}}")
-        
+        template_str = self.external_asset_mapping_template.replace(
+            "{node.", "{{ node."
+        ).replace("}", "}}")
+
         # Render the template
         template = Template(template_str)
         result = template.render(**context)
-        
+
         # Convert the result to an AssetKey
         # Split on '/' to create the asset key segments
-        segments = [seg.strip() for seg in result.split('/') if seg.strip()]
+        segments = [seg.strip() for seg in result.split("/") if seg.strip()]
         return AssetKey(segments)
 
 

@@ -1,1 +1,1 @@
-# Integration tests for dg-sqlmesh 
+# Integration tests for dg-sqlmesh

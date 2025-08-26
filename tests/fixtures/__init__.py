@@ -1,1 +1,1 @@
-# Test fixtures and data for dg-sqlmesh 
+# Test fixtures and data for dg-sqlmesh

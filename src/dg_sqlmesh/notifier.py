@@ -14,6 +14,7 @@ from .sqlmesh_asset_check_utils import (
     extract_failed_audit_details,
 )
 
+
 class CapturingNotifier(BaseNotificationTarget):
     """
     Notification target that captures structured SQLMesh events in-memory.
@@ -45,7 +46,9 @@ class CapturingNotifier(BaseNotificationTarget):
     _apply_events: list[dict[str, t.Any]] = PrivateAttr(default_factory=list)
 
     # Optional base hook used by default helpers in BaseNotificationTarget
-    def send(self, notification_status: NotificationStatus, msg: str, **kwargs: t.Any) -> None:  # noqa: D401 - keep signature
+    def send(
+        self, notification_status: NotificationStatus, msg: str, **kwargs: t.Any
+    ) -> None:  # noqa: D401 - keep signature
         # No outbound side-effect needed; we only capture
         return None
 
@@ -60,12 +63,16 @@ class CapturingNotifier(BaseNotificationTarget):
         self._run_events.append({"event": "run_failure", "exception": exc})
 
     # ---------------------- Apply lifecycle ----------------------
-    def notify_apply_start(self, environment: str, plan_id: str, *_: t.Any, **__: t.Any) -> None:
+    def notify_apply_start(
+        self, environment: str, plan_id: str, *_: t.Any, **__: t.Any
+    ) -> None:
         self._apply_events.append(
             {"event": "apply_start", "environment": environment, "plan_id": plan_id}
         )
 
-    def notify_apply_end(self, environment: str, plan_id: str, *_: t.Any, **__: t.Any) -> None:
+    def notify_apply_end(
+        self, environment: str, plan_id: str, *_: t.Any, **__: t.Any
+    ) -> None:
         self._apply_events.append(
             {"event": "apply_end", "environment": environment, "plan_id": plan_id}
         )
@@ -83,7 +90,9 @@ class CapturingNotifier(BaseNotificationTarget):
         )
 
     # ---------------------- Audits (blocking & non-blocking) ----------------------
-    def notify_audit_failure(self, audit_error: AuditError, *_: t.Any, **__: t.Any) -> None:
+    def notify_audit_failure(
+        self, audit_error: AuditError, *_: t.Any, **__: t.Any
+    ) -> None:
         details = extract_failed_audit_details(audit_error)
         self._audit_failures.append(
             {
@@ -112,5 +121,3 @@ class CapturingNotifier(BaseNotificationTarget):
         self._audit_failures.clear()
         self._run_events.clear()
         self._apply_events.clear()
-
-

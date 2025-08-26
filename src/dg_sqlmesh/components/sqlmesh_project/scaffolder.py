@@ -27,7 +27,7 @@ class SQLMeshProjectComponentScaffolder(Scaffolder[SQLMeshScaffoldParams]):
 
     def scaffold(self, request: ScaffoldRequest[SQLMeshScaffoldParams]) -> None:
         project_root = request.project_root or os.getcwd()
-        
+
         if request.params.project_path:
             project_root_tmpl = "{{ project_root }}"
             rel_path = os.path.relpath(request.params.project_path, start=project_root)
@@ -42,7 +42,7 @@ class SQLMeshProjectComponentScaffolder(Scaffolder[SQLMeshScaffoldParams]):
             # Create a basic SQLMesh project structure
             project_name = "sqlmesh_project"
             project_path = Path(project_root) / project_name
-            
+
             if project_path.exists():
                 raise DagsterInvalidInvocationError(
                     f"SQLMesh project directory {project_path} already exists."
@@ -50,7 +50,7 @@ class SQLMeshProjectComponentScaffolder(Scaffolder[SQLMeshScaffoldParams]):
 
             # Create basic SQLMesh project structure
             project_path.mkdir()
-            
+
             # Create config.yaml
             config_content = """# SQLMesh configuration
 default_target: duckdb

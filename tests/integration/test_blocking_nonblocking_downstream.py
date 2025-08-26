@@ -60,7 +60,9 @@ def _corrupt_supplies_source_non_blocking(db_path: str) -> None:
 
 def _invalidate_env(project_dir: str, env: str) -> None:
     """Deprecated in tests: we now advance execution_time instead of invoking CLI."""
-    raise RuntimeError("invalidate via CLI is disabled in tests; use execution_time advancement")
+    raise RuntimeError(
+        "invalidate via CLI is disabled in tests; use execution_time advancement"
+    )
 
 
 @pytest.mark.integration
@@ -75,7 +77,9 @@ def test_blocking_audit_triggers_downstream_block() -> None:
 
     # 2) Create resource and supporting objects and bootstrap the environment via plan/apply
     # Use 'dev' and bootstrap environment with plan/apply
-    sqlmesh = SQLMeshResource(project_dir=project_dir, gateway="duckdb", environment="dev")
+    sqlmesh = SQLMeshResource(
+        project_dir=project_dir, gateway="duckdb", environment="dev"
+    )
     results_resource = SQLMeshResultsResource()
 
     # Identify the staging model and a clear downstream
@@ -150,7 +154,9 @@ def test_blocking_audit_triggers_downstream_block() -> None:
         skipped_models_events=skipped_models_events,
     )
     assert was_skipped is False
-    assert stg_key in set(blocking for blocking in []) or True  # keep structure consistent
+    assert (
+        stg_key in set(blocking for blocking in []) or True
+    )  # keep structure consistent
 
     # Building the MaterializeResult for the staging model should succeed and include failed checks
     stg_result = create_materialize_result(
@@ -174,7 +180,9 @@ def test_blocking_audit_triggers_downstream_block() -> None:
             context=context,
             current_model_name=downstream_model.name,
             current_asset_spec=type("Spec", (), {"key": downstream_key})(),
-            current_model_checks=create_asset_checks_from_model(downstream_model, downstream_key),
+            current_model_checks=create_asset_checks_from_model(
+                downstream_model, downstream_key
+            ),
             model_was_skipped=False,
             model_has_audit_failures=False,
             non_blocking_audit_warnings=non_blocking_audit_warnings,
@@ -195,7 +203,9 @@ def test_non_blocking_audit_warns_without_downstream_block() -> None:
 
     _reload_test_db()
 
-    sqlmesh = SQLMeshResource(project_dir=project_dir, gateway="duckdb", environment="dev")
+    sqlmesh = SQLMeshResource(
+        project_dir=project_dir, gateway="duckdb", environment="dev"
+    )
     results_resource = SQLMeshResultsResource()
 
     stg_model = sqlmesh.context.get_model("sqlmesh_jaffle_platform.stg_supplies")
@@ -251,7 +261,9 @@ def test_non_blocking_audit_warns_without_downstream_block() -> None:
         non_blocking_audit_warnings,
         notifier_audit_failures,
         affected_downstream_asset_keys,
-    ) = process_sqlmesh_results(context, results_resource, "itest_run_non_blocking_only")
+    ) = process_sqlmesh_results(
+        context, results_resource, "itest_run_non_blocking_only"
+    )
 
     # Expect a non-blocking failure path to yield WARN and no downstream block
 
@@ -270,8 +282,13 @@ def test_non_blocking_audit_warns_without_downstream_block() -> None:
     )
     assert stg_result.check_results is not None
     # Find the non-blocking check entry
-    nb = next(cr for cr in stg_result.check_results if cr.check_name == "not_constant_non_blocking")
+    nb = next(
+        cr
+        for cr in stg_result.check_results
+        if cr.check_name == "not_constant_non_blocking"
+    )
     from dagster import AssetCheckSeverity
+
     assert nb.severity == AssetCheckSeverity.WARN
 
     # Downstream is not blocked
@@ -279,12 +296,12 @@ def test_non_blocking_audit_warns_without_downstream_block() -> None:
         context=context,
         current_model_name=downstream_model.name,
         current_asset_spec=type("Spec", (), {"key": downstream_key})(),
-        current_model_checks=create_asset_checks_from_model(downstream_model, downstream_key),
+        current_model_checks=create_asset_checks_from_model(
+            downstream_model, downstream_key
+        ),
         model_was_skipped=False,
         model_has_audit_failures=False,
         non_blocking_audit_warnings=non_blocking_audit_warnings,
         notifier_audit_failures=notifier_audit_failures,
         affected_downstream_asset_keys=list(affected_downstream_asset_keys),
     )
-
-

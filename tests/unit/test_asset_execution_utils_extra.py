@@ -44,5 +44,3 @@ def test_create_materialize_result_downstream_block() -> None:
             notifier_audit_failures=[],
             affected_downstream_asset_keys=[asset_key],
         )
-
-

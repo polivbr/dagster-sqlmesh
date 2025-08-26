@@ -19,7 +19,11 @@ from .translator import SQLMeshTranslator
 
 # Import component for YAML configuration
 try:
-    from .components.sqlmesh_project import SQLMeshProjectComponent, SQLMeshProjectComponentScaffolder
+    from .components.sqlmesh_project import (
+        SQLMeshProjectComponent,
+        SQLMeshProjectComponentScaffolder,
+    )
+
     COMPONENT_AVAILABLE = True
 except ImportError:
     COMPONENT_AVAILABLE = False
@@ -36,10 +40,12 @@ __all__ = [
 
 # Add component exports if available
 if COMPONENT_AVAILABLE:
-    __all__.extend([
-        "SQLMeshProjectComponent",
-        "SQLMeshProjectComponentScaffolder",
-    ])
+    __all__.extend(
+        [
+            "SQLMeshProjectComponent",
+            "SQLMeshProjectComponentScaffolder",
+        ]
+    )
     # Make imports available at module level
     locals()["SQLMeshProjectComponent"] = SQLMeshProjectComponent
     locals()["SQLMeshProjectComponentScaffolder"] = SQLMeshProjectComponentScaffolder

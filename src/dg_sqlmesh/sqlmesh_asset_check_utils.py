@@ -8,7 +8,9 @@ from sqlglot import exp
 import json
 
 
-def create_asset_checks_from_model(model: Any, asset_key: AssetKey) -> List[AssetCheckSpec]:
+def create_asset_checks_from_model(
+    model: Any, asset_key: AssetKey
+) -> List[AssetCheckSpec]:
     """
     Creates AssetCheckSpec for audits of a SQLMesh model.
 
@@ -71,7 +73,9 @@ def create_all_asset_checks(models: list[Any], translator: Any) -> List[AssetChe
     return all_checks
 
 
-def safe_extract_audit_query(model: Any, audit_obj: Any, audit_args: Dict[str, Any], logger: Any | None = None) -> str:
+def safe_extract_audit_query(
+    model: Any, audit_obj: Any, audit_args: Dict[str, Any], logger: Any | None = None
+) -> str:
     """
     Safely extracts audit query with fallback.
 
@@ -97,7 +101,9 @@ def safe_extract_audit_query(model: Any, audit_obj: Any, audit_args: Dict[str, A
             return "N/A"
 
 
-def extract_audit_details(audit_obj: Any, audit_args: Dict[str, Any], model: Any, logger: Any | None = None) -> Dict[str, Any]:
+def extract_audit_details(
+    audit_obj: Any, audit_args: Dict[str, Any], model: Any, logger: Any | None = None
+) -> Dict[str, Any]:
     """
     Extracts all useful information from an audit object.
     This function is moved from the console to follow the separation of concerns pattern.
@@ -123,6 +129,7 @@ def extract_audit_details(audit_obj: Any, audit_args: Dict[str, Any], model: Any
         "skip": getattr(audit_obj, "skip", False),
         "arguments": audit_args,
     }
+
 
 def is_audit_blocking_from_error(audit_error: Any) -> bool:
     """
@@ -153,7 +160,9 @@ def is_audit_blocking_from_error(audit_error: Any) -> bool:
     return True  # conservative default
 
 
-def extract_failed_audit_details(audit_error: Any, logger: Any | None = None) -> Dict[str, Any]:
+def extract_failed_audit_details(
+    audit_error: Any, logger: Any | None = None
+) -> Dict[str, Any]:
     """
     Extract structured information from an AuditError for building AssetCheckResult.
 
@@ -168,7 +177,9 @@ def extract_failed_audit_details(audit_error: Any, logger: Any | None = None) ->
     audit_name = getattr(audit_error, "audit_name", "unknown")
     model = getattr(audit_error, "model", None)
     # Prefer built-in property if available, fallback to model.name
-    model_name = getattr(audit_error, "model_name", None) or getattr(model, "name", None)
+    model_name = getattr(audit_error, "model_name", None) or getattr(
+        model, "name", None
+    )
 
     # Prefer the API on the error object itself
     sql_text = "N/A"
@@ -177,7 +188,9 @@ def extract_failed_audit_details(audit_error: Any, logger: Any | None = None) ->
             # Many SQLMesh versions expose a convenience .sql(pretty=True)
             sql_text = audit_error.sql(pretty=True)  # type: ignore[attr-defined]
         elif hasattr(audit_error, "query"):
-            sql_text = audit_error.query.sql(getattr(audit_error, "adapter_dialect", None))
+            sql_text = audit_error.query.sql(
+                getattr(audit_error, "adapter_dialect", None)
+            )
     except Exception as e:  # pragma: no cover - defensive
         if logger:
             logger.warning(f"Failed to extract audit SQL: {e}")
@@ -197,7 +210,9 @@ def extract_failed_audit_details(audit_error: Any, logger: Any | None = None) ->
     }
 
 
-def find_audit_on_model(model: Any, audit_name: str) -> Optional[Tuple[Any, Dict[str, Any]]]:
+def find_audit_on_model(
+    model: Any, audit_name: str
+) -> Optional[Tuple[Any, Dict[str, Any]]]:
     """
     Locate an audit object and its args on a SQLMesh model by name.
     Returns (audit_obj, audit_args) or None if not found.
@@ -209,6 +224,7 @@ def find_audit_on_model(model: Any, audit_name: str) -> Optional[Tuple[Any, Dict
     except Exception:
         return None
     return None
+
 
 def build_audit_check_metadata(
     *,
@@ -363,7 +379,9 @@ def create_failed_audit_check_result(
         )
     except Exception as exc:  # pragma: no cover - defensive
         if logger:
-            logger.warning(f"Failed to create failed audit check result for {model_name}: {exc}")
+            logger.warning(
+                f"Failed to create failed audit check result for {model_name}: {exc}"
+            )
         return None
 
 
@@ -378,7 +396,9 @@ def create_general_error_check_result(
 ) -> AssetCheckResult:
     """Create a generic AssetCheckResult for non-audit errors."""
     if logger:
-        logger.warning(f"MODEL ERROR for model '{model_name}': {error_type} - {message}")
+        logger.warning(
+            f"MODEL ERROR for model '{model_name}': {error_type} - {message}"
+        )
 
     metadata = {
         "sqlmesh_model_name": model_name,
@@ -410,7 +430,12 @@ def convert_notifier_failures_to_asset_check_results(
 
     for fail in failures:
         try:
-            if isinstance(fail, dict) and {"audit", "model", "sql", "blocking"}.issubset(fail.keys()):
+            if isinstance(fail, dict) and {
+                "audit",
+                "model",
+                "sql",
+                "blocking",
+            }.issubset(fail.keys()):
                 audit_name = fail.get("audit")
                 model_name = fail.get("model")
                 sql_text = fail.get("sql", "N/A")
