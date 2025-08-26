@@ -13,7 +13,6 @@ We reproduce the manual scenario described by the user:
 
 from __future__ import annotations
 
-import datetime
 import duckdb
 import pytest
 from dagster import AssetKey, build_asset_context
@@ -25,10 +24,8 @@ from dg_sqlmesh.notifier_service import clear_notifier_state
 from dg_sqlmesh.sqlmesh_asset_check_utils import create_asset_checks_from_model
 from dg_sqlmesh.sqlmesh_asset_execution_utils import (
     process_sqlmesh_results,
-    check_model_status,
     create_materialize_result,
 )
-from dg_sqlmesh.resource import UpstreamAuditFailureError
 
 
 def _reload_test_db(db_path: str | None = None) -> None:
@@ -120,11 +117,7 @@ def test_blocking_audit_triggers_downstream_block() -> None:
     downstream_model = sqlmesh.context.get_model("sqlmesh_jaffle_platform.stores")
     assert stg_model is not None and downstream_model is not None
 
-    stg_key: AssetKey = sqlmesh.translator.get_asset_key(stg_model)
-    downstream_key: AssetKey = sqlmesh.translator.get_asset_key(downstream_model)
-
-    # Build check specs for the staging model
-    stg_checks = create_asset_checks_from_model(stg_model, stg_key)
+    # Note: Asset keys and checks not needed for blocking test since we expect plan failure
 
     # Bootstrap environment with a plan/apply so that a subsequent run can execute
     old_cwd = os.getcwd()
@@ -151,7 +144,7 @@ def test_blocking_audit_triggers_downstream_block() -> None:
     try:
         os.chdir(project_dir)
         try:
-            # Re-plan with corrupted data so audits will fail 
+            # Re-plan with corrupted data so audits will fail
             # Use restate_models with start/end dates to force re-evaluation
             sqlmesh.context.plan(
                 environment=sqlmesh.environment,
@@ -167,8 +160,8 @@ def test_blocking_audit_triggers_downstream_block() -> None:
             # Blocking audit should cause plan to fail
             plan_failed = True
             print(f"✅ Plan failed as expected due to blocking audit: {e}")
-        
-        # Store dummy results 
+
+        # Store dummy results
         results_resource.store_results("itest_run_blocking_nb", {})
     finally:
         os.chdir(old_cwd)
@@ -180,7 +173,7 @@ def test_blocking_audit_triggers_downstream_block() -> None:
         print("✅ BLOCKING AUDIT TEST PASSED: Plan failed as expected")
         print("✅ This proves blocking audits prevent downstream execution")
         return  # Test succeeds by plan failure
-    
+
     # If plan didn't fail, process results normally (unexpected for blocking test)
     (
         failed_check_results,
@@ -193,25 +186,6 @@ def test_blocking_audit_triggers_downstream_block() -> None:
     # This section should not be reached for blocking audits
     print("❌ WARNING: Plan should have failed for blocking audit but didn't")
     assert False, "Blocking audit should have caused plan to fail"
-
-    # Downstream asset should be blocked due to the upstream blocking audit failure
-    with pytest.raises(UpstreamAuditFailureError):
-        create_materialize_result(
-            context=context,
-            current_model_name=downstream_model.name,
-            current_asset_spec=type("Spec", (), {"key": downstream_key})(),
-            current_model_checks=create_asset_checks_from_model(
-                downstream_model, downstream_key
-            ),
-            model_was_skipped=False,
-            model_has_audit_failures=False,
-            non_blocking_audit_warnings=non_blocking_audit_warnings,
-            notifier_audit_failures=notifier_audit_failures,
-            affected_downstream_asset_keys=list(affected_downstream_asset_keys),
-        )
-
-    # Restore DB to original state so other tests are not impacted
-    _reload_test_db()
 
 
 @pytest.mark.integration

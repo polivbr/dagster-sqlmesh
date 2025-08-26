@@ -35,7 +35,6 @@ def create_asset_checks_from_model(
             audit_name=audit_obj.name,
         )
 
-
         asset_checks.append(
             AssetCheckSpec(
                 name=audit_obj.name,

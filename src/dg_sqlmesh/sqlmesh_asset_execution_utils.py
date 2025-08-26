@@ -27,7 +27,6 @@ from .execution_check_results import (
     _build_failed_check_results_for_all_checks,
     _get_blocking_and_non_blocking_names_for_model,
     _build_check_result_failed_from_notifier,
-    _build_pass_check_result,
     _build_check_results_for_create_result,
 )
 from .execution_results_payload import (
@@ -506,6 +505,7 @@ def handle_successful_execution(
                 # Use the existing check's metadata instead of rebuilding it
                 # This preserves the correct blocking status determined during check creation
                 from .execution_check_results import get_check_severity_for_blocking
+
                 check_results.append(
                     AssetCheckResult(
                         passed=True,
