@@ -25,7 +25,7 @@ def load_csv_to_duckdb(
     print(f"Loading {csv_path} into table {table_name}...")
 
     # Read CSV with pandas
-    pd.read_csv(csv_path)
+    df = pd.read_csv(csv_path)
 
     # Connect to DuckDB
     con = duckdb.connect(db_path)
