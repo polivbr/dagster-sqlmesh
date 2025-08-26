@@ -94,16 +94,15 @@ class CapturingNotifier(BaseNotificationTarget):
         self, audit_error: AuditError, *_: t.Any, **__: t.Any
     ) -> None:
         details = extract_failed_audit_details(audit_error)
-        self._audit_failures.append(
-            {
-                "model": details.get("model_name"),
-                "audit": details.get("name"),
-                "args": details.get("args", {}),
-                "count": details.get("count", 0),
-                "sql": details.get("sql"),
-                "blocking": details.get("blocking", True),
-            }
-        )
+        audit_failure_record = {
+            "model": details.get("model_name"),
+            "audit": details.get("name"),
+            "args": details.get("args", {}),
+            "count": details.get("count", 0),
+            "sql": details.get("sql"),
+            "blocking": details.get("blocking", True),
+        }
+        self._audit_failures.append(audit_failure_record)
 
     # ---------------------- Accessors ----------------------
     def get_audit_failures(self) -> list[dict[str, t.Any]]:

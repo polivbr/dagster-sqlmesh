@@ -15,7 +15,6 @@ from typing import Dict, List, Any, Tuple
 from .resource import SQLMeshResource
 from .sqlmesh_asset_utils import get_models_to_materialize
 from .resource import UpstreamAuditFailureError
-from .notifier_service import clear_notifier_state
 from .execution_notifier import (
     _get_notifier_failures as _get_notifier_failures_noarg,
 )
@@ -215,12 +214,8 @@ def execute_sqlmesh_materialization(
     context.log.debug(
         "Starting SQLMesh materialization (count=%d)", len(models_to_materialize)
     )
-    # Ensure notifier state is clean to avoid cross-run leakage before reading or running
-    try:
-        clear_notifier_state()
-        context.log.debug("Notifier state cleared at run start")
-    except Exception:
-        pass
+    # Note: Notifier state should be cleared before calling this function
+    # to ensure we capture audit failures from the SQLMesh run
 
     # Always trigger a fresh SQLMesh run; do not reuse potentially stale notifier state
     plan = sqlmesh.materialize_assets_threaded(models_to_materialize, context=context)
@@ -306,8 +301,8 @@ def execute_sqlmesh_materialization(
     sqlmesh_results.store_results(run_id, results)
     context.log.info(f"Stored SQLMesh results for run {run_id}")
     # Keep store confirmation
-    # Clear notifier state after completing the run to avoid cross-run leakage
-    clear_notifier_state()
+    # Note: Do NOT clear notifier state here as it contains audit failures
+    # that need to be retrieved by the caller for check result creation
 
     return results
 

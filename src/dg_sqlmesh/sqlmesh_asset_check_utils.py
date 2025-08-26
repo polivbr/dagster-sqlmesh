@@ -101,6 +101,55 @@ def safe_extract_audit_query(
             return "N/A"
 
 
+def _get_actual_blocking_status_from_model_audit(
+    audit_error: Any, audit_name: str, logger: Any | None = None
+) -> bool:
+    """Get the real blocking status from SQLMesh ModelAudit object.
+
+    Args:
+        audit_error: AuditError object from notifier callback
+        audit_name: Name of the audit to find
+        logger: Optional logger instance
+
+    Returns:
+        Boolean indicating if the audit is blocking
+    """
+    try:
+        # Navigate to model.audits_with_args to find the right audit
+        if not hasattr(audit_error, "model"):
+            return True  # Default to blocking for safety
+
+        model = audit_error.model
+        if not hasattr(model, "audits_with_args"):
+            return True  # Default to blocking for safety
+
+        # Find the matching audit by name
+        for audit_with_args in model.audits_with_args:
+            if len(audit_with_args) >= 1:
+                model_audit = audit_with_args[0]  # The ModelAudit object
+                if hasattr(model_audit, "name") and model_audit.name == audit_name:
+                    # Found the right audit, get its blocking status
+                    blocking_status = getattr(model_audit, "blocking", True)
+                    if logger:
+                        logger.debug(
+                            f"Found ModelAudit '{audit_name}' with blocking={blocking_status}"
+                        )
+                    return blocking_status
+
+        if logger:
+            logger.warning(
+                f"Could not find ModelAudit for '{audit_name}' in model.audits_with_args"
+            )
+        return True  # Default to blocking for safety
+
+    except Exception as e:
+        if logger:
+            logger.warning(
+                f"Failed to get blocking status from ModelAudit for '{audit_name}': {e}"
+            )
+        return True  # Default to blocking for safety
+
+
 def extract_audit_details(
     audit_obj: Any, audit_args: Dict[str, Any], model: Any, logger: Any | None = None
 ) -> Dict[str, Any]:
@@ -122,13 +171,13 @@ def extract_audit_details(
         model=model, audit_obj=audit_obj, audit_args=audit_args, logger=logger
     )
 
-    # Determine blocking status with naming convention override
     audit_name = getattr(audit_obj, "name", "unknown")
-    # Apply naming convention: audits ending with "_non_blocking" are non-blocking
-    if audit_name.endswith("_non_blocking"):
-        blocking = False
-    else:
-        blocking = getattr(audit_obj, "blocking", True)  # Default True for safety
+
+    # Get the real blocking status from SQLMesh ModelAudit object
+    # This is the authoritative source of truth for blocking status
+    blocking = _get_actual_blocking_status_from_model_audit(
+        audit_obj, audit_name, logger
+    )
 
     return {
         "name": audit_name,
@@ -314,7 +363,9 @@ def build_audit_check_metadata(
                 sql_text = sql_text or details.get("sql")
                 args = args or details.get("arguments", {})
                 if blocking is None:
-                    blocking = details.get("blocking")
+                    # Get the blocking status directly from the ModelAudit object itself
+                    # This is the most reliable source of truth
+                    blocking = getattr(audit_obj, "blocking", True)
             except Exception:
                 pass
 

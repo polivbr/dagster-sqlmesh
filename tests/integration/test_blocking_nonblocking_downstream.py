@@ -195,10 +195,7 @@ def test_blocking_audit_triggers_downstream_block() -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.xfail(reason="Metadata overwriting in create_materialize_result flow needs refactoring")
 def test_non_blocking_audit_warns_without_downstream_block() -> None:
-    # Ensure notifier state is clean for this scenario
-    clear_notifier_state()
     project_dir = "tests/fixtures/sqlmesh_project"
     db_path = f"{project_dir}/jaffle_test.db"
 
@@ -238,6 +235,8 @@ def test_non_blocking_audit_warns_without_downstream_block() -> None:
     sqlmesh.setup_for_execution(context)
     try:
         os.chdir(project_dir)
+        # Clear notifier state BEFORE running SQLMesh to capture fresh audit failures
+        clear_notifier_state()
         # Force SQLMesh to recompute models regardless of cron window by advancing execution_time
         future_execution_time = datetime.datetime.now() + datetime.timedelta(minutes=6)
         sqlmesh.context.run(
