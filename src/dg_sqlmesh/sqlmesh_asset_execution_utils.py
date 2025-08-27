@@ -9,6 +9,7 @@ from dagster import (
     AssetExecutionContext,
     MaterializeResult,
     AssetCheckResult,
+    AssetCheckSeverity,
     AssetKey,
 )
 from typing import Dict, List, Any, Tuple
@@ -18,7 +19,7 @@ from .resource import UpstreamAuditFailureError
 from .execution_notifier import (
     _get_notifier_failures as _get_notifier_failures_noarg,
 )
-from .notifier_service import clear_notifier_state
+from .notifier_service import clear_notifier_state, get_audit_failures
 from .execution_selection import (
     _log_run_selection as _log_run_selection_ext,
     _materialize_and_get_plan as _materialize_and_get_plan_ext,
@@ -33,10 +34,7 @@ from .execution_results_payload import (
     _init_execution_event_buffers as _init_execution_event_buffers_ext,
     _build_shared_results as _build_shared_results_ext,
 )
-
-
-# get_check_severity_for_blocking is imported from execution_check_results
-
+from .simple_run_tracker import sqlmesh_run_tracker
 
 # ----------------------------- Internal helpers (Phase 1) -----------------------------
 
@@ -82,7 +80,11 @@ def _init_execution_event_buffers(
     return _init_execution_event_buffers_ext()
 
 
-def _get_notifier_failures(_: SQLMeshResource | None = None) -> List[Dict]:
+def _get_notifier_failures(
+    _: SQLMeshResource | None = None,
+) -> List[
+    Dict
+]:  # TODO check if still in use and find if another method replace it somewhere
     """Compatibility shim delegating to the no-arg notifier helper.
 
     Tests may call this with an argument; ignore it.
@@ -136,10 +138,7 @@ def _model_was_skipped_from_events(
             if not snapshot_name:
                 continue
             skipped_model_name = _parse_snapshot_to_model_name(snapshot_name)
-            if logger:
-                logger.debug(
-                    f"Checking skipped model: {skipped_model_name} vs {current_model_name}"
-                )
+
             if skipped_model_name == current_model_name:
                 return True
     return False
@@ -153,10 +152,6 @@ def _model_has_failed_audits_for_asset(
 ) -> bool:
     """Check if any failed check result targets the current asset key."""
     for check_result in failed_check_results:
-        if logger:
-            logger.debug(
-                f"Checking failed check: {check_result.asset_key} vs {current_asset_spec_key}"
-            )
         if check_result.asset_key == current_asset_spec_key:
             if logger:
                 logger.error(
@@ -189,14 +184,6 @@ def execute_sqlmesh_materialization(
     Returns:
         Dict with captured execution results for later reuse in the same run
     """
-    # Log selection
-    context.log.info(
-        "First asset in run; launching SQLMesh execution for all selected assets"
-    )
-    context.log.debug(f"No existing results for run {run_id}")
-    context.log.info(f"Selected assets in this run: {selected_asset_keys}")
-
-    # Launch a single SQLMesh execution for all selected assets
     # Resolve models to materialize
     models_to_materialize = get_models_to_materialize(
         selected_asset_keys,
@@ -207,7 +194,6 @@ def execute_sqlmesh_materialization(
         raise Exception(f"No models found for selected assets: {selected_asset_keys}")
 
     # Single SQLMesh execution
-    # Run single SQLMesh execution and get plan
     context.log.info(
         f"Materializing {len(models_to_materialize)} models: {[m.name for m in models_to_materialize]}"
     )
@@ -221,47 +207,61 @@ def execute_sqlmesh_materialization(
     except Exception:
         pass
 
-    # Always trigger a fresh SQLMesh run; do not reuse potentially stale notifier state
-    plan = sqlmesh.materialize_assets_threaded(models_to_materialize, context=context)
-    context.log.debug("SQLMesh materialization completed")
+    # Use context manager for clean console tracking
+    with sqlmesh_run_tracker(sqlmesh.context) as tracker:
+        plan = sqlmesh.materialize_assets_threaded(
+            models_to_materialize, context=context
+        )
+        context.log.debug("SQLMesh materialization completed")
+
+        # Get tracking results
+        tracking_results = tracker.get_results()
+        context.log.info(
+            f"SQLMesh execution tracking: {tracking_results['total_run']} executed, {tracking_results['total_skipped']} skipped"
+        )
+
+        # Store which models were actually executed vs skipped for later use
+        sqlmesh_executed_models = tracking_results["run_models"]
+
+        # DEDUCTION LOGIC: Models skipped = Models requested - Models executed
+        # This handles cron-based skips that our tracker doesn't capture directly
+        requested_models = [model.name for model in models_to_materialize]
+
+        # Normalize executed model names to match requested format
+        # Remove quotes and database prefix to match model.name format
+        normalized_executed_models = []
+        for executed_model in sqlmesh_executed_models:
+            # Remove quotes and split by dots
+            clean_name = executed_model.replace('"', "")
+            parts = clean_name.split(".")
+            if len(parts) >= 3:
+                # Keep only schema.model format (skip database)
+                normalized_name = f"{parts[1]}.{parts[2]}"
+                normalized_executed_models.append(normalized_name)
+            else:
+                normalized_executed_models.append(clean_name)
+
+        sqlmesh_skipped_models = list(
+            set(requested_models) - set(normalized_executed_models)
+        )
+
+        context.log.info(
+            f"Execution deduction: {len(requested_models)} requested, {len(sqlmesh_executed_models)} executed, {len(sqlmesh_skipped_models)} deduced as skipped"
+        )
 
     # Capture all results
     # Console removed → no legacy failed models events
     # Console disabled path
     # Initialize result buffers (console disabled)
     failed_check_results: List[AssetCheckResult] = []
-    context.log.debug("Failed check results count: 0")
-    context.log.debug("Processing skipped models events... (skipped, console disabled)")
     skipped_models_events: List[Dict] = []
-    context.log.debug(f"Skipped models events count: {len(skipped_models_events)}")
     evaluation_events: List[Dict] = []
-    context.log.debug(f"Evaluation events count: {len(evaluation_events)}")
     non_blocking_audit_warnings: List[Dict] = []
 
     # Store results in the shared resource
     # Capture audit failures from the notifier (robust)
     # Get notifier failures via service and log summary
-    try:
-        from .notifier_service import get_audit_failures
-
-        notifier_audit_failures = get_audit_failures()
-    except Exception:
-        notifier_audit_failures = []
-    if notifier_audit_failures:
-        try:
-            summary = [
-                {
-                    "model": f.get("model"),
-                    "audit": f.get("audit"),
-                    "blocking": f.get("blocking"),
-                    "count": f.get("count"),
-                }
-                for f in notifier_audit_failures
-            ]
-            context.log.info(f"Notifier audit failures summary: {summary}")
-        except Exception:
-            pass
-
+    notifier_audit_failures = get_audit_failures()
     # Build blocking AssetKeys and affected downstream assets
     # Compute blocking and downstream
     blocking_failed_asset_keys: List[AssetKey] = []
@@ -299,12 +299,12 @@ def execute_sqlmesh_materialization(
         "non_blocking_audit_warnings": non_blocking_audit_warnings,
         "notifier_audit_failures": notifier_audit_failures,
         "affected_downstream_asset_keys": list(affected_downstream_asset_keys),
+        "sqlmesh_executed_models": normalized_executed_models,  # Store NORMALIZED executed models
+        "sqlmesh_skipped_models": sqlmesh_skipped_models,  # Models actually skipped by SQLMesh
         "plan": plan,
     }
 
     sqlmesh_results.store_results(run_id, results)
-    context.log.info(f"Stored SQLMesh results for run {run_id}")
-    # Keep store confirmation
     # Note: Do NOT clear notifier state here as it contains audit failures
     # that need to be retrieved by the caller for check result creation
 
@@ -316,6 +316,14 @@ def process_sqlmesh_results(
 ) -> (
     Tuple[List[AssetCheckResult], List[Dict], List[Dict]]
     | Tuple[List[AssetCheckResult], List[Dict], List[Dict], List[Dict], List[AssetKey]]
+    | Tuple[
+        List[AssetCheckResult],
+        List[Dict],
+        List[Dict],
+        List[Dict],
+        List[AssetKey],
+        List[str],
+    ]
 ):
     """
     Retrieve and process shared SQLMesh results for this run.
@@ -326,10 +334,8 @@ def process_sqlmesh_results(
       - non_blocking_audit_warnings
       - notifier_audit_failures
       - affected_downstream_asset_keys
+      - sqlmesh_skipped_models
     """
-    context.log.info(f"Using existing SQLMesh results from run {run_id}")
-    context.log.debug(f"Found existing results for run {run_id}")
-
     # Retrieve results for this run
     results = sqlmesh_results.get_results(run_id)
     if results is None:
@@ -344,15 +350,11 @@ def process_sqlmesh_results(
     non_blocking_audit_warnings = results.get("non_blocking_audit_warnings", [])
     notifier_audit_failures = results.get("notifier_audit_failures", [])
     affected_downstream_asset_keys = results.get("affected_downstream_asset_keys", [])
+    sqlmesh_executed_models = results.get("sqlmesh_executed_models", [])
+    sqlmesh_skipped_models = results.get("sqlmesh_skipped_models", [])
 
-    context.log.debug("Processing results for model")
-    context.log.debug(f"Failed check results: {len(failed_check_results)}")
-    context.log.debug(f"Skipped models events: {len(skipped_models_events)}")
-    context.log.debug(
-        f"Non-blocking audit warnings: {len(non_blocking_audit_warnings)}"
-    )
-    context.log.debug(
-        f"Notifier audit failures: {len(notifier_audit_failures)} | affected downstream: {len(affected_downstream_asset_keys)}"
+    context.log.info(
+        f"Retrieved results: failed={len(failed_check_results)}, skipped={len(skipped_models_events)}, nb_warn={len(non_blocking_audit_warnings)}, notifier_failures={len(notifier_audit_failures)}"
     )
 
     return (
@@ -361,6 +363,8 @@ def process_sqlmesh_results(
         non_blocking_audit_warnings,
         notifier_audit_failures,
         affected_downstream_asset_keys,
+        sqlmesh_executed_models,  # Add SQLMesh executed models
+        sqlmesh_skipped_models,  # Add SQLMesh skipped models
     )
 
 
@@ -380,7 +384,6 @@ def check_model_status(
     model_has_audit_failures = False
 
     # Check if skipped due to upstream failures
-    context.log.debug("Checking for skipped models...")
     if _model_was_skipped_from_events(
         skipped_models_events, current_model_name, logger=context.log
     ):
@@ -390,7 +393,6 @@ def check_model_status(
         )
 
     # Check audit failures (model executed but audit failed)
-    context.log.debug("Checking for audit failures...")
     if _model_has_failed_audits_for_asset(
         failed_check_results,
         current_asset_spec.key,
@@ -433,7 +435,6 @@ def handle_audit_failures(
             logger=context.log,
         )
 
-        context.log.debug(f"Returning {len(check_results)} failed check results")
         return MaterializeResult(
             asset_key=current_asset_spec.key,
             metadata={"status": "materialization_success_audit_failed"},
@@ -456,6 +457,8 @@ def handle_successful_execution(
     current_model_checks: List[Any],
     non_blocking_audit_warnings: List[Dict] | None = None,
     notifier_audit_failures: List[Dict] | None = None,
+    sqlmesh_executed_models: List[str] | None = None,
+    sqlmesh_skipped_models: List[str] | None = None,
 ) -> MaterializeResult:
     """
     Handle the case where the model executed successfully.
@@ -463,11 +466,12 @@ def handle_successful_execution(
     Returns a MaterializeResult with passed checks (and WARN for non-blocking failures).
     """
     context.log.info(f"Model {current_model_name}: success")
-    context.log.debug("Returning MaterializeResult with passed checks")
 
     # Normalize optional inputs
     non_blocking_audit_warnings = non_blocking_audit_warnings or []
     notifier_audit_failures = notifier_audit_failures or []
+    sqlmesh_executed_models = sqlmesh_executed_models or []
+    sqlmesh_skipped_models = sqlmesh_skipped_models or []
 
     # If checks exist, return their results
     if current_model_checks:
@@ -482,6 +486,10 @@ def handle_successful_execution(
 
         # Emit WARN failed for non-blocking failures, PASS for others
         for check in current_model_checks:
+            # Skip sqlmesh_execution_status - we handle it separately below
+            if check.name == "sqlmesh_execution_status":
+                continue
+
             if check.name in non_blocking_names:
                 fail = next(
                     (
@@ -517,14 +525,58 @@ def handle_successful_execution(
                     )
                 )
 
-        context.log.debug(f"Returning {len(check_results)} check results")
+        # Handle execution status check for ALL models
+        # Check if this model was executed by SQLMesh (using tracker results)
+        model_was_executed_by_sqlmesh = current_model_name in sqlmesh_executed_models
+
+        # Find the execution status check spec
+        execution_status_check = next(
+            (
+                check
+                for check in current_model_checks
+                if check.name == "sqlmesh_execution_status"
+            ),
+            None,
+        )
+
+        if execution_status_check:
+            if model_was_executed_by_sqlmesh:
+                # Model was executed → SUCCESS
+                check_results.append(
+                    AssetCheckResult(
+                        passed=True,
+                        severity=AssetCheckSeverity.WARN,  # Use WARN since INFO doesn't exist
+                        check_name="sqlmesh_execution_status",
+                        metadata={
+                            "sqlmesh_model": current_model_name,
+                            "check_type": "execution_status",
+                            "status": "executed",
+                            "message": f"Model {current_model_name} was executed by SQLMesh",
+                        },
+                    )
+                )
+            else:
+                # Model was skipped → WARNING (user should know)
+                check_results.append(
+                    AssetCheckResult(
+                        passed=False,  # Warning = failed check
+                        severity=AssetCheckSeverity.WARN,
+                        check_name="sqlmesh_execution_status",
+                        metadata={
+                            "sqlmesh_model": current_model_name,
+                            "check_type": "execution_status",
+                            "status": "skipped",
+                            "message": f"Model {current_model_name} was skipped by SQLMesh (no new data to compute)",
+                        },
+                    )
+                )
+
         return MaterializeResult(
             asset_key=current_asset_spec.key,
             metadata={"status": "success"},
             check_results=check_results,
         )
     else:
-        context.log.debug("No checks defined; returning simple MaterializeResult")
         return MaterializeResult(
             asset_key=current_asset_spec.key, metadata={"status": "success"}
         )
@@ -540,6 +592,8 @@ def create_materialize_result(
     non_blocking_audit_warnings: List[Dict] | None = None,
     notifier_audit_failures: List[Dict] | None = None,
     affected_downstream_asset_keys: List[AssetKey] | None = None,
+    sqlmesh_executed_models: List[str] | None = None,
+    sqlmesh_skipped_models: List[str] | None = None,
     *,
     # Legacy keyword-only params for backward compatibility with older tests
     failed_check_results: List[AssetCheckResult] | None = None,
@@ -605,4 +659,6 @@ def create_materialize_result(
             current_model_checks,
             non_blocking_audit_warnings,
             notifier_audit_failures,
+            sqlmesh_executed_models,
+            sqlmesh_skipped_models,
         )

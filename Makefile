@@ -44,7 +44,7 @@ clean:
 # Detect dead code with vulture
 vulture:
 	@echo "🦅 Detecting dead code with vulture..."
-	@uv run vulture src/dg_sqlmesh/ --min-confidence 50 || true
+	@uv run vulture src/dg_sqlmesh/ --min-confidence 80 || true
 	@echo "✅ Vulture analysis completed!"
 
 # Lint code with ruff
