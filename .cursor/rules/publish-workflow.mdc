@@ -1,8 +1,3 @@
----
-description: Publish Workflow for dg-sqlmesh
-alwaysApply: false
----
-
 # Publish Workflow for dg-sqlmesh
 
 This rule explains how to publish new versions of dg-sqlmesh to PyPI.
@@ -25,6 +20,41 @@ make release-minor  # Clean + bump-minor + build + publish
 
 ```bash
 make release-major  # Clean + bump-major + build + publish
+```
+
+## 🔄 **Workflow CI/CD Recommandé : GitHub FIRST, puis PyPI**
+
+### ✅ **Approche Séquentielle (Recommandée)**
+
+Le projet utilise un workflow CI/CD séquentiel pour éviter les désynchronisations :
+
+1. **Validation** → 2. **GitHub Release** → 3. **PyPI Publication**
+
+```yaml
+# .github/workflows/release.yml
+jobs:
+  validate: # Tests + Build + Validation
+  github-release: # Création release GitHub (dépend de validate)
+  pypi-publish: # Publication PyPI (dépend de validate + github-release)
+```
+
+### 🚫 **Pourquoi PAS PyPI → GitHub ?**
+
+- **Si PyPI échoue après GitHub** : On peut annuler la release GitHub
+- **Si GitHub échoue après PyPI** : On ne peut pas "dé-publier" facilement de PyPI
+- **PyPI est la destination finale** pour les utilisateurs
+
+### 🔧 **Workflow Automatique**
+
+```bash
+# 1. Créer un tag (déclenche le workflow CI/CD)
+git tag -a v1.9.3 -m "Release v1.9.3: [description]"
+git push origin v1.9.3
+
+# 2. Le workflow CI/CD s'exécute automatiquement :
+#    - Validation complète
+#    - Création release GitHub
+#    - Publication PyPI
 ```
 
 ## 📋 Pre-Publish Checklist
@@ -308,9 +338,7 @@ git push origin v1.9.3
 
 - **Version management**: `make check-version`, `make bump-*`
 - **Quality checks**: `make validate`, `make pre-commit`
-- **Documentation**: `make docs`, `make docs-build`
-- **Testing**: `make test`, `make coverage`
-
-  alwaysApply: false
+  - **Documentation**: `make docs`, `make docs-build`
+  - **Testing**: `make test`, `make coverage`
 
 ---
