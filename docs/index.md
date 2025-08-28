@@ -24,6 +24,16 @@
 
 **dg-sqlmesh** is a powerful Python package that provides seamless integration between [SQLMesh](https://sqlmesh.com/) and [Dagster](https://dagster.io/), enabling you to orchestrate SQLMesh models as Dagster assets with full support for audits, metadata, and adaptive scheduling.
 
+## 📚 Documentation
+
+**📖 [Full Documentation →](https://fosk06.github.io/dagster-sqlmesh/)**
+
+Our comprehensive documentation includes:
+- **Getting Started** - Installation and setup guides
+- **User Guide** - Core concepts and architecture
+- **Examples** - Practical usage patterns
+- **Development** - Contributing guidelines
+
 ### 🎯 Key Features
 
 - **Individual Asset Control** : Each SQLMesh model becomes a separate Dagster asset
@@ -81,9 +91,9 @@ defs = sqlmesh_definitions_factory(
 
 <div class="version-info" markdown>
 
-**Latest Release**: [v1.9.1](https://github.com/fosk06/dagster-sqlmesh/releases/tag/v1.9.1)
+**Latest Release**: [v1.9.2](https://github.com/fosk06/dagster-sqlmesh/releases/tag/v1.9.2)
 
-**Features**: Simplified console inheritance, improved maintainability, and enhanced error handling
+**Features**: Complete documentation system, GitHub Pages infrastructure, and improved maintainability
 
 </div>
 
@@ -93,7 +103,7 @@ Ready to begin? Choose your path:
 
 - **[Installation Guide](getting-started/installation.md)** - Set up dg-sqlmesh in your environment
 - **[Quick Start Tutorial](getting-started/quick-start.md)** - Build your first integration in minutes
-- **[Configuration Guide](getting-started/configuration.md)** - Learn about all configuration options
+- **[User Guide](user-guide/core-concepts.md)** - Learn about core concepts and architecture
 
 ## Community & Support
 
@@ -106,6 +116,6 @@ Ready to begin? Choose your path:
 
 <div class="admonition tip" markdown>
 
-**Pro Tip**: Check out our [examples](examples/basic-usage.md) for ready-to-use code snippets and [troubleshooting guide](troubleshooting/common-issues.md) for common solutions.
+**Pro Tip**: Check out our [examples](examples/basic-usage.md) for ready-to-use code snippets and comprehensive documentation.
 
 </div>
