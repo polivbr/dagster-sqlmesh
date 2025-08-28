@@ -29,6 +29,7 @@
 **📖 [Full Documentation →](https://fosk06.github.io/dagster-sqlmesh/)**
 
 Our comprehensive documentation includes:
+
 - **Getting Started** - Installation and setup guides
 - **User Guide** - Core concepts and architecture
 - **Examples** - Practical usage patterns
