@@ -2,19 +2,19 @@
 
 <div class="grid cards" markdown>
 
-- :fontawesome-solid-rocket: **[Quick Start](getting-started/quick-start.md)**
+- 🚀 **[Quick Start](getting-started/quick-start.md)**
 
   Get up and running with dg-sqlmesh in minutes. Learn the basics and create your first SQLMesh-Dagster integration.
 
-- :fontawesome-solid-book: **[User Guide](user-guide/core-concepts.md)**
+- 📚 **[User Guide](user-guide/core-concepts.md)**
 
   Comprehensive guide covering all aspects of SQLMesh integration with Dagster, from basic concepts to advanced features.
 
-- :fontawesome-solid-code: **[API Reference](api/factory-functions.md)**
+- 🔧 **[API Reference](api/factory-functions.md)**
 
   Complete API documentation for all functions, classes, and methods in the dg-sqlmesh package.
 
-- :fontawesome-solid-lightbulb: **[Examples](examples/basic-usage.md)**
+- 💡 **[Examples](examples/basic-usage.md)**
 
   Practical examples and code samples showing how to use dg-sqlmesh in real-world scenarios.
 
