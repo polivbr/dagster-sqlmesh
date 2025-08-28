@@ -38,7 +38,7 @@ make docs
 ```
 Runs: clean → build → validation check
 
-## 🔧 Makefile Commands
+## 🔧 Make Commands
 
 The [Makefile](mdc:Makefile) provides several documentation-related commands:
 
@@ -133,3 +133,96 @@ make docs-serve
 - [.github/workflows/docs.yml](mdc:.github/workflows/docs.yml) - Deployment workflow
 - [Makefile](mdc:Makefile) - Build commands
 - [docs/](mdc:docs/) - Documentation source files
+
+## 📖 Documentation Content Guidelines
+
+### Writing Style
+- Use clear, concise language
+- Include code examples where helpful
+- Use emojis sparingly but effectively
+- Maintain consistent formatting
+
+### Code Examples
+- Use proper syntax highlighting
+- Include complete, runnable examples
+- Show both simple and advanced use cases
+- Test all code examples locally
+
+### Structure
+- Start with overview and quick start
+- Progress from basic to advanced concepts
+- Include troubleshooting sections
+- Provide clear navigation between sections
+
+## 🎨 MkDocs Configuration
+
+### Theme Settings
+The documentation uses Material for MkDocs with:
+- **Navigation**: Sidebar with search
+- **Responsive design**: Mobile and desktop optimized
+- **Code highlighting**: Syntax highlighting for all languages
+- **Search**: Full-text search across documentation
+
+### Plugins
+- **git-revision-date-localized**: Shows last update dates
+- **minify**: Optimizes HTML output
+- **search**: Full-text search functionality
+
+## 🚀 Advanced Features
+
+### Custom CSS/JS
+Add custom styling in `docs/stylesheets/extra.css`:
+```css
+/* Custom styles for documentation */
+.version-info {
+    background: #f0f0f0;
+    padding: 1rem;
+    border-radius: 4px;
+}
+```
+
+### Custom Admonitions
+Use Material theme admonitions:
+```markdown
+!!! note "Note"
+    This is a note with custom styling.
+
+!!! warning "Warning"
+    This is a warning message.
+
+!!! tip "Pro Tip"
+    This is a helpful tip.
+```
+
+### Navigation Customization
+Customize navigation in `mkdocs.yml`:
+```yaml
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quick-start.md
+  - User Guide: user-guide/core-concepts.md
+  - Examples: examples/basic-usage.md
+  - Development: development/contributing.md
+```
+
+## 🔍 Quality Assurance
+
+### Link Validation
+```bash
+make docs-quality
+```
+Checks for broken links and build issues.
+
+### Content Review
+- Review all documentation before pushing
+- Ensure examples are up-to-date
+- Check for typos and formatting issues
+- Verify all links work correctly
+
+### Performance
+- Keep images optimized
+- Minimize custom CSS/JS
+- Use efficient Markdown syntax
+- Regular cleanup of unused files

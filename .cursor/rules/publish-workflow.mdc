@@ -1,150 +1,311 @@
----
-description: Publish Workflow for dg-sqlmesh module
-alwaysApply: false
----
-
 # Publish Workflow for dg-sqlmesh
 
-## Overview
+This rule explains how to publish new versions of dg-sqlmesh to PyPI.
 
-This rule documents the correct workflow for publishing the `dg-sqlmesh` package to PyPI, ensuring all changes are properly committed and synchronized.
+## 🚀 Quick Publish Commands
 
-## Correct Publish Workflow
-
-### 1. Make Changes
-
-- Update code, documentation, or configuration
-- Test changes locally
-- Ensure all tests pass
-
-### 2. Commit Changes
+### Patch Release (Recommended for Documentation/Infrastructure)
 
 ```bash
-git add .
-git commit -m "descriptive message about changes"
-git push
+make release-patch  # Clean + bump-patch + build + publish
 ```
 
-### 3. Release to PyPI
+### Minor Release (New Features)
 
 ```bash
-make release-patch    # For patch releases (1.2.0 -> 1.2.1)
-make release-minor    # For minor releases (1.2.0 -> 1.3.0)
-make release-major    # For major releases (1.2.0 -> 2.0.0)
+make release-minor  # Clean + bump-minor + build + publish
 ```
 
-**Important**: The release commands automatically:
-
-- Clean build artifacts
-- Bump version in [pyproject.toml](mdc:pyproject.toml) and [src/dg_sqlmesh/**init**.py](mdc:src/dg_sqlmesh/__init__.py)
-- Build package (source + wheel)
-- Publish to PyPI
-
-### 4. Commit Version Bump
+### Major Release (Breaking Changes)
 
 ```bash
-git add .
-git commit -m "chore: bump version to X.Y.Z after PyPI release"
-git push
+make release-major  # Clean + bump-major + build + publish
 ```
 
-### 5. Merge to main and tag the release
+## 📋 Pre-Publish Checklist
+
+### 1. Check Current Version
 
 ```bash
-git checkout main
-git merge <dev-branch>
-git tag -a vX.Y.Z -m "Release X.Y.Z"
-git push origin vX.Y.Z
+make check-version
 ```
 
-## Available Makefile Commands
+Verify the version in both `pyproject.toml` and `src/dg_sqlmesh/__init__.py`
 
-### Version Management
-
-- `make bump-patch` - Bump patch version (1.2.0 -> 1.2.1)
-- `make bump-minor` - Bump minor version (1.2.0 -> 1.3.0)
-- `make bump-major` - Bump major version (1.2.0 -> 2.0.0)
-- `make check-version` - Show current version
-
-### Release Commands
-
-- `make release-patch` - Complete patch release workflow
-- `make release-minor` - Complete minor release workflow
-- `make release-major` - Complete major release workflow
-
-### Development Commands
-
-- `make build` - Build package only
-- `make clean` - Clean build artifacts
-- `make publish` - Publish to PyPI only (requires UV_PUBLISH_TOKEN)
-- `make test` - Run tests
-- `make ruff` - Lint code
-- `make format` - Format code
-- `make lint` - Lint and format code
-
-## Common Mistakes to Avoid
-
-### ❌ Wrong Order
+### 2. Validate Package
 
 ```bash
-# DON'T: Make changes, then immediately release
-make release-patch
-git add .
-git commit -m "changes"
+make validate  # Clean + build + test + ruff + vulture
 ```
 
-### ✅ Correct Order
+Ensures the package is ready for publication
+
+### 3. Check Publish Configuration
 
 ```bash
-# DO: Commit changes first, then release
-git add .
-git commit -m "changes"
-git push
-make release-patch
-git add .
-git commit -m "chore: bump version to X.Y.Z after PyPI release"
-git push
+make check-publish
 ```
 
-### ❌ Forgetting Version Commit
+Verifies that `UV_PUBLISH_TOKEN` is set correctly
 
-The release commands automatically bump version, so you must commit the version changes after publishing.
+## 🔧 Manual Publish Commands
 
-## Environment Setup
+### Build Package
+
+```bash
+make build
+```
+
+Creates both source distribution (`.tar.gz`) and wheel (`.whl`) in `dist/` directory
+
+### Publish to PyPI
+
+```bash
+make publish
+```
+
+Publishes using `UV_PUBLISH_TOKEN` environment variable
+
+### Alternative: Username/Password
+
+```bash
+make publish-auth
+```
+
+Publishes using `UV_PUBLISH_USERNAME` and `UV_PUBLISH_PASSWORD`
+
+## 🌐 Environment Configuration
 
 ### Required Environment Variables
 
-- `UV_PUBLISH_TOKEN` - PyPI API token for publishing
-- Or `UV_PUBLISH_USERNAME` + `UV_PUBLISH_PASSWORD` for username/password auth
-
-### Configuration
-
-- Store credentials in `.env` file (not committed to git)
-- Or export environment variables directly
-
-## Package Information
-
-- **Name**: dg-sqlmesh
-- **PyPI**: https://pypi.org/project/dg-sqlmesh/
-- **GitHub**: https://github.com/fosk06/dagster-sqlmesh
-- **Documentation**: README.md (exposed on PyPI)
-
-## Quality Checks
-
-Before publishing, run:
+Set these in your `.env` file or export them:
 
 ```bash
-make validate  # Runs: clean build test ruff vulture
+# Token-based authentication (recommended)
+UV_PUBLISH_TOKEN=your_pypi_token_here
+
+# OR username/password authentication
+UV_PUBLISH_USERNAME=your_username
+UV_PUBLISH_PASSWORD=your_password
 ```
 
-This ensures:
+### Environment File Setup
 
-- All tests pass
-- Code is properly linted
-- No dead code detected
-- Package builds successfully
-  description:
-  globs:
+Create a `.env` file in the project root:
+
+```bash
+# .env
+UV_PUBLISH_TOKEN=pypi_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+## 📦 Package Building
+
+### Clean Build
+
+```bash
+make clean  # Remove previous builds
+make build  # Create new package
+```
+
+### Build Artifacts
+
+The build process creates:
+
+- `dg_sqlmesh-{version}.tar.gz` - Source distribution
+- `dg_sqlmesh-{version}-py3-none-any.whl` - Universal wheel
+
+### Build Validation
+
+```bash
+# Check build artifacts
+ls -la dist/
+
+# Verify package structure
+tar -tzf dist/dg_sqlmesh-*.tar.gz | head -20
+```
+
+## 🧪 Pre-Publish Testing
+
+### Full Validation Pipeline
+
+```bash
+make validate
+```
+
+Runs: clean → build → test → ruff → vulture
+
+### CI/CD Simulation
+
+```bash
+make ci-test
+```
+
+Simulates the GitHub Actions workflow locally
+
+### Pre-commit Checks
+
+```bash
+make pre-commit
+```
+
+Runs: lint → test → vulture → security
+
+## 🔒 Security and Quality
+
+### Security Audit
+
+```bash
+make security
+```
+
+Runs: pip-audit + safety + license compliance
+
+### Code Quality
+
+```bash
+make lint      # ruff check + format
+make vulture   # Dead code detection
+make test      # Test suite
+```
+
+## 📝 Release Process
+
+### 1. Version Bumping
+
+#### Patch Version (1.9.2 → 1.9.3)
+
+```bash
+make bump-patch
+```
+
+For bug fixes, documentation updates, and minor improvements
+
+#### Minor Version (1.9.2 → 1.10.0)
+
+```bash
+make bump-minor
+```
+
+For new features and non-breaking changes
+
+#### Major Version (1.9.2 → 2.0.0)
+
+```bash
+make bump-major
+```
+
+For breaking changes and major architectural updates
+
+### 2. Build and Test
+
+```bash
+make validate  # Full validation
+```
+
+### 3. Publish
+
+```bash
+make publish  # Publish to PyPI
+```
+
+### 4. Verify
+
+```bash
+# Check PyPI
+pip install --upgrade dg-sqlmesh
+
+# Verify version
+python -c "import dg_sqlmesh; print(dg_sqlmesh.__version__)"
+```
+
+## 🚨 Troubleshooting
+
+### Common Issues
+
+#### Missing Token
+
+```bash
+❌ Error: UV_PUBLISH_TOKEN environment variable not set
+```
+
+**Solution**: Set `UV_PUBLISH_TOKEN` in `.env` file or export it
+
+#### Build Failures
+
+```bash
+# Clean and retry
+make clean
+make build
+```
+
+#### Test Failures
+
+```bash
+# Run tests individually
+make test
+make ruff
+make vulture
+```
+
+#### Publish Failures
+
+```bash
+# Check PyPI status
+# Verify token permissions
+# Check package name availability
+```
+
+### Debug Commands
+
+```bash
+# Check environment
+make check-publish
+
+# Verify package structure
+make check
+
+# Test build process
+make clean build
+```
+
+## 📋 Post-Publish Tasks
+
+### 1. Create GitHub Release
+
+```bash
+# Tag the release
+git tag -a v1.9.3 -m "Release v1.9.3: [description]"
+git push origin v1.9.3
+```
+
+### 2. Update Documentation
+
+- Update version badges in README.md
+- Update version in docs/index.md
+- Commit and push changes
+
+### 3. Verify PyPI
+
+- Check package on [PyPI](https://pypi.org/project/dg-sqlmesh/)
+- Verify installation: `pip install dg-sqlmesh==1.9.3`
+
+## 🎯 Best Practices
+
+1. **Always validate** before publishing: `make validate`
+2. **Use semantic versioning** for version bumps
+3. **Test locally** before publishing
+4. **Keep `.env` secure** and never commit tokens
+5. **Verify publication** on PyPI after release
+6. **Create GitHub releases** for all published versions
+7. **Update documentation** with new version information
+
+## 🔗 Related Commands
+
+- **Version management**: `make check-version`, `make bump-*`
+- **Quality checks**: `make validate`, `make pre-commit`
+- **Documentation**: `make docs`, `make docs-build`
+- **Testing**: `make test`, `make coverage`
+
   alwaysApply: false
 
 ---

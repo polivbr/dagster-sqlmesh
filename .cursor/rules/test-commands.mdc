@@ -1,7 +1,3 @@
----
-description: Test commands for dg-sqlmesh module
-alwaysApply: false
----
 
 # Test Commands for dg-sqlmesh
 
@@ -12,38 +8,52 @@ Always use the [Makefile](mdc:Makefile) for testing tasks:
 ```bash
 # Basic testing
 make test                    # Run all tests
-make test-core              # Run core component tests
-make test-integration       # Run integration tests
-make test-coverage          # Run tests with coverage report
+make coverage                # Run tests with coverage report
 
-# Specific test files
-make test-factory           # Test factory functions
-make test-resource          # Test SQLMeshResource
-make test-translator        # Test SQLMeshTranslator
-make test-console           # Test event console
+# Code quality (pre-test)
+make lint                    # Lint and format code
+make ruff                    # Lint code with ruff
+make format                  # Format code with ruff
+make vulture                 # Detect dead code
 
-# Development testing
-make test-watch             # Run tests in watch mode
-make test-debug             # Run tests with debug output
-make test-verbose           # Run tests with verbose output
+# Full validation
+make validate                # Full validation (clean + build + test + ruff + vulture)
+make pre-commit              # Pre-commit checks (lint + test + vulture + security)
 ```
 
 ## Manual Test Commands
 
+### Running Tests with uv
+
+```bash
+# Run all tests
+uv run --group dev pytest tests/ -v
+
+# Run specific test categories
+uv run --group dev pytest tests/unit/ -v
+uv run --group dev pytest tests/integration/ -v
+
+# Run tests with coverage
+uv run --group dev coverage run -m pytest tests/ -v
+uv run --group dev coverage report --show-missing
+uv run --group dev coverage html
+
+# Run specific test files
+uv run --group dev pytest tests/unit/test_factory.py -v
+uv run --group dev pytest tests/integration/test_asset_execution.py -v
+```
+
 ### SQLMesh Integration Testing
 
 ```bash
-# Test SQLMesh project setup
+# Test SQLMesh project setup (if test project exists)
 uv run --group dev sqlmesh -p tests/sqlmesh_project plan --no-prompts
 
-# Test SQLMesh execution
+# Test SQLMesh execution (if test project exists)
 uv run --group dev sqlmesh -p tests/sqlmesh_project run --no-prompts
 
-# Test SQLMesh with specific models
+# Test SQLMesh with specific models (if test project exists)
 uv run --group dev sqlmesh -p tests/sqlmesh_project run --models stg_customers,stg_orders --no-prompts
-
-# Test SQLMesh audits
-uv run --group dev sqlmesh -p tests/sqlmesh_project run --models customers --no-prompts
 ```
 
 ### Dagster Integration Testing
@@ -69,29 +79,18 @@ for asset in assets:
 "
 ```
 
-### Event Console Testing
-
-```bash
-# Test event capture
-uv run --group dev python -c "
-from dg_sqlmesh.sqlmesh_event_console import SQLMeshEventCaptureConsole
-console = SQLMeshEventCaptureConsole()
-print('Event console created successfully')
-print(f'Failed events: {len(console.get_failed_models_events())}')
-print(f'Skipped events: {len(console.get_skipped_models_events())}')
-print(f'Evaluation events: {len(console.get_evaluation_events())}')
-"
-```
-
 ## Test Data Management
 
 ### Load Test Data
 
 ```bash
-# Load Jaffle Shop data
+# Load Jaffle Shop data (if test data exists)
 uv run --group dev python tests/load_jaffle_data.py
 
-# Verify data loading
+# Generate test data (if needed)
+uv run --group dev python tests/generate_test_data.py
+
+# Verify data loading (if test database exists)
 uv run --group dev python -c "
 import duckdb
 conn = duckdb.connect('tests/sqlmesh_project/jaffle_test.db')
@@ -101,256 +100,125 @@ print('Items:', conn.execute('SELECT COUNT(*) FROM main.raw_source_items').fetch
 "
 ```
 
-### Clean Test Data
+## Test Configuration
 
-```bash
-# Clean test database
-rm -f tests/sqlmesh_project/jaffle_test.db
+### pytest.ini
 
-# Recreate test environment
-uv run --group dev sqlmesh -p tests/sqlmesh_project plan dev --no-prompts
-uv run --group dev sqlmesh -p tests/sqlmesh_project invalidate dev
+The project uses [pytest.ini](mdc:pytest.ini) for test configuration:
+
+```ini
+[tool:pytest]
+addopts = 
+    -W ignore::DeprecationWarning
+    -W ignore::pydantic.warnings.PydanticDeprecatedSince20
+    -W ignore::UserWarning
+    --disable-warnings
+testpaths = tests
+python_files = test_*.py
+python_classes = Test*
+python_functions = test_*
+markers =
+    core: mark test as core functionality test
+    unit: mark test as unit test
+    integration: mark test as integration test
 ```
 
-## Individual Asset Testing
+### Test Structure
 
-### Test Asset Creation
+Tests are organized in the [tests/](mdc:tests/) directory:
 
-```bash
-# Test individual asset creation
-uv run --group dev python -c "
-from dg_sqlmesh import sqlmesh_assets_factory, SQLMeshResource
-resource = SQLMeshResource(project_dir='tests/sqlmesh_project', gateway='duckdb')
-assets = sqlmesh_assets_factory(sqlmesh_resource=resource)
+- **Unit tests**: [tests/unit/](mdc:tests/unit/) - Individual component testing
+- **Integration tests**: [tests/integration/](mdc:tests/integration/) - End-to-end testing
+- **Fixtures**: [tests/fixtures/](mdc:tests/fixtures/) - Test data and configurations
+- **Test utilities**: [tests/conftest.py](mdc:tests/conftest.py) - Shared test configurations
 
-# Verify individual assets
-for asset in assets:
-    print(f'Asset: {asset.key}')
-    print(f'  Group: {asset.group_name}')
-    print(f'  Checks: {len(asset.check_specs) if asset.check_specs else 0}')
-    print(f'  Tags: {asset.tags}')
-    print()
-"
-```
+## Test Execution Patterns
 
-### Test Shared Execution
+### Individual Test Execution
 
 ```bash
-# Test SQLMeshResultsResource
-uv run --group dev python -c "
-from dg_sqlmesh.factory import SQLMeshResultsResource
-resource = SQLMeshResultsResource()
+# Run specific test function
+uv run --group dev pytest tests/unit/test_factory.py::test_sqlmesh_definitions_factory -v
 
-# Test results storage
-resource.store_results('test_run', {'data': 'test'})
-print('Results stored:', resource.has_results('test_run'))
+# Run tests matching pattern
+uv run --group dev pytest -k "factory" -v
 
-# Test results retrieval
-results = resource.get_results('test_run')
-print('Results retrieved:', results)
-
-# Test non-existent run
-print('Non-existent run:', resource.has_results('non_existent'))
-"
+# Run tests with specific marker
+uv run --group dev pytest -m "unit" -v
+uv run --group dev pytest -m "integration" -v
 ```
 
-## Run materialization with command line
+### Debug Testing
 
 ```bash
-# in the folder of your dagster project
-uv run dg launch --assets "jaffle_db/sqlmesh_jaffle_platform/stg_tweets"
-# run materialization for all sqlmesh assets using search string like in the UI
-uv run dg asset materialize --select 'kind:"sqlmesh" and tag:"sqlmesh"'
+# Run tests with debug output
+uv run --group dev pytest tests/ -v -s
+
+# Run tests with maximum verbosity
+uv run --group dev pytest tests/ -vvv
+
+# Run tests and stop on first failure
+uv run --group dev pytest tests/ -x
 ```
 
-## Integration Testing
-
-### Test Complete Integration
-
-```bash
-# Test complete integration
-uv run --group dev python -c "
-from dg_sqlmesh import sqlmesh_definitions_factory
-defs = sqlmesh_definitions_factory(
-    project_dir='tests/sqlmesh_project',
-    gateway='duckdb',
-    enable_schedule=False
-)
-
-print('=== Integration Test Results ===')
-print(f'Assets created: {len(defs.assets)}')
-print(f'Resources configured: {list(defs.resources.keys())}')
-print(f'Jobs created: {list(defs.jobs.keys())}')
-
-# Verify SQLMeshResultsResource is included
-assert 'sqlmesh_results' in defs.resources, 'SQLMeshResultsResource not found'
-print('✅ SQLMeshResultsResource configured')
-
-# Verify no retry tags
-for asset in defs.assets:
-    assert asset.tags.get('dagster/max_retries') == '0', f'Asset {asset.key} missing max_retries tag'
-    assert asset.tags.get('dagster/retry_on_asset_or_op_failure') == 'false', f'Asset {asset.key} missing retry_on_asset_or_op_failure tag'
-print('✅ No retry tags configured')
-"
-```
-
-### Test External Assets
-
-```bash
-# Test external asset handling
-uv run --group dev python -c "
-from dg_sqlmesh.translator import SQLMeshTranslator
-translator = SQLMeshTranslator()
-
-# Test external asset key mapping
-external_key = translator.get_external_asset_key('\"main\".\"external\".\"customers\"')
-print('External asset key:', external_key)
-
-# Test tag convention
-class MockModel:
-    def __init__(self, tags):
-        self.tags = tags
-
-model = MockModel({
-    'dagster:group_name:custom_group',
-    'dagster:owner:data_team',
-    'production'
-})
-
-group_name = translator._get_dagster_property_from_tags(model, 'group_name')
-owner = translator._get_dagster_property_from_tags(model, 'owner')
-print(f'Group name from tag: {group_name}')
-print(f'Owner from tag: {owner}')
-"
-```
-
-## Error Handling Testing
-
-### Test No Retry Policy
-
-```bash
-# Test no retry policy
-uv run --group dev python -c "
-from dg_sqlmesh import sqlmesh_assets_factory, SQLMeshResource
-resource = SQLMeshResource(project_dir='tests/sqlmesh_project', gateway='duckdb')
-assets = sqlmesh_assets_factory(sqlmesh_resource=resource)
-
-# Verify no retry tags
-for asset in assets:
-    assert asset.tags.get('dagster/max_retries') == '0', f'Asset {asset.key} missing max_retries tag'
-    assert asset.tags.get('dagster/retry_on_asset_or_op_failure') == 'false', f'Asset {asset.key} missing retry_on_asset_or_op_failure tag'
-
-print('✅ All assets have no retry tags configured')
-"
-```
-
-### Test Exception Handling
-
-```bash
-# Test SQLMesh exception handling
-uv run --group dev python -c "
-from dg_sqlmesh import SQLMeshResource
-from sqlmesh.core.errors import CircuitBreakerError, PlanError
-
-resource = SQLMeshResource(project_dir='tests/sqlmesh_project', gateway='duckdb')
-
-try:
-    # This might fail depending on environment
-    resource.plan()
-    print('✅ Plan executed successfully')
-except (CircuitBreakerError, PlanError) as e:
-    print(f'✅ SQLMesh exception handled: {type(e).__name__}')
-except Exception as e:
-    print(f'⚠️ Unexpected exception: {type(e).__name__}: {e}')
-"
-```
-
-## Performance Testing
-
-### Test Execution Performance
-
-```bash
-# Test SQLMesh execution performance
-uv run --group dev python -c "
-import time
-from dg_sqlmesh import SQLMeshResource
-
-resource = SQLMeshResource(project_dir='tests/sqlmesh_project', gateway='duckdb')
-
-# Measure execution time
-start_time = time.time()
-try:
-    resource.plan()
-    execution_time = time.time() - start_time
-    print(f'SQLMesh plan execution time: {execution_time:.2f} seconds')
-
-    if execution_time < 30:
-        print('✅ Execution time is reasonable')
-    else:
-        print('⚠️ Execution time is slow')
-except Exception as e:
-    print(f'❌ Execution failed: {e}')
-"
-```
-
-## Coverage Testing
-
-### Run Coverage Report
+### Coverage Testing
 
 ```bash
 # Generate coverage report
-PYTHONPATH=src uv run --group dev pytest tests/ --cov=dg_sqlmesh --cov-report=html --cov-report=term
+make coverage
 
 # View coverage in browser
 open htmlcov/index.html
+
+# Generate coverage badge (if needed)
+uv run --group dev coverage-badge -o coverage-badge.svg
 ```
 
-### Coverage Analysis
+## Test Development
+
+### Adding New Tests
+
+1. **Unit tests**: Add to [tests/unit/](mdc:tests/unit/) for individual components
+2. **Integration tests**: Add to [tests/integration/](mdc:tests/integration/) for end-to-end scenarios
+3. **Fixtures**: Add to [tests/fixtures/](mdc:tests/fixtures/) for shared test data
+4. **Configuration**: Update [tests/conftest.py](mdc:tests/conftest.py) for shared test setup
+
+### Test Naming Convention
+
+- **Files**: `test_*.py`
+- **Classes**: `Test*`
+- **Functions**: `test_*`
+- **Markers**: Use appropriate markers (`@pytest.mark.unit`, `@pytest.mark.integration`)
+
+### Test Data Management
+
+- **Test data**: Use [tests/load_jaffle_data.py](mdc:tests/load_jaffle_data.py) for data loading
+- **Fixtures**: Use pytest fixtures for reusable test data
+- **Cleanup**: Ensure tests clean up after themselves
+- **Isolation**: Tests should be independent and not rely on external state
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Import errors**: Ensure `PYTHONPATH=src` or use `uv run --group dev`
+2. **Missing dependencies**: Run `uv sync --group dev` to install all dev dependencies
+3. **Test failures**: Check test data and SQLMesh project configuration
+4. **Coverage issues**: Ensure tests are in the correct directory structure
+
+### Debug Commands
 
 ```bash
-# Analyze coverage by module
-uv run --group dev python -c "
-import coverage
-cov = coverage.Coverage()
-cov.load()
-print('Coverage by module:')
-for filename in cov.get_data().measured_files():
-    if 'dg_sqlmesh' in filename:
-        percent = cov.analysis2(filename)[1]
-        print(f'{filename}: {percent:.1f}%')
-"
+# Check test discovery
+uv run --group dev pytest --collect-only
+
+# Check test configuration
+uv run --group dev pytest --version
+
+# Run tests with specific Python path
+PYTHONPATH=src uv run --group dev pytest tests/ -v
 ```
 
-## Debug Testing
-
-### Debug Asset Creation
-
-```bash
-# Debug asset creation with verbose logging
-uv run --group dev python -c "
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
-from dg_sqlmesh import sqlmesh_assets_factory, SQLMeshResource
-resource = SQLMeshResource(project_dir='tests/sqlmesh_project', gateway='duckdb')
-assets = sqlmesh_assets_factory(sqlmesh_resource=resource)
-
-print(f'Created {len(assets)} assets with debug logging')
-"
-```
-
-### Debug Event Capture
-
-```bash
-# Debug event capture
-uv run --group dev python -c "
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
-from dg_sqlmesh.sqlmesh_event_console import SQLMeshEventCaptureConsole
-console = SQLMeshEventCaptureConsole()
-
-print('Event console created with debug logging')
 print(f'Event handlers: {len(console._handlers)}')
 "
 ```
