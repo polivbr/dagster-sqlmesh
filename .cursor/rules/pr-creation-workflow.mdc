@@ -1,3 +1,7 @@
+---
+description: PR Creation Workflow for dg-sqlmesh
+alwaysApply: false
+---
 
 # PR Creation Workflow for dg-sqlmesh
 
@@ -6,6 +10,7 @@ This rule explains the complete workflow for creating and managing Pull Requests
 ## 🚀 Quick PR Creation
 
 ### 1. Create Feature Branch
+
 ```bash
 # Delete old branch if exists
 git branch -D feat/your-feature-name
@@ -15,6 +20,7 @@ git checkout -b feat/your-feature-name
 ```
 
 ### 2. Make Changes and Test
+
 ```bash
 # Make your changes
 # Test locally
@@ -22,6 +28,7 @@ make dev-quick  # lint + test + docs-build
 ```
 
 ### 3. Create PR
+
 ```bash
 # Commit changes
 git add .
@@ -37,6 +44,7 @@ gh pr create --title "feat: [description]" --body "[detailed description]" --dra
 ## 📋 Pre-PR Checklist
 
 ### Code Quality
+
 ```bash
 # Run all quality checks
 make dev-quick  # lint + test + docs-build
@@ -48,6 +56,7 @@ make docs-build  # Build documentation
 ```
 
 ### Full Validation (Recommended)
+
 ```bash
 make dev-full   # install-dev + test + lint + vulture + docs
 ```
@@ -55,18 +64,23 @@ make dev-full   # install-dev + test + lint + vulture + docs
 ## 🔧 Make Commands for PR Preparation
 
 ### Quick Development Check
+
 ```bash
 make dev-quick  # lint + test + docs-build
 ```
+
 Fast validation for most changes
 
 ### Full Development Workflow
+
 ```bash
 make dev-full   # install-dev + test + lint + vulture + docs
 ```
+
 Complete validation including dead code detection
 
 ### Individual Checks
+
 ```bash
 make lint       # Code linting and formatting
 make test       # Test execution
@@ -77,6 +91,7 @@ make docs       # Documentation build and validation
 ## 📝 PR Template and Guidelines
 
 ### PR Title Format
+
 ```
 type: brief description
 
@@ -88,22 +103,27 @@ refactor: simplify factory functions
 ```
 
 ### PR Body Structure
+
 ```markdown
 ## Overview
+
 Brief description of what this PR accomplishes
 
 ## 🎯 What's New
+
 - Feature 1
 - Feature 2
 - Improvement 3
 
 ## 🧪 Testing
+
 - [ ] Unit tests pass
 - [ ] Integration tests pass
 - [ ] Documentation builds
 - [ ] Code quality checks pass
 
 ## 📋 Checklist
+
 - [ ] Code follows project standards
 - [ ] Tests added/updated
 - [ ] Documentation updated
@@ -114,11 +134,13 @@ Brief description of what this PR accomplishes
 ## 🌐 GitHub PR Management
 
 ### Create PR
+
 ```bash
 gh pr create --title "feat: [description]" --body "[body]" --draft
 ```
 
 ### Update PR
+
 ```bash
 # Update title
 gh pr edit --title "New Title"
@@ -131,6 +153,7 @@ gh pr edit --add-reviewer username1,username2
 ```
 
 ### PR Status
+
 ```bash
 # Check PR status
 gh pr view
@@ -145,6 +168,7 @@ gh pr view --web
 ## 🔍 PR Review Process
 
 ### Self-Review Checklist
+
 - [ ] **Code Quality**: Linting and formatting pass
 - [ ] **Tests**: All tests pass locally
 - [ ] **Documentation**: Updated if needed
@@ -152,6 +176,7 @@ gh pr view --web
 - [ ] **Performance**: No obvious performance issues
 
 ### Review Request
+
 ```bash
 # Mark as ready for review
 gh pr ready
@@ -163,6 +188,7 @@ gh pr edit --add-reviewer @fosk06
 ## 🚨 Common Issues and Solutions
 
 ### Failed Checks
+
 ```bash
 # Check what failed
 gh pr checks
@@ -175,6 +201,7 @@ git push origin feat/your-feature-name
 ```
 
 ### Merge Conflicts
+
 ```bash
 # Update branch with main
 git checkout main
@@ -189,6 +216,7 @@ git push origin feat/your-feature-name --force-with-lease
 ```
 
 ### Documentation Issues
+
 ```bash
 # Test documentation locally
 make docs-serve  # http://localhost:8000
@@ -203,6 +231,7 @@ git push origin feat/your-feature-name
 ## 📚 Documentation PRs
 
 ### Documentation Changes
+
 ```bash
 # Test documentation locally
 make docs-serve
@@ -215,6 +244,7 @@ git commit -m "docs: [description of documentation changes]"
 ```
 
 ### Documentation Structure
+
 - **Getting Started**: Installation and setup guides
 - **User Guide**: Core concepts and architecture
 - **Examples**: Code examples and usage patterns
@@ -223,27 +253,33 @@ git commit -m "docs: [description of documentation changes]"
 ## 🔄 PR Lifecycle
 
 ### 1. Draft Phase
+
 ```bash
 gh pr create --draft
 ```
+
 - Work in progress
 - Not ready for review
 - Can push updates
 
 ### 2. Ready for Review
+
 ```bash
 gh pr ready
 ```
+
 - Ready for reviewer feedback
 - All checks should pass
 - Documentation updated
 
 ### 3. Review Phase
+
 - Address reviewer comments
 - Push updates as needed
 - Ensure all checks pass
 
 ### 4. Ready to Merge
+
 - All checks pass
 - All reviewers approve
 - No merge conflicts
@@ -251,6 +287,7 @@ gh pr ready
 ## 🎯 Best Practices
 
 ### Branch Naming
+
 ```bash
 # Feature branches
 feat/add-new-feature
@@ -270,6 +307,7 @@ refactor/cleanup-code
 ```
 
 ### Commit Messages
+
 ```bash
 # Use conventional commits
 feat: add new SQLMesh model support
@@ -281,6 +319,7 @@ chore: update dependencies
 ```
 
 ### PR Size
+
 - **Small PRs** (< 200 lines): Easier to review and merge
 - **Medium PRs** (200-500 lines): Break down if possible
 - **Large PRs** (> 500 lines): Consider splitting into multiple PRs
@@ -288,11 +327,13 @@ chore: update dependencies
 ## 🚀 Post-PR Tasks
 
 ### After Merge
+
 1. **Delete branch**: `git branch -d feat/your-feature-name`
 2. **Update local main**: `git checkout main && git pull origin main`
 3. **Clean up**: Remove any local temporary files
 
 ### Documentation Updates
+
 - Update version if needed
 - Update badges in README.md
 - Ensure GitHub Pages documentation is current
@@ -304,5 +345,348 @@ chore: update dependencies
 - **Documentation**: `make docs`, `make docs-serve`
 - **GitHub**: `gh pr create`, `gh pr view`, `gh pr edit`
 
+**Remember: The goal is to catch issues locally before they reach CI/CD, saving time and ensuring code quality! 🎯**
+
+# PR Creation Workflow for dg-sqlmesh
+
+This rule explains the complete workflow for creating and managing Pull Requests in the dg-sqlmesh project.
+
+## 🚀 Quick PR Creation
+
+### 1. Create Feature Branch
+
+```bash
+# Delete old branch if exists
+git branch -D feat/your-feature-name
+
+# Create new feature branch
+git checkout -b feat/your-feature-name
+```
+
+### 2. Make Changes and Test
+
+```bash
+# Make your changes
+# Test locally
+make dev-quick  # lint + test + docs-build
+```
+
+### 3. Create PR
+
+```bash
+# Commit changes
+git add .
+git commit -m "feat: [description of your feature]"
+
+# Push branch
+git push origin feat/your-feature-name
+
+# Create PR (GitHub CLI)
+gh pr create --title "feat: [description]" --body "[detailed description]" --draft
+```
+
+## 📋 Pre-PR Checklist
+
+### Code Quality
+
+```bash
+# Run all quality checks
+make dev-quick  # lint + test + docs-build
+
+# Or run individually
+make lint        # ruff check + format
+make test        # Run test suite
+make docs-build  # Build documentation
+```
+
+### Full Validation (Recommended)
+
+```bash
+make dev-full   # install-dev + test + lint + vulture + docs
+```
+
+## 🔧 Make Commands for PR Preparation
+
+### Quick Development Check
+
+```bash
+make dev-quick  # lint + test + docs-build
+```
+
+Fast validation for most changes
+
+### Full Development Workflow
+
+```bash
+make dev-full   # install-dev + test + lint + vulture + docs
+```
+
+Complete validation including dead code detection
+
+### Individual Checks
+
+```bash
+make lint       # Code linting and formatting
+make test       # Test execution
+make vulture    # Dead code detection
+make docs       # Documentation build and validation
+```
+
+## 📝 PR Template and Guidelines
+
+### PR Title Format
+
+```
+type: brief description
+
+Examples:
+feat: add new SQLMesh model support
+fix: resolve asset dependency issue
+docs: update installation guide
+refactor: simplify factory functions
+```
+
+### PR Body Structure
+
+```markdown
+## Overview
+
+Brief description of what this PR accomplishes
+
+## 🎯 What's New
+
+- Feature 1
+- Feature 2
+- Improvement 3
+
+## 🧪 Testing
+
+- [ ] Unit tests pass
+- [ ] Integration tests pass
+- [ ] Documentation builds
+- [ ] Code quality checks pass
+
+## 📋 Checklist
+
+- [ ] Code follows project standards
+- [ ] Tests added/updated
+- [ ] Documentation updated
+- [ ] No breaking changes (or documented)
+- [ ] GitHub Release notes will be updated
+```
+
+## 🌐 GitHub PR Management
+
+### Create PR
+
+```bash
+gh pr create --title "feat: [description]" --body "[body]" --draft
+```
+
+### Update PR
+
+```bash
+# Update title
+gh pr edit --title "New Title"
+
+# Update body
+gh pr edit --body "New body content"
+
+# Add reviewers
+gh pr edit --add-reviewer username1,username2
+```
+
+### PR Status
+
+```bash
+# Check PR status
+gh pr view
+
+# Check checks
+gh pr checks
+
+# Open in browser
+gh pr view --web
+```
+
+## 🔍 PR Review Process
+
+### Self-Review Checklist
+
+- [ ] **Code Quality**: Linting and formatting pass
+- [ ] **Tests**: All tests pass locally
+- [ ] **Documentation**: Updated if needed
+- [ ] **Breaking Changes**: Documented if any
+- [ ] **Performance**: No obvious performance issues
+
+### Review Request
+
+```bash
+# Mark as ready for review
+gh pr ready
+
+# Add specific reviewers
+gh pr edit --add-reviewer @fosk06
+```
+
+## 🚨 Common Issues and Solutions
+
+### Failed Checks
+
+```bash
+# Check what failed
+gh pr checks
+
+# Fix locally and push
+make dev-quick  # or dev-full
+git add .
+git commit -m "fix: [description of fix]"
+git push origin feat/your-feature-name
+```
+
+### Merge Conflicts
+
+```bash
+# Update branch with main
+git checkout main
+git pull origin main
+git checkout feat/your-feature-name
+git rebase main
+
+# Resolve conflicts and continue
+git add .
+git rebase --continue
+git push origin feat/your-feature-name --force-with-lease
+```
+
+### Documentation Issues
+
+```bash
+# Test documentation locally
+make docs-serve  # http://localhost:8000
+
+# Fix and rebuild
+make docs-build
+git add .
+git commit -m "docs: fix [description]"
+git push origin feat/your-feature-name
+```
+
+## 📚 Documentation PRs
+
+### Documentation Changes
+
+```bash
+# Test documentation locally
+make docs-serve
+
+# Build and validate
+make docs
+
+# Commit with docs: prefix
+git commit -m "docs: [description of documentation changes]"
+```
+
+### Documentation Structure
+
+- **Getting Started**: Installation and setup guides
+- **User Guide**: Core concepts and architecture
+- **Examples**: Code examples and usage patterns
+- **Development**: Contributing guidelines
+
+## 🔄 PR Lifecycle
+
+### 1. Draft Phase
+
+```bash
+gh pr create --draft
+```
+
+- Work in progress
+- Not ready for review
+- Can push updates
+
+### 2. Ready for Review
+
+```bash
+gh pr ready
+```
+
+- Ready for reviewer feedback
+- All checks should pass
+- Documentation updated
+
+### 3. Review Phase
+
+- Address reviewer comments
+- Push updates as needed
+- Ensure all checks pass
+
+### 4. Ready to Merge
+
+- All checks pass
+- All reviewers approve
+- No merge conflicts
+
+## 🎯 Best Practices
+
+### Branch Naming
+
+```bash
+# Feature branches
+feat/add-new-feature
+feat/improve-performance
+
+# Bug fixes
+fix/resolve-issue-123
+fix/documentation-typo
+
+# Documentation
+docs/update-installation
+docs/add-examples
+
+# Refactoring
+refactor/simplify-factory
+refactor/cleanup-code
+```
+
+### Commit Messages
+
+```bash
+# Use conventional commits
+feat: add new SQLMesh model support
+fix: resolve asset dependency issue
+docs: update installation guide
+refactor: simplify factory functions
+test: add integration tests
+chore: update dependencies
+```
+
+### PR Size
+
+- **Small PRs** (< 200 lines): Easier to review and merge
+- **Medium PRs** (200-500 lines): Break down if possible
+- **Large PRs** (> 500 lines): Consider splitting into multiple PRs
+
+## 🚀 Post-PR Tasks
+
+### After Merge
+
+1. **Delete branch**: `git branch -d feat/your-feature-name`
+2. **Update local main**: `git checkout main && git pull origin main`
+3. **Clean up**: Remove any local temporary files
+
+### Documentation Updates
+
+- Update version if needed
+- Update badges in README.md
+- Ensure GitHub Pages documentation is current
+
+## 🔗 Related Commands
+
+- **Development**: `make dev-quick`, `make dev-full`
+- **Quality**: `make lint`, `make test`, `make vulture`
+- **Documentation**: `make docs`, `make docs-serve`
+- **GitHub**: `gh pr create`, `gh pr view`, `gh pr edit`
 
 **Remember: The goal is to catch issues locally before they reach CI/CD, saving time and ensuring code quality! 🎯**

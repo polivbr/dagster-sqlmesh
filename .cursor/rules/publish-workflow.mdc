@@ -1,3 +1,8 @@
+---
+description: Publish Workflow for dg-sqlmesh
+alwaysApply: false
+---
+
 # Publish Workflow for dg-sqlmesh
 
 This rule explains how to publish new versions of dg-sqlmesh to PyPI.
