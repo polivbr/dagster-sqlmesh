@@ -4,7 +4,7 @@
 [![Current Version](https://img.shields.io/badge/version-1.9.2-blue.svg)](https://github.com/fosk06/dagster-sqlmesh/releases)
 [![Tests](https://github.com/fosk06/dagster-sqlmesh/workflows/Test%20&%20Quality/badge.svg)](https://github.com/fosk06/dagster-sqlmesh/actions)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg)](https://fosk06.github.io/dagster-sqlmesh/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
 
 A Dagster integration for SQLMesh that provides seamless orchestration of SQLMesh models, schedules, and assets within Dagster workflows.
