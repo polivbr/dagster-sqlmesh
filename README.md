@@ -1,5 +1,7 @@
 # SQLMesh-Dagster Integration
 
+> **Current Version**: 1.9.1 - Featuring simplified console inheritance and improved maintainability
+
 This module provides a complete integration between SQLMesh and Dagster, allowing SQLMesh models to be materialized as Dagster assets with support for audits, metadata, and adaptive scheduling.
 
 ## Features
@@ -41,6 +43,13 @@ This module provides a complete integration between SQLMesh and Dagster, allowin
 - **Extensible translator** : Customizable translator system
 - **Automatic validation** : External dependencies validation
 - **Retry policy** : Centralized retry policy configuration
+
+### 🚀 **Performance & Maintainability (v1.9.1+)**
+
+- **Simplified console inheritance** : Cleaner architecture with better separation of concerns
+- **Optimized execution tracking** : Streamlined console implementations for better performance
+- **Reduced code complexity** : Eliminated redundant code paths and improved maintainability
+- **Enhanced error handling** : More robust execution status tracking and audit result processing
 
 ## SQLMesh Feature Coverage
 
@@ -453,11 +462,12 @@ When determining asset properties, the translator follows this priority:
 - Validates external dependencies
 - Returns Definitions directly
 
-### **SQLMeshEventCaptureConsole**
+### **Console Architecture (v1.9.1+)**
 
-- Custom SQLMesh console to capture events
-- Captures audit results for AssetCheckResult
-- Handles metadata serialization
+- **Simplified inheritance** : `SimpleRunTracker` extends `NoopConsole` for cleaner architecture
+- **Event capture** : Custom SQLMesh console implementations capture events efficiently
+- **Audit result processing** : Streamlined handling of audit results for AssetCheckResult
+- **Metadata serialization** : Optimized metadata handling with better error resilience
 
 ## Plan + Run Architecture
 
@@ -503,6 +513,23 @@ This approach provides granular control while maintaining all SQLMesh integratio
 - **Lazy loading** : Resources are loaded on demand
 - **Early validation** : External dependencies validation before execution
 - **Optimized execution** : SQLMesh automatically skips models that don't need materialization
+
+## Recent Improvements (v1.9.1)
+
+### **Architecture Refactoring**
+
+The latest version includes significant architectural improvements:
+
+- **Console Inheritance Simplification** : `SimpleRunTracker` now extends `NoopConsole` instead of duplicating functionality
+- **Dead Code Elimination** : Removed 515+ lines of unused code for better maintainability
+- **Improved Error Handling** : More robust execution status tracking and audit result processing
+- **Better Separation of Concerns** : Cleaner architecture with reduced complexity
+
+### **Performance Enhancements**
+
+- **Streamlined Execution** : Optimized console implementations for better performance
+- **Reduced Memory Footprint** : Eliminated redundant code paths and unused methods
+- **Enhanced Caching** : Improved resource caching and singleton management
 
 ## Development Workflow
 
@@ -664,7 +691,14 @@ For more details, see the [component documentation](examples/components/sqlmesh_
 ## Installation
 
 ```bash
+# Latest stable version (recommended)
 pip install dg-sqlmesh
+
+# Specific version
+pip install dg-sqlmesh==1.9.1
+
+# Development version
+pip install git+https://github.com/fosk06/dagster-sqlmesh.git
 ```
 
 ## Requirements
@@ -728,6 +762,12 @@ SQLMesh does not encourage running multiple SQLMesh commands in parallel against
 - **Environment management** : SQLMesh CLI or CI/CD
 - **External asset mapping** : Only supports basic Jinja2 templates, complex conditionals may not work as expected
 - **Schedule activation** : Schedules are created but not automatically activated (manual activation required)
+
+### **Recent Improvements (v1.9.1+)**
+
+- **Reduced complexity** : Eliminated many previous limitations through architectural improvements
+- **Better error handling** : More robust execution status tracking reduces edge case failures
+- **Improved maintainability** : Cleaner codebase makes future enhancements easier
 
 ## Troubleshooting
 
