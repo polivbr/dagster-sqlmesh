@@ -701,6 +701,10 @@ pip install dg-sqlmesh==1.9.1
 pip install git+https://github.com/fosk06/dagster-sqlmesh.git
 ```
 
+## Changelog
+
+For a complete history of changes, see the [GitHub Releases](https://github.com/fosk06/dagster-sqlmesh/releases) page. Each release includes detailed information about new features, improvements, and bug fixes.
+
 ## Requirements
 
 - Python 3.11+

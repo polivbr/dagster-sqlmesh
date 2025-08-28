@@ -29,9 +29,9 @@ Related to #<!-- issue number -->
 
 <!-- Provide a detailed list of changes -->
 
-- 
-- 
-- 
+-
+-
+-
 
 ## Testing
 
@@ -75,7 +75,7 @@ make vulture
 ### Documentation
 
 - [ ] Documentation updated (if applicable)
-- [ ] CHANGELOG.md updated (for notable changes)
+- [ ] GitHub Release notes will be updated (for notable changes)
 - [ ] ADR created/updated (for architectural decisions)
 - [ ] Examples updated (if public API changed)
 
@@ -120,10 +120,10 @@ make vulture
 
 ### Testing Instructions
 
-1. 
-2. 
-3. 
+1.
+2.
+3.
 
 ---
 
-*Thank you for contributing to dg-sqlmesh! 🙏*
+_Thank you for contributing to dg-sqlmesh! 🙏_

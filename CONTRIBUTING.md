@@ -124,7 +124,7 @@ uv run ruff format src/dg_sqlmesh/
 - [ ] Code is properly formatted: `make lint`
 - [ ] No dead code: `make vulture`
 - [ ] Documentation updated (if applicable)
-- [ ] CHANGELOG.md updated (for notable changes)
+- [ ] GitHub Release notes updated (for notable changes)
 
 ### 2. Create Pull Request
 
