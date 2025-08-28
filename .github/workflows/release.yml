@@ -29,6 +29,33 @@ jobs:
           make validate
           make docs-quality
 
+      - name: Check version consistency
+        run: |
+          # Get version from tag
+          TAG_VERSION=${GITHUB_REF#refs/tags/}
+          echo "Tag version: $TAG_VERSION"
+
+          # Get version from pyproject.toml
+          PYPROJECT_VERSION=$(grep 'version = ' pyproject.toml | cut -d'"' -f2)
+          echo "pyproject.toml version: $PYPROJECT_VERSION"
+
+          # Get version from __init__.py
+          INIT_VERSION=$(grep '__version__ = ' src/dg_sqlmesh/__init__.py | cut -d'"' -f2)
+          echo "__init__.py version: $INIT_VERSION"
+
+          # Check if versions match
+          if [ "$TAG_VERSION" != "v$PYPROJECT_VERSION" ]; then
+            echo "❌ Version mismatch: Tag $TAG_VERSION != pyproject.toml v$PYPROJECT_VERSION"
+            exit 1
+          fi
+
+          if [ "$PYPROJECT_VERSION" != "$INIT_VERSION" ]; then
+            echo "❌ Version mismatch: pyproject.toml $PYPROJECT_VERSION != __init__.py $INIT_VERSION"
+            exit 1
+          fi
+
+          echo "✅ All versions are consistent: $PYPROJECT_VERSION"
+
       - name: Build package
         run: make build
 
@@ -97,19 +124,48 @@ jobs:
       - name: Install dependencies
         run: uv sync --group dev
 
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Check if version already exists on PyPI
+        id: check_pypi
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          echo "Checking if version $VERSION already exists on PyPI..."
+
+          # Try to get package info from PyPI
+          if curl -s "https://pypi.org/pypi/dg-sqlmesh/$VERSION/json" > /dev/null 2>&1; then
+            echo "Version $VERSION already exists on PyPI. Skipping publication."
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Version $VERSION does not exist on PyPI. Proceeding with publication."
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Download build artifacts
+        if: steps.check_pypi.outputs.exists != 'true'
         uses: actions/download-artifact@v4
         with:
           name: package-dist
           path: dist/
 
       - name: Publish to PyPI
+        if: steps.check_pypi.outputs.exists != 'true'
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         run: uv publish --token $UV_PUBLISH_TOKEN
 
       - name: Verify PyPI publication
+        if: steps.check_pypi.outputs.exists != 'true'
         run: |
           sleep 30  # Wait for PyPI to update
           pip install --upgrade dg-sqlmesh
           python -c "import dg_sqlmesh; print(f'Installed version: {dg_sqlmesh.__version__}')"
+
+      - name: Skip PyPI publication
+        if: steps.check_pypi.outputs.exists == 'true'
+        run: |
+          echo "✅ Version ${{ steps.get_version.outputs.VERSION }} already exists on PyPI"
+          echo "📦 Skipping publication to avoid duplicate version error"
+          echo "🔗 PyPI URL: https://pypi.org/project/dg-sqlmesh/${{ steps.get_version.outputs.VERSION }}/"
