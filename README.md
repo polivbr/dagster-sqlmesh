@@ -1,7 +1,7 @@
 # dg-sqlmesh
 
 [![PyPI version](https://badge.fury.io/py/dg-sqlmesh.svg)](https://badge.fury.io/py/dg-sqlmesh)
-[![Current Version](https://img.shields.io/badge/version-1.9.1-blue.svg)](https://github.com/fosk06/dagster-sqlmesh/releases)
+[![Current Version](https://img.shields.io/badge/version-1.9.2-blue.svg)](https://github.com/fosk06/dagster-sqlmesh/releases)
 
 A Dagster integration for SQLMesh that provides seamless orchestration of SQLMesh models, schedules, and assets within Dagster workflows.
 
@@ -20,7 +20,6 @@ pip install -e .
 **📖 [Full Documentation →](https://fosk06.github.io/dagster-sqlmesh/)**
 
 Our comprehensive documentation includes:
-
 - **Getting Started** - Installation and setup guides
 - **User Guide** - Core concepts and architecture
 - **Examples** - Practical usage patterns
