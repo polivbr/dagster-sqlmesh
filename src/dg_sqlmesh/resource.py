@@ -39,7 +39,6 @@ from sqlmesh.utils.errors import (
     ConflictingPlanError,
     NodeAuditsErrors,
     CircuitBreakerError,
-    NoChangesPlanError,
     UncategorizedPlanError,
     AuditError,
     PythonModelEvalError,
@@ -219,7 +218,6 @@ class SQLMeshResource(ConfigurableResource):
         except (
             PlanError,
             ConflictingPlanError,
-            NoChangesPlanError,
             UncategorizedPlanError,
         ) as e:
             self._log_and_raise(f"Planning error: {e}")
