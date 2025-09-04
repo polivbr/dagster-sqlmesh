@@ -660,7 +660,7 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.0.0" },
     { name = "pandas", specifier = ">=2.2.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4.1" },
-    { name = "sqlmesh", extras = ["postgres", "web"], specifier = ">=0.213.1" },
+    { name = "sqlmesh", extras = ["postgres", "web"], specifier = ">=0.214.0" },
     { name = "vulture", specifier = ">=2.14" },
 ]
 
